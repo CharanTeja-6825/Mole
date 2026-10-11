@@ -49,6 +49,8 @@ curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
+Mole 只通过 Homebrew、这个 GitHub 仓库和 Mac 版官网 [mole.fit](https://mole.fit/) 发布，自称基于 Mole 的其他 App，或者让你往终端里粘贴一段编码命令的网站，都和 Mole 无关。
+
 **常用命令**
 
 ```bash
