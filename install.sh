@@ -839,9 +839,11 @@ get_latest_release_tag_from_git() {
     if ! command -v git > /dev/null 2>&1; then
         return 1
     fi
+    # Only plain macOS tags: the Windows CLI publishes V<x.y.z>-windows in the
+    # same repository, and sort -V ranks V1.60.0-windows above V1.60.0.
     git ls-remote --tags --refs https://github.com/tw93/mole.git 2> /dev/null |
         awk -F/ '{print $NF}' |
-        grep -E '^V[0-9]' |
+        grep -E '^V[0-9]+\.[0-9]+\.[0-9]+$' |
         sort -V |
         tail -n 1
 }

@@ -1409,3 +1409,22 @@ EOF
 		return 1
 	}
 }
+
+@test "get_latest_release_tag_from_git ignores Windows CLI tags" {
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+mole_source_installer
+git() {
+	printf '%s\trefs/tags/%s\n' \
+		aaaa V1.59.1 \
+		bbbb V1.60.0 \
+		cccc V1.60.0-windows \
+		dddd V1.61.0-windows \
+		eeee v1.30.0-windows
+}
+get_latest_release_tag_from_git
+EOF
+
+	[ "$status" -eq 0 ] || return 1
+	[ "$output" = "V1.60.0" ]
+}
