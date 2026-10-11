@@ -3,7 +3,7 @@
   <p><b>Nettoyage en profondeur, désinstallation d'apps, optimisation, analyse de disque et surveillance pour Mac. CLI open source gratuite, plus une app Mac native.</b></p>
   <p><a href="README.md">English</a> · <a href="README_CN.md">中文</a> · <a href="README_TW.md">繁體</a> · <a href="README_JA.md">日本語</a> · <a href="README_KR.md">한국어</a> · <a href="README_DE.md">Deutsch</a> · Français · <a href="README_UA.md">Українська</a></p>
   <a href="https://github.com/tw93/mole/stargazers"><img src="https://img.shields.io/github/stars/tw93/mole?style=flat-square" alt="Stars"></a>
-  <a href="https://github.com/tw93/mole/releases"><img src="https://img.shields.io/github/v/tag/tw93/mole?label=version&style=flat-square" alt="Version"></a>
+  <a href="https://github.com/tw93/mole/releases"><img src="https://img.shields.io/github/v/release/tw93/mole?label=version&style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL_v3-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://github.com/tw93/mole/commits"><img src="https://img.shields.io/github/commit-activity/m/tw93/mole?style=flat-square" alt="Commits"></a>
   <a href="https://twitter.com/HiTw93"><img src="https://img.shields.io/badge/follow-Tw93-red?style=flat-square&logo=Twitter" alt="Twitter"></a>
@@ -27,7 +27,7 @@
 
 ## Démarrage rapide
 
-Mole nécessite macOS 12 ou une version plus récente et prend en charge les Mac Intel et Apple Silicon. Si Homebrew ne prend plus en charge votre version de macOS, utilisez plutôt le script d'installation ; une version expérimentale pour Windows est accessible sur la [branche windows](https://github.com/tw93/Mole/tree/windows).
+Mole nécessite macOS 12 ou une version plus récente et prend en charge les Mac Intel et Apple Silicon. Si Homebrew ne prend plus en charge votre version de macOS, utilisez plutôt le script d'installation.
 
 **Installation via Homebrew**
 
@@ -39,6 +39,12 @@ brew install mole
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
+```
+
+**Sous Windows** ([CLI Windows](https://github.com/tw93/Mole/tree/windows))
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
 **Commandes principales**

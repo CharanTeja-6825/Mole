@@ -3,7 +3,7 @@
   <p><b>Mac 심층 정리, 앱 제거, 시스템 최적화, 디스크 분석 및 상태 모니터링. 무료 오픈소스 CLI와 네이티브 Mac 앱.</b></p>
   <p><a href="README.md">English</a> · <a href="README_CN.md">中文</a> · <a href="README_TW.md">繁體</a> · <a href="README_JA.md">日本語</a> · 한국어 · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_UA.md">Українська</a></p>
   <a href="https://github.com/tw93/mole/stargazers"><img src="https://img.shields.io/github/stars/tw93/mole?style=flat-square" alt="Stars"></a>
-  <a href="https://github.com/tw93/mole/releases"><img src="https://img.shields.io/github/v/tag/tw93/mole?label=version&style=flat-square" alt="Version"></a>
+  <a href="https://github.com/tw93/mole/releases"><img src="https://img.shields.io/github/v/release/tw93/mole?label=version&style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL_v3-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://github.com/tw93/mole/commits"><img src="https://img.shields.io/github/commit-activity/m/tw93/mole?style=flat-square" alt="Commits"></a>
   <a href="https://twitter.com/HiTw93"><img src="https://img.shields.io/badge/follow-Tw93-red?style=flat-square&logo=Twitter" alt="Twitter"></a>
@@ -27,7 +27,7 @@
 
 ## 빠른 시작
 
-Mole은 macOS 12 이상을 지원하며, Intel 및 Apple Silicon Mac 모두에서 동작합니다. 현재 macOS 버전에서 Homebrew 설치가 어려우면 설치 스크립트를 사용하고, 실험적인 Windows 버전은 [windows 브랜치](https://github.com/tw93/Mole/tree/windows)에서 확인할 수 있습니다.
+Mole은 macOS 12 이상을 지원하며, Intel 및 Apple Silicon Mac 모두에서 동작합니다. 현재 macOS 버전에서 Homebrew 설치가 어려우면 설치 스크립트를 사용하세요.
 
 **Homebrew로 설치**
 
@@ -39,6 +39,12 @@ brew install mole
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
+```
+
+**Windows에서 설치** ([Windows CLI](https://github.com/tw93/Mole/tree/windows))
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
 **주요 명령어**
