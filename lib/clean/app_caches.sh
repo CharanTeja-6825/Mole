@@ -58,14 +58,9 @@ _simulator_app_cache_delete_guard_allows() {
     mole_clean_process_guard _simulator_cleanup_process_state "Simulator or CoreSimulator running"
 }
 
-_final_cut_pro_delete_guard_allows() {
-    mole_clean_process_guard final_cut_pro_is_running "Final Cut Pro started"
-}
-
 _defer_app_cache_guard_family() {
     case "$1" in
         _simulator_app_cache_delete_guard_allows) mole_defer_cleanup_family "Simulator" ;;
-        _final_cut_pro_delete_guard_allows) mole_defer_cleanup_family "Final Cut Pro" ;;
         _autodesk_cache_delete_guard_allows) mole_defer_cleanup_family "Autodesk" ;;
         *) mole_defer_cleanup_family "Xcode" ;;
     esac
@@ -907,120 +902,6 @@ clean_design_tools() {
     safe_clean ~/Library/Application\ Support/Adobe/Common/Media\ Cache\ Files/* "Adobe media cache files"
 }
 # Video editing tools.
-final_cut_pro_is_running() {
-    mole_pgrep_any \
-        -x "Final Cut Pro" \
-        -f "/Final Cut Pro.app/"
-}
-
-final_cut_pro_path_has_protected_component() {
-    local path="$1"
-
-    case "$path" in
-        */Original\ Media | */Original\ Media/* | \
-            */CurrentVersion.flexolibrary | */CurrentVersion.plist | */Settings.plist | \
-            */Motion\ Templates | */Motion\ Templates/* | \
-            */Final\ Cut\ Pro\ Backups | */Final\ Cut\ Pro\ Backups/*)
-            return 0
-            ;;
-    esac
-
-    return 1
-}
-
-is_final_cut_pro_generated_cache_target() {
-    local library="$1"
-    local target="$2"
-
-    [[ -n "$library" && -n "$target" ]] || return 1
-    [[ "$library" == /* && "$target" == /* ]] || return 1
-    [[ "$library" == "$HOME"/Movies/*.fcpbundle ]] || return 1
-    [[ "$target" == "$library"/* ]] || return 1
-    [[ -d "$library" && ! -L "$library" ]] || return 1
-    [[ -d "$target" && ! -L "$target" ]] || return 1
-
-    final_cut_pro_path_has_protected_component "$target" && return 1
-
-    if declare -f validate_path_for_deletion > /dev/null 2>&1; then
-        validate_path_for_deletion "$target" > /dev/null 2>&1 || return 1
-    fi
-
-    local relative_target="${target#"$library"/}"
-    case "$relative_target" in
-        */Render\ Files/High\ Quality\ Media | */Transcoded\ Media/Proxy\ Media)
-            return 0
-            ;;
-    esac
-
-    return 1
-}
-
-find_final_cut_pro_generated_cache_targets() {
-    local movies_dir="$HOME/Movies"
-    [[ -d "$movies_dir" ]] || return 0
-
-    local library target
-    while IFS= read -r -d '' library; do
-        [[ -d "$library" && ! -L "$library" ]] || continue
-
-        while IFS= read -r -d '' target; do
-            if is_final_cut_pro_generated_cache_target "$library" "$target"; then
-                printf '%s\0' "$target"
-            fi
-        done < <(command find "$library" \
-            \( -type d \( \
-            -name "Original Media" -o \
-            -name "Analysis Files" -o \
-            -name "Motion Templates" -o \
-            -name "Final Cut Pro Backups" \
-            \) -prune \) -o \
-            \( -type d \( \
-            -path "*/Render Files/High Quality Media" -o \
-            -path "*/Transcoded Media/Proxy Media" \
-            \) -print0 \) 2> /dev/null || true)
-    done < <(command find "$movies_dir" -maxdepth 4 -type d -name "*.fcpbundle" -prune -print0 2> /dev/null || true)
-}
-
-clean_final_cut_pro_generated_caches() {
-    local -a fcp_cache_targets=()
-    local target
-    while IFS= read -r -d '' target; do
-        if mole_cleanup_targets_exist "$target"; then
-            fcp_cache_targets+=("$target")
-        fi
-    done < <(find_final_cut_pro_generated_cache_targets)
-
-    [[ ${#fcp_cache_targets[@]} -gt 0 ]] || return 0
-
-    local process_state=0
-    final_cut_pro_is_running || process_state=$?
-    if [[ $process_state -ne 1 ]]; then
-        if [[ $process_state -eq 2 ]]; then
-            echo -e "  ${GRAY}${ICON_WARNING}${NC} Final Cut Pro generated caches · skipped (process state unknown)"
-            note_activity
-        else
-            mole_defer_cleanup_family "Final Cut Pro"
-        fi
-        return 0
-    fi
-
-    # Final Cut Pro generated cache cleanup (issue #843).
-    # Safety scope for the first pass:
-    # - only scan ~/Movies, the default Apple library location;
-    # - only delete exact generated-media directories documented by Apple as
-    #   regenerable: render media and proxy media;
-    # - never touch Original Media, library databases, plist settings, backups,
-    #   Motion templates, Analysis Files, optimized media, or external .fcpcache.
-    # Future expansion can add explicit flags or configurable roots for
-    # optimized media, Analysis Files, and external cache bundles after more
-    # field feedback.
-    _app_cache_safe_clean_guarded \
-        _final_cut_pro_delete_guard_allows \
-        "Final Cut Pro generated caches" \
-        "${fcp_cache_targets[@]}" \
-        "Final Cut Pro generated cache" || true
-}
-
 jianying_pro_is_running() {
     command -v pgrep > /dev/null 2>&1 || return 2
 
@@ -1058,44 +939,11 @@ clean_jianying_pro_generated_caches() {
         return 0
     fi
 
-    # JianyingPro (剪映专业版 / CapCut CN, com.lemon.lvpro) generated cache
-    # cleanup (issue #1277). Same shape as Final Cut Pro (#843): the editor
-    # keeps heavy generated caches under ~/Movies/JianyingPro/User Data/Cache/
-    # instead of ~/Library/Caches, so standard cleanup never reaches them.
-    #
-    # Safety scope for the first pass:
-    # - only the default cache root under ~/Movies; never User Data/Projects
-    #   (the user's editable drafts) or any sibling of Cache;
-    # - only remove an explicit whitelist of regenerable subdirectories:
-    #   subtitle-recognition PCM scratch, frame thumbnails, audio waveforms,
-    #   algorithm scratch, and prerender/remux temp;
-    # - never touch draft-referenced or downloaded assets (effect,
-    #   onlineMaterial, artistEffect, music, AITextTemplate, template,
-    #   local_models, AigcMaterailCache, agencycache); plaintext draft configs
-    #   reference effect 8000+ times, so anything not on this list is preserved.
-    #
-    # image/ and importcache3/ are deliberately excluded: both hold copies of
-    # material the user imported, draft_info.json is encrypted so no plaintext
-    # reference check can prove they are unreferenced, and mo clean deletes
-    # permanently. If the user has since moved or deleted the source file, the
-    # cached copy is the only remaining one. Revisit only with evidence that
-    # the editor re-imports from the original on demand.
-    #
-    # Verified on a real machine (macOS 15.7 Intel, JianyingPro 11.1.0):
-    # removing this set reclaimed ~70GB, 2025-era projects reopened cleanly, and
-    # the app recreated the scratch directories on next launch.
+    # Scratch only. Rendered/remuxed media can be the last copy when the
+    # original footage is gone; inspect those files in the editor or Analyze.
+    # Imported files, downloaded materials and project data also stay untouched.
     local -a regenerable_subdirs=(
-        recognize
-        frameThumbnail
-        audioWave
-        AlgorithmCache
-        ILASDKDB
-        RemuxCache
-        prerender
-        segmentPrerenderCache
-        MotionBlurCache
-        ttsTemp
-        tmp
+        recognize frameThumbnail audioWave AlgorithmCache ILASDKDB ttsTemp tmp
     )
 
     local -a targets=()
@@ -1115,7 +963,6 @@ clean_jianying_pro_generated_caches() {
 clean_video_tools() {
     safe_clean ~/Library/Caches/net.telestream.screenflow10/* "ScreenFlow cache"
     safe_clean ~/Library/Caches/com.apple.FinalCut/* "Final Cut Pro cache"
-    clean_final_cut_pro_generated_caches
     safe_clean ~/Library/Caches/com.blackmagic-design.DaVinciResolve/* "DaVinci Resolve cache"
     safe_clean ~/Movies/CacheClip/* "DaVinci Resolve CacheClip"
     safe_clean ~/Library/Caches/com.adobe.PremierePro.*/* "Premiere Pro cache"
@@ -1789,24 +1636,8 @@ clean_productivity_apps() {
 }
 # Music/media players (protect Spotify offline music).
 clean_media_players() {
-    local spotify_cache="$HOME/Library/Caches/com.spotify.client"
-    local spotify_data="$HOME/Library/Application Support/Spotify"
-    local has_offline_music=false
-    # offline.bnk exists even with no offline downloads; only treat it as evidence
-    # when it has real content (>1 KB). Encrypted track blobs (*.file) are reliable.
-    local bnk_file="$spotify_data/PersistentCache/Storage/offline.bnk"
-    local bnk_size=0
-    [[ -f "$bnk_file" ]] && bnk_size=$(stat -f%z "$bnk_file" 2> /dev/null || echo 0)
-    if [[ $bnk_size -gt 1024 ]] ||
-        [[ -d "$spotify_data/PersistentCache/Storage" && -n "$(find "$spotify_data/PersistentCache/Storage" -type f -name "*.file" 2> /dev/null | head -1)" ]]; then
-        has_offline_music=true
-    fi
-    if [[ "$has_offline_music" == "true" ]]; then
-        echo -e "  ${GRAY}${ICON_WARNING}${NC} Spotify cache protected · offline music detected"
-        note_activity
-    else
-        safe_clean ~/Library/Caches/com.spotify.client/* "Spotify cache"
-    fi
+    # Spotify's cache can contain offline music in more than one layout.
+    # Absence of an offline marker does not prove it disposable.
     safe_clean ~/Library/Caches/com.apple.Music "Apple Music cache"
     safe_clean ~/Library/Caches/com.apple.podcasts "Apple Podcasts cache"
     # Apple Podcasts sandbox container: zombie sparse files and stale artwork cache (#387)

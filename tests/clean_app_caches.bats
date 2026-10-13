@@ -385,10 +385,10 @@ EOF
 
     [ "$status" -eq 0 ]
     [[ "$output" != *"CLEAN:Spotify cache"* ]] || return 1
-    [[ "$output" == *"Spotify cache protected"* ]]
+    [[ "$output" == *"CLEAN:Apple Music cache"* ]]
 }
 
-@test "clean_media_players cleans spotify cache when bnk is empty" {
+@test "clean_media_players preserves spotify cache when bnk is empty" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -401,7 +401,7 @@ EOF
 
     [ "$status" -eq 0 ]
     [[ "$output" != *"Spotify cache protected"* ]] || return 1
-    [[ "$output" == *"CLEAN:Spotify cache"* ]]
+    [[ "$output" != *"CLEAN:Spotify cache"* ]]
 }
 
 @test "clean_user_gui_applications calls all sections" {
@@ -459,192 +459,6 @@ EOF
     [[ "$first_run" == *"GROUP STOP RC=0"* ]] || { echo "$first_run"; return 1; }
     # A cancelled download-manager group still stops the spinner and returns its status.
     [[ "$output" == *$'STOP\nCANCEL_RC=130'* ]] || { echo "$output"; return 1; }
-}
-
-@test "clean_final_cut_pro_generated_caches targets only safe generated media in Movies libraries" {
-    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/lib/core/common.sh"
-source "$PROJECT_ROOT/lib/clean/app_caches.sh"
-
-mkdir -p "$HOME/Movies/Project.fcpbundle/Event/Render Files/High Quality Media"
-mkdir -p "$HOME/Movies/Project.fcpbundle/Event/Transcoded Media/Proxy Media"
-mkdir -p "$HOME/Movies/Project.fcpbundle/Event/Transcoded Media/High Quality Media"
-mkdir -p "$HOME/Movies/Project.fcpbundle/Event/Analysis Files/Stabilization"
-mkdir -p "$HOME/Movies/Project.fcpbundle/Event/Original Media/Render Files/High Quality Media"
-mkdir -p "$HOME/Documents/Other.fcpbundle/Event/Render Files/High Quality Media"
-
-touch "$HOME/Movies/Project.fcpbundle/Event/Render Files/High Quality Media/render.mov"
-touch "$HOME/Movies/Project.fcpbundle/Event/Transcoded Media/Proxy Media/proxy.mov"
-
-pgrep() { return 1; }
-safe_clean() {
-    local arg
-    for arg in "$@"; do
-        printf 'CLEAN:%s\n' "$arg"
-    done
-}
-
-clean_final_cut_pro_generated_caches
-EOF
-
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"CLEAN:$HOME/Movies/Project.fcpbundle/Event/Render Files/High Quality Media"* ]] || return 1
-    [[ "$output" == *"CLEAN:$HOME/Movies/Project.fcpbundle/Event/Transcoded Media/Proxy Media"* ]] || return 1
-    [[ "$output" == *"CLEAN:Final Cut Pro generated cache"* ]] || return 1
-    [[ "$output" != *"Transcoded Media/High Quality Media"* ]] || return 1
-    [[ "$output" != *"Analysis Files"* ]] || return 1
-    [[ "$output" != *"Original Media"* ]] || return 1
-    [[ "$output" != *"Documents/Other.fcpbundle"* ]]
-}
-
-@test "clean_final_cut_pro_generated_caches skips while Final Cut Pro is running" {
-    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/lib/core/common.sh"
-source "$PROJECT_ROOT/lib/clean/app_caches.sh"
-
-mkdir -p "$HOME/Movies/Project.fcpbundle/Event/Render Files/High Quality Media"
-pgrep() { return 0; }
-safe_clean() {
-    echo "unexpected safe_clean"
-    return 1
-}
-
-clean_final_cut_pro_generated_caches
-EOF
-
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"Final Cut Pro generated caches · skipped"* ]] || return 1
-    [[ "$output" != *"unexpected safe_clean"* ]]
-}
-
-@test "clean_final_cut_pro_generated_caches does not defer whitelist-only targets" {
-    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/lib/core/common.sh"
-source "$PROJECT_ROOT/lib/clean/app_caches.sh"
-
-target="$HOME/Movies/Whitelisted.fcpbundle/Event/Render Files/High Quality Media"
-mkdir -p "$target"
-touch "$target/render.mov"
-should_protect_path() { return 1; }
-is_path_whitelisted() { [[ "$1" == "$target" ]]; }
-pgrep() { return 0; }
-defer_cleanup_family() { echo "UNEXPECTED_DEFER:$1"; }
-safe_clean() { echo "UNEXPECTED_CLEAN:${!#}"; }
-clean_final_cut_pro_generated_caches
-EOF
-
-    [ "$status" -eq 0 ] || {
-        echo "$output"
-        return 1
-    }
-    [[ "$output" != *"UNEXPECTED_DEFER"* ]] || return 1
-    [[ "$output" != *"UNEXPECTED_CLEAN"* ]]
-}
-
-@test "clean_final_cut_pro_generated_caches rechecks activity after sizing" {
-    run env HOME="$HOME/fcp-size-race" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc << 'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/bin/clean.sh"
-target="$HOME/Movies/Race.fcpbundle/Event/Render Files/High Quality Media"
-mkdir -p "$target"
-touch "$target/render.mov"
-pgrep() {
-    [[ -e "$HOME/fcp-started" ]] && return 0
-    return 1
-}
-get_cleanup_path_size_kb() {
-    : > "$HOME/fcp-started"
-    echo 1
-}
-safe_remove() { echo "UNEXPECTED_DELETE:$1"; return 0; }
-rm -f "$HOME/fcp-started"
-clean_final_cut_pro_generated_caches
-[[ -f "$target/render.mov" ]] || exit 1
-printf 'DEFER:%s\n' "$(format_deferred_cleanup_families)"
-EOF
-
-    [ "$status" -eq 0 ] || {
-        echo "$output"
-        return 1
-    }
-    [[ "$output" != *"UNEXPECTED_DELETE"* ]] || return 1
-    [[ "$output" == *"DEFER:Final Cut Pro"* ]]
-}
-
-@test "clean_final_cut_pro_generated_caches fails closed when its process probe errors" {
-    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/lib/core/common.sh"
-source "$PROJECT_ROOT/lib/clean/app_caches.sh"
-
-target="$HOME/Movies/Project.fcpbundle/Event/Render Files/High Quality Media"
-mkdir -p "$target"
-touch "$target/sentinel"
-pgrep() { return 2; }
-safe_clean() { echo "UNEXPECTED_SAFE_CLEAN:${!#}"; }
-note_activity() { :; }
-
-clean_final_cut_pro_generated_caches
-[[ -f "$target/sentinel" ]] || exit 1
-EOF
-
-    [ "$status" -eq 0 ] || {
-        echo "$output"
-        return 1
-    }
-    [[ "$output" == *"Final Cut Pro generated caches · skipped (process state unknown)"* ]] || return 1
-    [[ "$output" != *"UNEXPECTED_SAFE_CLEAN"* ]]
-}
-
-@test "whitelist row keeps FCP proxy media while render files are cleaned (#1499)" {
-    run env HOME="$HOME/fcp-1499" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/lib/manage/whitelist.sh"
-source "$PROJECT_ROOT/lib/clean/app_caches.sh"
-
-# Flat and nested libraries: the nested one pins the segment-spanning glob.
-flat_proxy="$HOME/Movies/Project.fcpbundle/Event/Transcoded Media/Proxy Media"
-flat_render="$HOME/Movies/Project.fcpbundle/Event/Render Files/High Quality Media"
-nested_proxy="$HOME/Movies/Sub/Nested.fcpbundle/Event/Transcoded Media/Proxy Media"
-nested_render="$HOME/Movies/Sub/Nested.fcpbundle/Event/Render Files/High Quality Media"
-mkdir -p "$flat_proxy" "$flat_render" "$nested_proxy" "$nested_render"
-touch "$flat_proxy/proxy.mov" "$flat_render/render.mov"
-touch "$nested_proxy/proxy.mov" "$nested_render/render.mov"
-
-# Use the shipped catalog pattern, not a hand-written copy, so this test goes
-# red when the row is absent (pre-fix) or its pattern drifts.
-fcp_pattern=""
-while IFS='|' read -r name pattern _; do
-    if [[ "$name" == "Final Cut Pro proxy media"* ]]; then
-        fcp_pattern="${pattern/\$HOME/$HOME}"
-    fi
-done < <(get_all_cache_items)
-[[ -n "$fcp_pattern" ]] || exit 1
-
-WHITELIST_PATTERNS=("$fcp_pattern")
-pgrep() { return 1; }
-defer_cleanup_family() { echo "UNEXPECTED_DEFER:$1"; }
-safe_clean() {
-    local arg
-    for arg in "$@"; do
-        printf 'CLEAN:%s\n' "$arg"
-    done
-}
-
-clean_final_cut_pro_generated_caches
-EOF
-
-    [ "$status" -eq 0 ] || {
-        echo "$output"
-        return 1
-    }
-    [[ "$output" == *"CLEAN:$HOME/fcp-1499/Movies/Project.fcpbundle/Event/Render Files/High Quality Media"* ]] || return 1
-    [[ "$output" == *"CLEAN:$HOME/fcp-1499/Movies/Sub/Nested.fcpbundle/Event/Render Files/High Quality Media"* ]] || return 1
-    [[ "$output" != *"Transcoded Media/Proxy Media"* ]] || return 1
-    [[ "$output" != *"UNEXPECTED_DEFER"* ]]
 }
 
 @test "clean_jianying_pro_generated_caches targets only whitelisted regenerable subdirs" {
@@ -803,25 +617,6 @@ EOF
 
     [ "$status" -eq 0 ]
     [[ "$output" != *"unexpected safe_clean"* ]] || return 1
-}
-
-@test "is_final_cut_pro_generated_cache_target rejects protected sibling paths" {
-    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/lib/core/common.sh"
-source "$PROJECT_ROOT/lib/clean/app_caches.sh"
-
-library="$HOME/Movies/Project.fcpbundle"
-mkdir -p "$library/Event/Render Files/High Quality Media"
-mkdir -p "$library/Event/Original Media/Render Files/High Quality Media"
-mkdir -p "$library/Event/Transcoded Media/High Quality Media"
-
-is_final_cut_pro_generated_cache_target "$library" "$library/Event/Render Files/High Quality Media"
-! is_final_cut_pro_generated_cache_target "$library" "$library/Event/Original Media/Render Files/High Quality Media" || exit 1
-! is_final_cut_pro_generated_cache_target "$library" "$library/Event/Transcoded Media/High Quality Media"
-EOF
-
-    [ "$status" -eq 0 ]
 }
 
 @test "clean_ai_apps calls expected caches" {
@@ -3021,4 +2816,25 @@ EOF
     [[ "$output" == *"Cursor/CachedExtensionVSIXs/example.vsix"* ]] || return 1
     [[ "$output" != *"/User/"* ]] || return 1
     [[ "$output" != *"/.vscode/extensions/keep-active-1654"* ]] || return 1
+}
+
+@test "ordinary media cleanup keeps rendered footage and Spotify stores without offline markers" {
+    run env HOME="$HOME/media-policy" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'SH'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+fcp="$HOME/Movies/Project.fcpbundle/Event/Render Files/High Quality Media"
+proxy="$HOME/Movies/Project.fcpbundle/Event/Transcoded Media/Proxy Media"
+cache="$HOME/Movies/JianyingPro/User Data/Cache"
+spotify="$HOME/Library/Caches/com.spotify.client/Data"
+mkdir -p "$fcp" "$proxy" "$spotify" "$cache/recognize" "$cache/prerender" "$cache/RemuxCache" "$cache/MotionBlurCache" "$cache/segmentPrerenderCache"
+pgrep() { return 1; }
+safe_clean() { printf '%s\n' "$@" >> "$HOME/candidates"; }
+clean_video_tools
+clean_media_players
+# A scratch target remains a positive control for the real cleanup path.
+grep -qxF "$cache/recognize" "$HOME/candidates" || exit 1
+if grep -E 'High Quality Media|Proxy Media|prerender|RemuxCache|MotionBlurCache|segmentPrerenderCache|Spotify|com.spotify.client' "$HOME/candidates"; then exit 1; fi
+SH
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }

@@ -157,7 +157,6 @@ Surge configuration and data|$HOME/Library/Application Support/com.nssurge.surge
 Docker BuildX cache|$HOME/.docker/buildx/cache/*|container_cache
 Podman container storage temp|$HOME/.local/share/containers/storage/tmp/*|container_cache
 Tart OCI/IPSW cache|$HOME/.tart/cache|container_cache
-Final Cut Pro proxy media (render files still cleaned)|$HOME/Movies/*.fcpbundle/*/Transcoded Media/Proxy Media|app_cache
 Font cache|$HOME/Library/Caches/com.apple.FontRegistry/*|system_cache
 Spotlight metadata cache|$HOME/Library/Caches/com.apple.spotlight/*|system_cache
 CloudKit cache|$HOME/Library/Caches/CloudKit/*|system_cache
