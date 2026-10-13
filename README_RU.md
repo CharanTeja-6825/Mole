@@ -181,6 +181,8 @@ Free space: 223.5GB (+4.5GB)
 
 `mo uninstall` удаляет установленное приложение вместе со связанными файлами, которые Mole может уверенно отнести к этому приложению. Общие данные сохраняются, если их всё ещё использует другая установленная копия. Если приложение уже удалено, поищите его остатки командой `mo clean`.
 
+Личные данные, включая настройки и плагины, по умолчанию сохраняются. Нажмите `D` в предварительном просмотре удаления, чтобы выбрать отдельные пути данных. После удаления ссылки на исчезнувшие пути в конфигурациях shell, Hook или MCP показываются только как имя файла и номер строки; Mole не изменяет эти конфигурации.
+
 ```text
 $ mo uninstall
 
@@ -192,14 +194,18 @@ Select Apps to Remove  1/3 selected
 
 Files to be removed:
 
-✓ Photoshop 2024, 12.80GB
+✓ Photoshop 2024, 4.20GB
   ✓ /Applications/Adobe Photoshop 2024/Adobe Photoshop 2024.app
-  ✓ ~/Library/Application Support/Adobe/Adobe Photoshop 2024
-  ✓ ~/Library/Preferences/com.adobe.Photoshop.plist
+
+Personal data kept:
+  ~/Library/Application Support/Adobe/Adobe Photoshop 2024
+  ~/Library/Preferences/com.adobe.Photoshop.plist
+
+D choose personal data
 
 ======================================================================
 Uninstall complete
-Removed 1 app, freed 12.80GB: Photoshop 2024
+Removed 1 app, freed 4.20GB: Photoshop 2024
 ======================================================================
 ```
 

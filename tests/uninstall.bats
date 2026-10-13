@@ -633,7 +633,8 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+mole_test_select_all_uninstall_data
+printf 'd\n' | batch_uninstall_applications
 
 [[ ! -d "$app_bundle" ]] || exit 1
 [[ ! -d "$HOME/Library/Application Support/TestApp" ]] || exit 1
@@ -2827,7 +2828,8 @@ total_size_cleaned=0
 # `read -r -s -n1 key` does not steal a byte from the heredoc script source
 # (which would silently corrupt the next bash command into 127).
 output_file="$HOME/batch_output.log"
-printf '\n' | batch_uninstall_applications > "$output_file" 2>&1
+mole_test_select_all_uninstall_data
+printf 'd\n' | batch_uninstall_applications > "$output_file" 2>&1
 output=$(cat "$output_file")
 
 # Bundle and leftovers must be gone even though kill failed.
@@ -5515,6 +5517,7 @@ INNER
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+source "$PROJECT_ROOT/tests/helpers/uninstall.bash"
 brew() { :; }
 request_sudo_access() { :; }
 start_inline_spinner() { :; }
@@ -5552,7 +5555,8 @@ selected_apps=("0|$HOME/Applications/ChatGPT.app|ChatGPT|unknown|0|Never")
 files_cleaned=0
 total_items=0
 total_size_cleaned=0
-printf '\n' | batch_uninstall_applications > "$HOME/output.log" 2>&1
+mole_test_select_all_uninstall_data
+printf 'd\n' | batch_uninstall_applications > "$HOME/output.log" 2>&1
 [[ "$(cat "$HOME/sized-plan")" == "$HOME/eligible-leftover" ]] || exit 1
 [[ "$(cat "$HOME/executed-plan")" == "$HOME/eligible-leftover" ]] || exit 1
 [[ -d "$HOME/Library/Logs/com.openai.codex" ]] || exit 1
@@ -5599,7 +5603,8 @@ PLIST
 unregister_app_bundle() { :; }
 selected_apps=("0|$HOME/Applications/OwnedApp.app|OwnedApp|com.example.owned|0|Never")
 files_cleaned=0 total_items=0 total_size_cleaned=0
-printf '\n' | batch_uninstall_applications
+mole_test_select_all_uninstall_data
+printf 'd\n' | batch_uninstall_applications
 if [[ "$MOLE_DRY_RUN" == 1 ]]; then
     [[ -d "$HOME/Applications/OwnedApp.app" ]] || exit 1
 else
@@ -5616,6 +5621,7 @@ SCRIPT
         # for the kept row; a real run subtracts the bytes it retained.
         local plan_total
         plan_total=$(printf '%s\n' "$output" | sed -n 's/.*Remove 1 app, \([0-9.]*[KMGT]*B\).*/\1/p')
+        plan_total=${plan_total##*$'\n'} # The final preview includes the explicit data choice.
         [[ -n "$plan_total" ]] || return 1
         if [[ "$preview" == 1 ]]; then
             [[ "$output" == *"would free"*"$plan_total"* ]] || return 1

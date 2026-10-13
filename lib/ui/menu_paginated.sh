@@ -1007,7 +1007,7 @@ paginated_multi_select() {
                 done
 
                 # 2. If nothing selected, auto-select current item
-                if [[ $has_selection == false ]]; then
+                if [[ $has_selection == false && "${_MOLE_MENU_KEEP_EMPTY:-false}" != true ]]; then
                     local idx=$((top_index + cursor_pos))
                     if [[ $idx -lt ${#view_indices[@]} ]]; then
                         local real="${view_indices[idx]}"

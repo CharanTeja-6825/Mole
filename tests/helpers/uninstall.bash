@@ -13,3 +13,19 @@ mole_test_isolate_uninstall_inventory() {
         return 0
     }
 }
+
+# Model an explicit selection of every offered personal-data row, not the default.
+mole_test_select_all_uninstall_data() {
+    # shellcheck disable=SC2329  # Called by the production preview.
+    drain_pending_input() { :; }
+    # shellcheck disable=SC2329  # Called by the production data selector.
+    paginated_multi_select() {
+        local index
+        MOLE_SELECTION_RESULT=""
+        for ((index = 0; index < $# - 1; index++)); do
+            [[ -z "$MOLE_SELECTION_RESULT" ]] || MOLE_SELECTION_RESULT+=,
+            MOLE_SELECTION_RESULT+="$index"
+        done
+        return 0
+    }
+}

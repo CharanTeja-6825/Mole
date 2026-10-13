@@ -256,7 +256,8 @@ total_size_cleaned=0
 printf '\n' | batch_uninstall_applications
 
 grep -q "ENSURE_SUDO:Admin required for Homebrew casks: BrewApp" "$HOME/brew_calls.log"
-grep -q "uninstall --cask --zap brew-app-cask" "$HOME/brew_calls.log"
+grep -q "uninstall --cask brew-app-cask" "$HOME/brew_calls.log" || exit 1
+! grep -q -- "--zap" "$HOME/brew_calls.log" || exit 1
 [[ $(wc -l < "$HOME/inventory.trace") -ge 2 ]] || exit 1
 EOF
 
@@ -393,7 +394,7 @@ total_size_cleaned=0
 printf '\n' | batch_uninstall_applications
 
 grep -q "ENSURE_SUDO:Admin required for Homebrew casks: BrewPreAuth" "$HOME/order.log"
-grep -q "BREW_CALL:uninstall --cask --zap brew-preauth-cask" "$HOME/order.log"
+grep -q "BREW_CALL:uninstall --cask brew-preauth-cask" "$HOME/order.log"
 [[ "$(sed -n '1p' "$HOME/order.log")" == "ENSURE_SUDO:Admin required for Homebrew casks: BrewPreAuth" ]] || exit 1
 [[ $(wc -l < "$HOME/inventory.trace") -ge 2 ]] || exit 1
 EOF

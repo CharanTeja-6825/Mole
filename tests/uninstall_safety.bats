@@ -578,7 +578,7 @@ EOF
 	[[ "$result" != *"TestApplication"* ]] || { echo "matched sibling bundle prefix"; printf '%s\n' "$result"; exit 1; }
 }
 
-@test "ByHost cleanup routes through user-mode mole_delete (no sudo prompt)" {
+@test "selected ByHost cleanup routes through user-mode mole_delete (no sudo prompt)" {
 	local fixture_home
 	fixture_home=$(mktemp -d "$HOME/inventory-fixture.XXXXXX")
 	mkdir -p "$fixture_home/Library/Preferences/ByHost"
@@ -625,7 +625,9 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+drain_pending_input() { :; }
+paginated_multi_select() { MOLE_SELECTION_RESULT=0; }
+printf 'd\n' | batch_uninstall_applications
 
 if grep -q "ByHost.*com.example.TestApp.*plist|true" "$trace"; then
 	echo "ByHost plist routed through sudo mole_delete"

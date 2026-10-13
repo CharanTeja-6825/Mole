@@ -12,6 +12,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # Load Steam launcher detection (identifies shortcut-only app bundles)
 [[ -f "$SCRIPT_DIR/lib/uninstall/steam.sh" ]] && source "$SCRIPT_DIR/lib/uninstall/steam.sh"
 
+source "$SCRIPT_DIR/lib/uninstall/review.sh"
+source "$SCRIPT_DIR/lib/uninstall/config_refs.sh"
+
 # Batch uninstall with a single confirmation.
 
 is_uninstall_dry_run() {
@@ -2123,103 +2126,111 @@ _batch_scan_app_details_impl() {
 # Reads:  app_details, brew_cask_apps, running_apps, sudo_apps,
 #         leftover_notes, total_estimated_size
 _batch_preview_and_confirm() {
-    local size_display=$(bytes_to_human "$((total_estimated_size * 1024))")
+    local -a _review_original_details=("${app_details[@]}")
+    local -a _review_auto_files=() _review_personal_files=() _review_app_sizes=()
+    local -a _review_personal_paths=() _review_selected_paths=()
+    _uninstall_prepare_data_review || return $?
+    while true; do
+        local size_display=$(bytes_to_human "$((total_estimated_size * 1024))")
 
-    echo -e "\n${PURPLE_BOLD}Files to be removed:${NC}"
+        echo -e "\n${PURPLE_BOLD}Files to be removed:${NC}"
 
-    # Warn if brew cask apps are present. The --zap wording only applies to
-    # casks that will actually zap; sibling-guarded casks run a plain
-    # uninstall so their shared configs and data stay.
-    local has_zap_cask=false
-    local zap_detail zap_is_brew zap_guard
-    for zap_detail in "${app_details[@]}"; do
-        IFS='|' read -r _ _ _ _ _ _ _ _ zap_is_brew _ _ _ _ zap_guard _ <<< "$zap_detail"
-        if [[ "$zap_is_brew" == "true" && "${zap_guard:-none}" == "none" ]]; then
-            has_zap_cask=true
-            break
-        fi
-    done
+        for detail in "${app_details[@]}"; do
+            IFS='|' read -r app_name app_path bundle_id total_kb encoded_files encoded_system_files has_sensitive_data needs_sudo_flag is_brew_cask cask_name encoded_diag_system encoded_review_system encoded_login_item_helpers sibling_guard _expected_app_identity _original_bundle_id _encoded_live_sibling_fingerprint _expected_info_identity <<< "$detail"
+            local app_size_display=$(bytes_to_human "$((total_kb * 1024))")
 
-    if [[ "$has_zap_cask" == "true" ]]; then
-        echo -e "${GRAY}${ICON_WARNING} Homebrew apps will be fully cleaned, --zap removes configs and data${NC}"
-    fi
+            local brew_tag=""
+            [[ "$is_brew_cask" == "true" ]] && brew_tag=" ${CYAN}[Brew]${NC}"
+            local steam_managed=false
+            if uninstall_app_is_steam_launcher "$app_path"; then
+                steam_managed=true
+                app_size_display="N/A (Steam-managed)"
+            fi
+            echo -e "${BLUE}${ICON_CONFIRM}${NC} ${app_name}${brew_tag} ${GRAY}, ${app_size_display}${NC}"
 
-    echo ""
+            # Show detailed file list for ALL apps (brew casks leave user data behind)
+            local related_files=$(decode_file_list "$encoded_files" "$app_name")
+            local system_files=$(decode_file_list "$encoded_system_files" "$app_name")
+            local diag_system_display
+            diag_system_display=$(decode_file_list "$encoded_diag_system" "$app_name")
+            local review_system_display
+            review_system_display=$(decode_file_list "$encoded_review_system" "$app_name")
+            [[ -n "$diag_system_display" ]] && system_files=$(
+                [[ -n "$system_files" ]] && echo "$system_files"
+                echo "$diag_system_display"
+            )
 
-    for detail in "${app_details[@]}"; do
-        IFS='|' read -r app_name app_path bundle_id total_kb encoded_files encoded_system_files has_sensitive_data needs_sudo_flag is_brew_cask cask_name encoded_diag_system encoded_review_system encoded_login_item_helpers sibling_guard _expected_app_identity _original_bundle_id _encoded_live_sibling_fingerprint _expected_info_identity <<< "$detail"
-        local app_size_display=$(bytes_to_human "$((total_kb * 1024))")
+            if [[ "$steam_managed" == "true" ]]; then
+                echo -e "  ${YELLOW}${ICON_WARNING}${NC} Steam launcher only; game files managed by Steam are not included"
+            fi
+            local leftover_note
+            for leftover_note in ${leftover_notes[@]+"${leftover_notes[@]}"}; do
+                [[ "${leftover_note%%|*}" == "$app_path" ]] || continue
+                echo -e "  ${YELLOW}${ICON_WARNING}${NC} ${leftover_note#*|}"
+            done
 
-        local brew_tag=""
-        [[ "$is_brew_cask" == "true" ]] && brew_tag=" ${CYAN}[Brew]${NC}"
-        local steam_managed=false
-        if uninstall_app_is_steam_launcher "$app_path"; then
-            steam_managed=true
-            app_size_display="N/A (Steam-managed)"
-        fi
-        echo -e "${BLUE}${ICON_CONFIRM}${NC} ${app_name}${brew_tag} ${GRAY}, ${app_size_display}${NC}"
+            local preview_path=""
+            preview_path=$(format_uninstall_preview_path "$app_path") || return $?
+            echo -e "  ${GREEN}${ICON_SUCCESS}${NC} $preview_path"
 
-        # Show detailed file list for ALL apps (brew casks leave user data behind)
-        local related_files=$(decode_file_list "$encoded_files" "$app_name")
-        local system_files=$(decode_file_list "$encoded_system_files" "$app_name")
-        local diag_system_display
-        diag_system_display=$(decode_file_list "$encoded_diag_system" "$app_name")
-        local review_system_display
-        review_system_display=$(decode_file_list "$encoded_review_system" "$app_name")
-        [[ -n "$diag_system_display" ]] && system_files=$(
-            [[ -n "$system_files" ]] && echo "$system_files"
-            echo "$diag_system_display"
-        )
-
-        if [[ "$steam_managed" == "true" ]]; then
-            echo -e "  ${YELLOW}${ICON_WARNING}${NC} Steam launcher only; game files managed by Steam are not included"
-        fi
-        local leftover_note
-        for leftover_note in ${leftover_notes[@]+"${leftover_notes[@]}"}; do
-            [[ "${leftover_note%%|*}" == "$app_path" ]] || continue
-            echo -e "  ${YELLOW}${ICON_WARNING}${NC} ${leftover_note#*|}"
+            _uninstall_print_preview_paths "$related_files" "  ${GREEN}${ICON_SUCCESS}${NC} " || return $?
+            _uninstall_print_preview_paths "$system_files" "  ${BLUE}${ICON_WARNING}${NC} System: " || return $?
+            _uninstall_print_preview_paths "$review_system_display" "  ${YELLOW}${ICON_WARNING}${NC} Review only: " || return $?
         done
 
-        local preview_path=""
-        preview_path=$(format_uninstall_preview_path "$app_path") || return $?
-        echo -e "  ${GREEN}${ICON_SUCCESS}${NC} $preview_path"
+        if [[ ${#_review_personal_paths[@]} -gt 0 ]]; then
+            local kept_data="" personal_path
+            for personal_path in "${_review_personal_paths[@]}"; do
+                if ! mole_identity_in_list "$personal_path" "${_review_selected_paths[@]+"${_review_selected_paths[@]}"}"; then
+                    kept_data=$(append_line "$kept_data" "$personal_path")
+                fi
+            done
+            if [[ -n "$kept_data" ]]; then
+                echo -e "\n${GRAY}Personal data kept:${NC}"
+                _uninstall_print_preview_paths "$kept_data" "  ${GRAY}${ICON_REVIEW}${NC} " || return $?
+            fi
+        fi
 
-        _uninstall_print_preview_paths "$related_files" "  ${GREEN}${ICON_SUCCESS}${NC} " || return $?
-        _uninstall_print_preview_paths "$system_files" "  ${BLUE}${ICON_WARNING}${NC} System: " || return $?
-        _uninstall_print_preview_paths "$review_system_display" "  ${YELLOW}${ICON_WARNING}${NC} Review only: " || return $?
+        # Confirmation before requesting sudo.
+        local app_total=${#app_details[@]}
+        local app_text="app"
+        [[ $app_total -gt 1 ]] && app_text="apps"
+
+        echo ""
+        local removal_note="Remove ${app_total} ${app_text}"
+        [[ -n "$size_display" ]] && removal_note+=", ${size_display}"
+        if [[ ${#running_apps[@]} -gt 0 ]]; then
+            removal_note+=" ${YELLOW}[Running]${NC}"
+        fi
+        [[ ${#_review_personal_paths[@]} -eq 0 ]] || echo -e "${GRAY}D${NC} choose personal data"
+        echo -ne "${PURPLE}${ICON_ARROW}${NC} ${removal_note}  ${GREEN}Enter${NC} confirm, ${GRAY}ESC${NC} cancel: "
+
+        drain_pending_input # Clean up any pending input before confirmation
+        IFS= read -r -s -n1 key || key=""
+        drain_pending_input # Clean up any escape sequence remnants
+        case "$key" in
+            $'\e' | q | Q)
+                echo ""
+                echo ""
+                return 2
+                ;;
+            d | D)
+                [[ ${#_review_personal_paths[@]} -gt 0 ]] || return 2
+                _uninstall_choose_personal_data || return $?
+                continue
+                ;;
+            "" | $'\n' | $'\r' | y | Y)
+                echo "" # Move to next line
+                break
+                ;;
+            *)
+                echo ""
+                echo ""
+                return 2
+                ;;
+        esac
+
     done
-
-    # Confirmation before requesting sudo.
-    local app_total=${#app_details[@]}
-    local app_text="app"
-    [[ $app_total -gt 1 ]] && app_text="apps"
-
-    echo ""
-    local removal_note="Remove ${app_total} ${app_text}"
-    [[ -n "$size_display" ]] && removal_note+=", ${size_display}"
-    if [[ ${#running_apps[@]} -gt 0 ]]; then
-        removal_note+=" ${YELLOW}[Running]${NC}"
-    fi
-    echo -ne "${PURPLE}${ICON_ARROW}${NC} ${removal_note}  ${GREEN}Enter${NC} confirm, ${GRAY}ESC${NC} cancel: "
-
-    drain_pending_input # Clean up any pending input before confirmation
-    IFS= read -r -s -n1 key || key=""
-    drain_pending_input # Clean up any escape sequence remnants
-    case "$key" in
-        $'\e' | q | Q)
-            echo ""
-            echo ""
-            return 2
-            ;;
-        "" | $'\n' | $'\r' | y | Y)
-            echo "" # Move to next line
-            ;;
-        *)
-            echo ""
-            echo ""
-            return 2
-            ;;
-    esac
 
     # Enable uninstall mode - allows deletion of data-protected apps (VPNs, dev tools, etc.)
     # that user explicitly chose to uninstall. System-critical components remain protected.
@@ -2458,15 +2469,12 @@ _batch_execute_removals() {
         fi
         if [[ -z "$reason" ]]; then
             if [[ "$is_brew_cask" == "true" && -n "$cask_name" ]]; then
-                # Zap stanzas delete bundle-id-keyed prefs/caches. When the
-                # sibling guard is active those paths still belong to the
-                # surviving same-bundle install, so run a plain uninstall.
-                local cask_zap_mode="zap"
-                [[ "${sibling_guard:-none}" != "none" ]] && cask_zap_mode="nozap"
+                # Mole removes only the reviewed paths below. A cask zap can
+                # reach data that was not selected or even discovered.
                 # Use brew_uninstall_cask helper (handles env vars, timeout, verification)
                 local brew_uninstall_rc=0
                 brew_uninstall_cask "$cask_name" "$app_path" \
-                    "$cask_zap_mode" || brew_uninstall_rc=$?
+                    "nozap" || brew_uninstall_rc=$?
                 if [[ $brew_uninstall_rc -eq 0 ]]; then
                     used_brew_successfully=true
                 elif mole_rc_timeout_or_signal "$brew_uninstall_rc"; then
@@ -2512,14 +2520,10 @@ _batch_execute_removals() {
                         fi
                     elif [[ $cask_state -eq 0 ]]; then
                         reason="brew uninstall failed, package still installed"
-                        if [[ "$cask_zap_mode" == "nozap" ]]; then
-                            suggestion="Run brew uninstall --cask $cask_name"
-                        else
-                            suggestion="Run brew uninstall --cask --zap $cask_name"
-                        fi
+                        suggestion="Run brew uninstall --cask $cask_name"
                     else
                         reason="brew uninstall failed, package state unknown"
-                        suggestion="Run brew uninstall --cask --zap $cask_name"
+                        suggestion="Run brew uninstall --cask $cask_name"
                     fi
                 fi
             elif [[ "$needs_sudo" == true ]]; then
@@ -2612,7 +2616,7 @@ _batch_execute_removals() {
             mole_rc_timeout_or_signal "$related_remove_rc" && return "$related_remove_rc"
             if [[ $related_remove_rc -eq $MOLE_ERR_OWNER_UNVERIFIED ]]; then
                 # Reuse the preview's retained-family state for every later
-                # side effect, including defaults, ByHost and helper bootout.
+                # side effect, including system-file removal and helper bootout.
                 bundle_id="unknown"
                 sibling_guard="guard_login"
                 system_files=""
@@ -2686,46 +2690,8 @@ _batch_execute_removals() {
                 sibling_guard="guard_login"
             fi
 
-            # Defaults writes are side effects that should never run in dry-run mode.
-            if mole_is_reverse_dns_bundle_id "$bundle_id"; then
-                if is_uninstall_dry_run; then
-                    debug_log "[DRY RUN] Would clear defaults domain: $bundle_id"
-                else
-                    if defaults read "$bundle_id" &> /dev/null; then
-                        defaults delete "$bundle_id" 2> /dev/null || true
-                    fi
-                fi
-
-                # ByHost preferences (machine-specific).
-                # User-owned plists, so route through user-mode mole_delete to
-                # avoid prompting for sudo when uninstalling a normal app.
-                if [[ -d "$HOME/Library/Preferences/ByHost" ]]; then
-                    local byhost_scan_file=""
-                    byhost_scan_file=$(create_temp_file) || return 1
-                    local byhost_scan_rc=0
-                    run_with_timeout "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" find \
-                        "$HOME/Library/Preferences/ByHost" -maxdepth 1 -type f \
-                        -name "${bundle_id}.*.plist" -print0 > "$byhost_scan_file" \
-                        2> /dev/null || byhost_scan_rc=$?
-                    if [[ $byhost_scan_rc -ne 0 ]]; then
-                        rm -f -- "$byhost_scan_file" 2> /dev/null || true # SAFE: exact tracked temp file created above
-                        return "$byhost_scan_rc"
-                    fi
-                    local byhost_delete_rc=0
-                    while IFS= read -r -d '' plist_file; do
-                        local plist_delete_rc=0
-                        mole_delete "$plist_file" "false" || plist_delete_rc=$?
-                        if mole_rc_timeout_or_signal "$plist_delete_rc"; then
-                            byhost_delete_rc=$plist_delete_rc
-                            break
-                        fi
-                    done < "$byhost_scan_file"
-                    rm -f -- "$byhost_scan_file" 2> /dev/null || true # SAFE: exact tracked temp file created above
-                    if [[ $byhost_delete_rc -ne 0 ]]; then
-                        return "$byhost_delete_rc"
-                    fi
-                fi
-            fi
+            # Preferences, including ByHost, belong to the reviewed file plan.
+            # A defaults-domain reset or a second scan would bypass data choices.
 
             # Login item helper ids are read from the selected bundle and are
             # identical across same-bundle-id siblings, so booting them out
@@ -3224,6 +3190,12 @@ batch_uninstall_applications() {
     fi
 
     _batch_render_summary
+    local references_rc=0
+    _batch_report_configuration_references || references_rc=$?
+    if [[ $references_rc -ne 0 ]]; then
+        _abort_uninstall_batch
+        return "$references_rc"
+    fi
 
     # Run brew autoremove silently in background to avoid interrupting UX.
     if [[ $brew_apps_removed -gt 0 && "${MOLE_DRY_RUN:-0}" != "1" ]]; then
