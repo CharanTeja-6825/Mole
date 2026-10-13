@@ -347,7 +347,8 @@ _mole_is_shared_home_state_root() {
             "$HOME"/.[Ll][Oo][Cc][Aa][Ll]/[Bb][Ii][Nn] | \
             "$HOME"/.[Ll][Oo][Cc][Aa][Ll]/[Ll][Ii][Bb] | \
             "$HOME"/.[Ll][Oo][Cc][Aa][Ll]/[Ss][Hh][Aa][Rr][Ee] | \
-            "$HOME"/.[Ll][Oo][Cc][Aa][Ll]/[Ss][Tt][Aa][Tt][Ee])
+            "$HOME"/.[Ll][Oo][Cc][Aa][Ll]/[Ss][Tt][Aa][Tt][Ee] | \
+            "$HOME/Library/Unity" | "$HOME/Library/Application Support/Epic")
             return 0
             ;;
     esac
@@ -742,6 +743,17 @@ _mole_uninstall_name_variant_matches() {
     done
 
     return 1
+}
+
+# IDEs glue a year and version to their product name. A bare prefix also
+# claims sibling products and backups, which an uninstall does not own.
+_mole_uninstall_versioned_product_matches() {
+    local leaf="$1" product="$2"
+    [[ -n "$product" ]] || return 1
+    [[ "$leaf" == "$product" ]] && return 0
+    [[ "$leaf" == "$product"* ]] || return 1
+    local version="${leaf#"$product"}"
+    [[ "$version" =~ ^[0-9]{4}(\.[0-9]+)+$ ]]
 }
 
 # Materialize a completed, bounded find before any uninstall plan consumes it.
@@ -1617,6 +1629,7 @@ find_app_files() {
                 return "$discovery_scan_rc"
             fi
             while IFS= read -r -d '' d; do
+                _mole_uninstall_versioned_product_matches "${d##*/}" "AndroidStudio" || continue
                 files_to_clean+=("$d")
             done < "$discovery_scan_file"
         fi
@@ -1655,15 +1668,16 @@ find_app_files() {
                 return "$discovery_scan_rc"
             fi
             while IFS= read -r -d '' d; do
+                _mole_uninstall_versioned_product_matches "${d##*/}" "$app_name" || continue
                 files_to_clean+=("$d")
             done < "$discovery_scan_file"
         done
     fi
 
-    # 5. Unity / Unreal / Godot
+    # Unity and Epic roots hold shared engines, assets and licence state.
+    # An app uninstall cannot claim them; exact per-app caches above remain.
+    # 5. Godot
     if [[ "$collect_toolchain_leftovers" == "true" ]]; then
-        [[ "$app_name" =~ Unity|unity ]] && [[ -d ~/Library/Unity ]] && files_to_clean+=("$HOME/Library/Unity")
-        [[ "$app_name" =~ Unreal|unreal ]] && [[ -d ~/Library/Application\ Support/Epic ]] && files_to_clean+=("$HOME/Library/Application Support/Epic")
         [[ "$app_name" =~ Godot|godot ]] && [[ -d ~/Library/Application\ Support/Godot ]] && files_to_clean+=("$HOME/Library/Application Support/Godot")
     fi
 

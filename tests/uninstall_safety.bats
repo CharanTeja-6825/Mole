@@ -81,6 +81,43 @@ EOF
 	[[ "$output" != *"$agents/com.example.Target.outside.plist"* ]] || return 1
 }
 
+@test "uninstall preserves shared engine roots while keeping exact app caches" {
+    mkdir -p "$HOME/Library/Unity" "$HOME/Library/Application Support/Epic"
+    mkdir -p "$HOME/Library/Caches/com.unity3d.UnityEditor5.x"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+MOLE_UNINSTALL_MODE=1 should_protect_path "$HOME/Library/Unity" || exit 1
+MOLE_UNINSTALL_MODE=1 should_protect_path "$HOME/Library/Application Support/Epic" || exit 1
+find_app_files "com.unity3d.UnityEditor5.x" "Unity"
+find_app_files "com.epicgames.UnrealEditor" "Unreal Editor"
+EOF
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" != *"$HOME/Library/Unity"* ]] || return 1
+    [[ "$output" != *"$HOME/Library/Application Support/Epic"* ]] || return 1
+    [[ "$output" == *"$HOME/Library/Caches/com.unity3d.UnityEditor5.x"* ]] || return 1
+}
+
+@test "versioned IDE leftovers exclude similarly named products and backups" {
+    for leaf in PyCharm2026.2 PyCharmTools PyCharm2026.2-backup; do
+        mkdir -p "$HOME/Library/Caches/JetBrains/$leaf"
+    done
+    for leaf in AndroidStudio2026.1 AndroidStudioTools AndroidStudio2026.1-backup; do
+        mkdir -p "$HOME/Library/Application Support/Google/$leaf"
+    done
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+find_app_files "com.jetbrains.pycharm" "PyCharm"
+find_app_files "com.google.android.studio" "Android Studio"
+EOF
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" == *"/PyCharm2026.2"* ]] || return 1
+    [[ "$output" == *"/AndroidStudio2026.1"* ]] || return 1
+    [[ "$output" != *"Tools"* ]] || return 1
+    [[ "$output" != *"-backup"* ]] || return 1
+}
+
 @test "find_app_files preserves Android Studio project source and credentials" {
 	mkdir -p "$HOME/AndroidStudioProjects/my-app"
 	mkdir -p "$HOME/.android/avd/Pixel_5.avd"
