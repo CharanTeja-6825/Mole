@@ -2,6 +2,16 @@
 
 This file is the shared source of truth for any AI agent working on this repo (Claude Code, Codex, etc.). `CLAUDE.md` is a symlink to this file. Put machine-specific or personal overrides in `AGENTS.local.md` / `CLAUDE.local.md`; both are gitignored.
 
+## Product synchronization
+
+Use these exact names in synchronization records: **Mole Mac**, **Mole for Windows**, **Mole CLI (macOS)** and **Mole CLI (Windows)**. These identify existing products, not a product rename; never use an unqualified "Mac", "Windows" or "CLI" when the destination is ambiguous.
+
+Every checkout uses root `SYNC.md` as its synchronization entry point. `AGENTS.md` owns the workflow, `SYNC.md` owns cross-product decisions, development records own test/install receipts, and security reviews own residual risks. Reuse an existing entry and ID; link its owner instead of copying the backlog. Preserve dated evidence, but correct an obsolete current-status claim in place.
+
+Before a sync, freeze all available source HEADs, branches, worktree changes and remote heads. Read the owning entries and production consumers, then inspect commits since their last reviewed source. Classify each destination as `Pending`, `Implemented`, `Intentional difference` or `Not applicable`, with a reason and next check for anything unresolved. Record source commit/entry point, destination commit/entry point, verification evidence and delivery separately. Only a verified package/feed proves `Released`; pushed source, CI and a development installation do not. An unavailable checkout or missing evidence stays explicitly unverified.
+
+Cover all four relationships when asked for a complete sync: the two apps, the two CLIs, Mole CLI (macOS) with Mole Mac, and Mole CLI (Windows) with Mole for Windows. Safety and correctness contracts transfer only after checking the destination's real consumer; platform APIs, GUI-only capabilities and private catalogs do not transfer automatically. No version bump, release, private-source disclosure or feature expansion is authorized merely by recording a row. Update the affected record and its source references in the same task, then verify every renamed path/link and report the remaining queue.
+
 ## Project
 
 Mole is a macOS system cleanup and optimization tool with shell and Go components. It performs file cleanup, app protection checks, and maintenance tasks, so safety rules matter more than speed.
