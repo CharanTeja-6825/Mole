@@ -1678,7 +1678,9 @@ cleanup() {
     exit "$exit_code"
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup 130' INT
+trap 'cleanup 143' TERM
 
 # Match app names from scan data against user-provided search terms.
 # Performs case-insensitive substring matching on app display names.

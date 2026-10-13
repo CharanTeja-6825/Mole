@@ -6259,6 +6259,50 @@ EOF
     done
 }
 
+@test "uninstall INT cleanup preserves cancellation status and runs once" {
+    run /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/bin/uninstall.sh"
+stop_uninstall_interactive_screen() { printf 'screen-restored\n'; }
+log_operation_session_end() { printf 'session-ended\n'; }
+cleanup_temp_files() { printf 'scratch-reclaimed\n'; }
+show_cursor() { :; }
+kill -INT "$$"
+printf 'unexpected-continuation\n'
+EOF
+    [ "$status" -eq 130 ] || { echo "$output"; return 1; }
+    [ "$output" = $'screen-restored\nsession-ended\nscratch-reclaimed' ]
+}
+
+@test "uninstall TERM cleanup preserves cancellation status and runs once" {
+    run /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/bin/uninstall.sh"
+stop_uninstall_interactive_screen() { printf 'screen-restored\n'; }
+log_operation_session_end() { printf 'session-ended\n'; }
+cleanup_temp_files() { printf 'scratch-reclaimed\n'; }
+show_cursor() { :; }
+kill -TERM "$$"
+printf 'unexpected-continuation\n'
+EOF
+    [ "$status" -eq 143 ] || { echo "$output"; return 1; }
+    [ "$output" = $'screen-restored\nsession-ended\nscratch-reclaimed' ]
+}
+
+@test "uninstall EXIT cleanup keeps an ordinary command failure" {
+    run /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/bin/uninstall.sh"
+stop_uninstall_interactive_screen() { :; }
+log_operation_session_end() { :; }
+cleanup_temp_files() { printf 'scratch-reclaimed\n'; }
+show_cursor() { :; }
+exit 42
+EOF
+    [ "$status" -eq 42 ] || { echo "$output"; return 1; }
+    [ "$output" = 'scratch-reclaimed' ]
+}
+
 @test "Nix self-removal refuses before discovery in normal and dry-run mode" {
     for dry_run in false true; do
         run env DRY_RUN="$dry_run" /bin/bash <<'SCRIPT'
