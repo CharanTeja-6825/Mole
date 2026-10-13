@@ -104,14 +104,16 @@ def notice_diagnostics(process, home, parent_signal, repeat_signal, keys, wait_m
     return details
 
 
-def check_notice(script, expected_status=0, wait_marker=None, keys=b'', required=(), forbidden=(), parent_signal=None, repeat_signal=None):
+def check_notice(script, expected_status=0, wait_marker=None, keys=b'', required=(), forbidden=(), parent_signal=None, repeat_signal=None, block_term=False):
     with tempfile.TemporaryDirectory(prefix="mole-update-terminal-") as home:
         master, slave = pty.openpty()
         env = dict(os.environ, HOME=home, TERM="xterm-256color", TEST_ROOT=str(root),
                    MOLE_TEST_MODE="1", MOLE_SKIP_MAIN="1", MOLE_TEST_NO_AUTH="1")
         child = 'source "$TEST_ROOT/mole"; mkdir -p "$HOME/.cache/mole"; ' + script
+        inherited_mask = 'signal.pthread_sigmask(signal.SIG_BLOCK,{signal.SIGTERM}); ' if block_term else ''
         keeper = ('import subprocess,time,signal; signal.signal(signal.SIGINT,lambda *a:None); '
-                  f'p=subprocess.run(["/bin/bash","--noprofile","--norc","-c",{child!r}]); '
+                  + inherited_mask
+                  + f'p=subprocess.run(["/bin/bash","--noprofile","--norc","-c",{child!r}]); '
                   'print("CASE_EXIT="+str(p.returncode),flush=True); time.sleep(10)')
 
         def terminal():
@@ -175,6 +177,34 @@ check_for_updates(){ echo CHECK_CALLED; printf 'Update 9.8.7 available, run mo u
 SCRIPT_DIR="$HOME/commands"
 mkdir -p "$SCRIPT_DIR/bin"
 '''
+
+
+def check_inherited_term_mask():
+    # tty7's daemon blocks TERM and its panes inherit that mask. The real
+    # interactive launcher must clear it before a child stops its spinner.
+    check_notice(setup + r'''
+cat > "$HOME/masked-term-child" <<'CHILD'
+#!/bin/bash
+set -euo pipefail
+(
+    trap 'exit 0' TERM
+    : > "$HOME/spinner-ready"
+    while :; do sleep 0.01; done
+) &
+spinner=$!
+while [[ ! -e "$HOME/spinner-ready" ]]; do sleep 0.01; done
+kill -TERM "$spinner"
+wait "$spinner"
+printf 'SPINNER_STOPPED\n'
+CHILD
+chmod +x "$HOME/masked-term-child"
+run_mole_command "$HOME/masked-term-child"
+''', block_term=True, required=(b'SPINNER_STOPPED',))
+
+
+check_inherited_term_mask()
+print('PASS: an inherited blocked TERM does not hang spinner shutdown')
+
 for command in ['clean', 'optimize', 'uninstall', 'purge', 'installer', 'analyze', 'status']:
     script = setup + f'''
 printf '#!/bin/bash\\nprintf "COMMAND_DONE\\\\n"\\nexit 7\\n' > "$SCRIPT_DIR/bin/{command}.sh"

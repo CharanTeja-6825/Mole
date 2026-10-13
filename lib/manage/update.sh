@@ -964,11 +964,12 @@ run_mole_command() {
         exit "$interrupted"
     fi
     # Bash ignores SIGINT in asynchronous jobs. Restore the normal disposition
-    # before exec so both terminal Ctrl-C and signals sent to this router work.
+    # and unblock TERM inherited from terminal daemons before exec: otherwise
+    # uninstall waits forever for a spinner that cannot receive its stop signal.
     # The checks above leave no known reason for the exec to fail; if one
     # appears anyway the cause is reported and the status is 1, like the plain
     # exec.
-    /usr/bin/perl -e '$SIG{INT}="DEFAULT"; $SIG{QUIT}="DEFAULT"; kill "USR1", getppid(); exec {$ARGV[0]} @ARGV; warn "$ARGV[0]: $!\n"; exit 1' "$@" <&0 &
+    /usr/bin/perl -MPOSIX -e '$SIG{INT}="DEFAULT"; $SIG{QUIT}="DEFAULT"; POSIX::sigprocmask(POSIX::SIG_UNBLOCK(), POSIX::SigSet->new(POSIX::SIGTERM())) or die "Cannot unblock SIGTERM: $!\n"; kill "USR1", getppid(); exec {$ARGV[0]} @ARGV; warn "$ARGV[0]: $!\n"; exit 1' "$@" <&0 &
     command_pid=$!
     _mole_forward_pending_signal
     # Bash 3.2 can discard INT inside a USR1 trap entered from wait. Settle
