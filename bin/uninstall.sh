@@ -683,7 +683,9 @@ uninstall_print_app_paths_with_mtime() {
     [[ -d "$app_dir" ]] || return 0
 
     # shellcheck disable=SC2016 # The child shell expands the batch arguments.
-    command find "$app_dir" -maxdepth 3 -iname "*.app" -exec /bin/bash -c '
+    # A hidden folder holds updater staging copies (/Applications/.x-update/app/X.app),
+    # not installs; a hidden .app itself is still listed.
+    command find "$app_dir" -mindepth 1 -maxdepth 3 \( -type d -name '.*' ! -iname '*.app' -prune \) -o -iname "*.app" -exec /bin/bash -c '
         stat_cmd="$1"
         include_info="$2"
         shift 2

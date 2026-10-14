@@ -1484,3 +1484,46 @@ STAT_BSD="$HOME/stat-fallback"
 EOF
 	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
+
+@test "updater staging copies in hidden folders are not listed as installed apps" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc <<'EOF2'
+set -uo pipefail
+source "$PROJECT_ROOT/bin/uninstall.sh"
+root="$HOME/Applications"
+mkdir -p "$root/Foo.app/Contents" "$root/.foo-update/app/Foo.app/Contents" "$root/.Helper.app/Contents"
+uninstall_print_app_paths_with_mtime "$root" | awk -F '\t' '{ print "LISTED=" $NF }' | sed "s#$HOME#~#"
+EOF2
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"LISTED=~/Applications/Foo.app"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"LISTED=~/Applications/.Helper.app"* ]] || { echo "$output"; return 1; }
+    [[ "$output" != *".foo-update"* ]] || { echo "$output"; return 1; }
+}
+
+@test "an updater staging copy does not count as a surviving sibling but a hidden app does" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc <<'EOF2'
+set -uo pipefail
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+run_with_timeout() { shift; "$@"; }
+pkg_receipt_nonstandard_app_paths() { :; }
+root="$HOME/Applications"
+selected="$root/Foo.app"
+hidden="$root/.Helper.app"
+for app in "$selected" "$root/.foo-update/app/Foo.app"; do
+  mkdir -p "$app/Contents"
+  printf '%s\n' '<plist><dict><key>CFBundleIdentifier</key><string>com.example.foo</string></dict></plist>' > "$app/Contents/Info.plist"
+done
+_MOLE_UNINSTALL_LIVE_APP_ROOTS=("$root")
+_MOLE_UNINSTALL_LIVE_VOLUMES_ROOT="$HOME/no-volumes"
+rc=0
+uninstall_live_bundle_has_other_install com.example.foo "$selected" || rc=$?
+printf 'STAGING_ONLY_RC=%s\n' "$rc"
+mkdir -p "$hidden/Contents"
+printf '%s\n' '<plist><dict><key>CFBundleIdentifier</key><string>com.example.foo</string></dict></plist>' > "$hidden/Contents/Info.plist"
+rc=0
+uninstall_live_bundle_has_other_install com.example.foo "$selected" || rc=$?
+printf 'HIDDEN_APP_RC=%s\n' "$rc"
+EOF2
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"STAGING_ONLY_RC=1"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"HIDDEN_APP_RC=0"* ]] || { echo "$output"; return 1; }
+}

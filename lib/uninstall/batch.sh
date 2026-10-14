@@ -1469,7 +1469,8 @@ uninstall_live_bundle_has_other_install() {
         local scan_rc=0
         _uninstall_materialize_complete_find0 "$scan_file" \
             "$deadline_seconds" "$root" -maxdepth 3 \
-            \( -type d -o -type l \) -iname '*.app' || scan_rc=$?
+            \( -type d -name '.*' ! -iname '*.app' ! -path "$root" -prune \) -o \
+            \( \( -type d -o -type l \) -iname '*.app' \) || scan_rc=$?
         if [[ $scan_rc -eq $MOLE_UNINSTALL_SCAN_PARTIAL ]]; then
             debug_log "Sibling application root scan incomplete (exit $scan_rc): $(mole_terminal_safe_text "$root")"
             # Unreadable subpaths under an app root. The apps this listing did
