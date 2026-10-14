@@ -273,7 +273,7 @@ main() {
         stop_inline_spinner
     fi
 
-    load_whitelist "optimize"
+    load_whitelist "optimize" || exit 1
     if [[ ${#CURRENT_WHITELIST_PATTERNS[@]} -gt 0 ]]; then
         local count=${#CURRENT_WHITELIST_PATTERNS[@]}
         if [[ $count -le 3 ]]; then

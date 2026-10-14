@@ -992,3 +992,86 @@ EOF
         fi
     done
 }
+
+# An exclusion list that exists but cannot be opened is unknown protection, not
+# an empty list: reading it as empty let clean and purge delete what the user
+# listed, and dropped the optional defaults too.
+@test "an unreadable clean whitelist stops the shared loader instead of becoming an empty list" {
+    [ "$(id -u)" -ne 0 ] || skip "root can read any file"
+    mkdir -p "$HOME/.config/mole"
+    printf '%s\n' "$HOME/Library/Caches/keep-me" > "$WHITELIST_PATH"
+    chmod 000 "$WHITELIST_PATH"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+source "$PROJECT_ROOT/lib/core/common.sh"
+rc=0
+load_mole_whitelist "$HOME" || rc=$?
+echo "RC=$rc"
+EOF
+    chmod 644 "$WHITELIST_PATH"
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"RC=1"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"Cannot read your whitelist"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"$WHITELIST_PATH"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"chmod u+r"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a readable or missing clean whitelist still loads as before" {
+    mkdir -p "$HOME/.config/mole"
+    printf '%s\n' "$HOME/Library/Caches/keep-me" > "$WHITELIST_PATH"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+source "$PROJECT_ROOT/lib/core/common.sh"
+load_mole_whitelist "$HOME" || { echo "READABLE_FAILED"; exit 1; }
+printf 'COUNT=%s\n' "${#WHITELIST_PATTERNS[@]}"
+printf 'HAS=%s\n' "$(printf '%s\n' "${WHITELIST_PATTERNS[@]}" | grep -cFx "$HOME/Library/Caches/keep-me")"
+rm -f "$HOME/.config/mole/whitelist"
+load_mole_whitelist "$HOME" || { echo "MISSING_FAILED"; exit 1; }
+echo "MISSING_OK"
+EOF
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"HAS=1"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"MISSING_OK"* ]] || { echo "$output"; return 1; }
+}
+
+@test "load_whitelist stops on an unreadable clean or optimize file in both modes" {
+    [ "$(id -u)" -ne 0 ] || skip "root can read any file"
+    local mode file
+    for mode in clean optimize; do
+        mkdir -p "$HOME/.config/mole"
+        if [[ "$mode" == "clean" ]]; then file="$HOME/.config/mole/whitelist"; else file="$HOME/.config/mole/whitelist_optimize"; fi
+        printf '%s\n' "$HOME/Library/Caches/keep-me" > "$file"
+        chmod 000 "$file"
+
+        run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MODE="$mode" /bin/bash --noprofile --norc << 'EOF'
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/manage/whitelist.sh"
+rc=0
+load_whitelist "$MODE" || rc=$?
+echo "RC=$rc"
+EOF
+        chmod 644 "$file"
+        [ "$status" -eq 0 ] || { echo "$mode: $output"; return 1; }
+        [[ "$output" == *"RC=1"* ]] || { echo "$mode: $output"; return 1; }
+        [[ "$output" == *"Cannot read your"* && "$output" == *"$file"* ]] || { echo "$mode: $output"; return 1; }
+        rm -f "$file"
+    done
+}
+
+@test "clean, purge and optimize refuse to start while the whitelist cannot be read" {
+    [ "$(id -u)" -ne 0 ] || skip "root can read any file"
+    mkdir -p "$HOME/.config/mole"
+    printf '%s\n' "$HOME/Library/Caches/keep-me" > "$WHITELIST_PATH"
+    printf '%s\n' "$HOME/Library/Caches/keep-me" > "$HOME/.config/mole/whitelist_optimize"
+    chmod 000 "$WHITELIST_PATH" "$HOME/.config/mole/whitelist_optimize"
+
+    local cmd
+    for cmd in clean purge optimize; do
+        run env HOME="$HOME" MOLE_TEST_NO_AUTH=1 "$PROJECT_ROOT/mole" "$cmd" --dry-run
+        [ "$status" -eq 1 ] || { chmod 644 "$WHITELIST_PATH" "$HOME/.config/mole/whitelist_optimize"; echo "$cmd status=$status: $output"; return 1; }
+        [[ "$output" == *"Cannot read your"* && "$output" == *"chmod u+r"* ]] || { chmod 644 "$WHITELIST_PATH" "$HOME/.config/mole/whitelist_optimize"; echo "$cmd: $output"; return 1; }
+    done
+    chmod 644 "$WHITELIST_PATH" "$HOME/.config/mole/whitelist_optimize"
+}

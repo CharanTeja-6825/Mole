@@ -44,7 +44,7 @@ IS_M_SERIES=$([[ "$(uname -m)" == "arm64" ]] && echo "true" || echo "false")
 MOLE_USER_HOME="$(get_invoking_home)"
 [[ -n "$MOLE_USER_HOME" ]] || MOLE_USER_HOME="$HOME"
 
-load_mole_whitelist "$MOLE_USER_HOME"
+load_mole_whitelist "$MOLE_USER_HOME" || exit 1
 
 CLEAN_PREVIEW_FINAL_FILE="$MOLE_USER_HOME/.config/mole/clean-list.txt"
 CLEAN_PREVIEW_STAGING_FILE=""

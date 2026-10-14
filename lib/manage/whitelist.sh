@@ -223,6 +223,12 @@ load_whitelist() {
     fi
 
     if [[ -f "$config_file" ]]; then
+        if ! mole_file_openable "$config_file"; then
+            local unreadable_label="whitelist"
+            [[ "$mode" != "optimize" ]] || unreadable_label="optimize whitelist"
+            mole_report_unreadable_whitelist "$config_file" "$unreadable_label"
+            return 1
+        fi
         while IFS= read -r line; do
             # shellcheck disable=SC2295
             line="${line#"${line%%[![:space:]]*}"}"
@@ -326,8 +332,9 @@ manage_whitelist() {
 manage_whitelist_categories() {
     local mode="$1"
 
-    # Load currently enabled patterns from both sources
-    load_whitelist "$mode"
+    # Load currently enabled patterns from both sources. An unreadable file
+    # stops here: saving the menu would replace what the user wrote.
+    load_whitelist "$mode" || return 1
 
     # Build cache items list
     local -a cache_items=()

@@ -32,7 +32,7 @@ source "$SCRIPT_DIR/../lib/clean/project.sh"
 
 # Purge ends at safe_remove just like clean, so initialize the invoking user's
 # whitelist before project discovery or the interactive selection begins.
-load_mole_whitelist
+load_mole_whitelist || exit 1
 
 # Configuration
 CURRENT_SECTION=""

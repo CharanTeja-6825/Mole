@@ -359,6 +359,20 @@ ensure_safety_whitelist_patterns() {
     done
 }
 
+# 0 when the file can be opened for reading. Existing is not enough: a list the
+# user wrote but this process cannot open (mode 000, a privacy denial) is
+# unknown protection, and reading it as empty would clean what it protects.
+mole_file_openable() {
+    { : < "$1"; } 2> /dev/null
+}
+
+# One factual cause and one next action for an exclusion list that cannot be read.
+mole_report_unreadable_whitelist() {
+    local file="$1" label="${2:-whitelist}"
+    printf 'Cannot read your %s: %s\n' "$label" "${file//[[:cntrl:]]/?}" >&2
+    printf '  Mole stops so nothing you protected is cleaned by mistake. Run: chmod u+r %q\n' "$file" >&2
+}
+
 # Load and validate the invoking user's clean whitelist. Both `clean` and
 # `purge` use safe_remove as their final deletion sink, so they must share the
 # same source of WHITELIST_PATTERNS before either command starts scanning.
@@ -378,6 +392,10 @@ load_mole_whitelist() {
 
     local whitelist_file="$MOLE_USER_HOME/.config/mole/whitelist"
     if [[ -f "$whitelist_file" ]]; then
+        if ! mole_file_openable "$whitelist_file"; then
+            mole_report_unreadable_whitelist "$whitelist_file" "whitelist"
+            return 1
+        fi
         local line duplicate existing
         while IFS= read -r line; do
             # shellcheck disable=SC2295
