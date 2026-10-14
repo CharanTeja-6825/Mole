@@ -136,6 +136,7 @@ Mole peut supprimer des fichiers ; il valide donc les chemins, protège les empl
 - `mo analyze` place les éléments sélectionnés dans la Corbeille de macOS après confirmation
 - Les opérations de nettoyage sont consignées dans `~/Library/Logs/mole/operations.log` ; consultez-les avec `mo history` ou désactivez la journalisation avec `MO_NO_OPLOG=1`
 - Préservez des caches avec `mo clean --whitelist` ou excluez des opérations avec `mo optimize --whitelist`
+- Si le fichier de liste blanche est illisible, `clean`, `purge` et `optimize` s'arrêtent au lieu de s'exécuter sans lui
 
 Consultez [SECURITY.md](SECURITY.md) et [SECURITY_AUDIT.md](SECURITY_AUDIT.md) pour la marche à suivre en cas de vulnérabilité, les limites de sécurité et les restrictions actuelles.
 
@@ -246,7 +247,7 @@ Applied 3 optimizations
 
 ### Analyse de l'espace (Analyze)
 
-`mo analyze` ouvre un explorateur de disque interactif dans le terminal. Il prend en charge les touches fléchées et les raccourcis Vim, le filtrage rapide, la sélection multiple, la prévisualisation dans le Finder et le déplacement confirmé vers la Corbeille. Les disques externes sont ignorés par défaut dans la vue générale ; examinez-les avec `mo analyze /Volumes` ou un point de montage précis. Utilisez `mo analyze /private/tmp` pour vérifier les dossiers temporaires sans déclencher de nettoyage automatique.
+`mo analyze` ouvre un explorateur de disque interactif dans le terminal. Il prend en charge les touches fléchées et les raccourcis Vim, le filtrage rapide, la sélection multiple, la prévisualisation dans le Finder et le déplacement confirmé vers la Corbeille. Les disques externes sont ignorés par défaut dans la vue générale ; examinez-les avec `mo analyze /Volumes` ou un point de montage précis. Utilisez `mo analyze /private/tmp` pour vérifier les dossiers temporaires sans déclencher de nettoyage automatique. Les clones APFS qui partagent encore tous leurs blocs ne sont comptés qu'une fois, si bien que des projets copiés ne dépassent plus la taille du disque.
 
 Une taille terminée par `+` signale une analyse partielle ; `unknown` indique que le volume n'a pas pu être mesuré. Les résultats interrompus par un délai d'attente n'écrasent pas les mesures complètes en cache ; une analyse ultérieure comblera les données manquantes. Les dossiers que macOS ne laisse pas lire au terminal restent marqués comme partiels tant que les droits d'accès ne changent pas. La liste du terminal ne garde que les 30 plus gros éléments, si bien qu'un élément illisible peut ne pas y figurer ; le total signale tout de même une analyse partielle. La sortie JSON d'un dossier inclut tous les éléments analysés.
 

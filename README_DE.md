@@ -136,6 +136,7 @@ Mole kann Dateien löschen. Deshalb prüft es Pfade, schützt gemeinsam genutzte
 - `mo analyze` verschiebt ausgewählte Objekte nach Bestätigung in den macOS-Papierkorb
 - Bereinigungsaktivitäten werden in `~/Library/Logs/mole/operations.log` protokolliert; überprüfe sie mit `mo history` oder deaktiviere das Logging mit `MO_NO_OPLOG=1`
 - Schütze Caches mit `mo clean --whitelist` oder Wartungsaufgaben mit `mo optimize --whitelist`
+- Lässt sich die Whitelist-Datei nicht lesen, brechen `clean`, `purge` und `optimize` ab, statt ohne sie weiterzulaufen
 
 Hinweise zum Melden von Schwachstellen, Sicherheitsgrenzen und aktuelle Einschränkungen findest du in [SECURITY.md](SECURITY.md) und [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
 
@@ -246,7 +247,7 @@ Applied 3 optimizations
 
 ### Speicheranalyse (Analyze)
 
-`mo analyze` öffnet einen interaktiven Festplatten-Explorer im Terminal. Unterstützt Pfeiltasten und Vim-Steuerung, Filterung, Mehrfachauswahl, Finder-Vorschau und sicheres Verschieben in den Papierkorb. Externe Laufwerke werden in der Standardübersicht ausgespart; prüfe sie mit `mo analyze /Volumes` oder einem bestimmten Mount-Pfad. Verwende `mo analyze /private/tmp`, um temporäre Benutzerdateien zu prüfen, ohne sie automatisch zu löschen.
+`mo analyze` öffnet einen interaktiven Festplatten-Explorer im Terminal. Unterstützt Pfeiltasten und Vim-Steuerung, Filterung, Mehrfachauswahl, Finder-Vorschau und sicheres Verschieben in den Papierkorb. Externe Laufwerke werden in der Standardübersicht ausgespart; prüfe sie mit `mo analyze /Volumes` oder einem bestimmten Mount-Pfad. Verwende `mo analyze /private/tmp`, um temporäre Benutzerdateien zu prüfen, ohne sie automatisch zu löschen. APFS-Klone, die noch alle ihre Blöcke teilen, werden nur einmal gezählt, sodass kopierte Projekte die Datenträgergröße nicht mehr übersteigen.
 
 Ein `+` am Ende einer Größenangabe zeigt einen Teilscan an; `unknown` bedeutet, dass die Größe nicht berechnet werden konnte. Durch Timeouts unterbrochene Ergebnisse überschreiben keinen vollständigen Cache; spätere Scans ergänzen fehlende Daten. Ordner, die macOS das Terminal nicht lesen lässt, bleiben als Teilscan markiert, bis sich die Zugriffsrechte ändern. Die Terminal-Liste zeigt nur die 30 größten Einträge, daher kann ein nicht lesbarer Eintrag außerhalb der Liste liegen; die Summe zeigt trotzdem einen Teilscan an. Die JSON-Ausgabe für Verzeichnisse enthält alle gescannten Einträge.
 

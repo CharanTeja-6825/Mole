@@ -136,6 +136,7 @@ Mole 会删除文件，所以会先校验路径、保护共享和系统目录，
 - `mo analyze` 中的删除操作在确认后默认放入 macOS 废纸篓
 - 清理操作记录在 `~/Library/Logs/mole/operations.log` 中，可通过 `mo history` 查看，或设置 `MO_NO_OPLOG=1` 禁用
 - 可通过 `mo clean --whitelist` 保护指定缓存，或使用 `mo optimize --whitelist` 排除维护项
+- 白名单文件无法读取时，`clean`、`purge` 和 `optimize` 会直接停止，不会在没有白名单的情况下继续执行
 
 漏洞报告方式、安全边界与当前限制见 [SECURITY.md](SECURITY.md) 与 [SECURITY_AUDIT.md](SECURITY_AUDIT.md)。
 
@@ -246,7 +247,7 @@ Applied 3 optimizations
 
 ### 磁盘分析（Analyze）
 
-`mo analyze` 打开终端交互式磁盘分析器，支持方向键与 Vim 快捷键浏览、快速过滤、多选标记、Finder 预览与移入废纸篓。外置磁盘默认不在概览中显示，可运行 `mo analyze /Volumes` 或指定挂载路径单独查看，`mo analyze /private/tmp` 只检查临时目录，不会把它们变成自动清理目标。
+`mo analyze` 打开终端交互式磁盘分析器，支持方向键与 Vim 快捷键浏览、快速过滤、多选标记、Finder 预览与移入废纸篓。外置磁盘默认不在概览中显示，可运行 `mo analyze /Volumes` 或指定挂载路径单独查看，`mo analyze /private/tmp` 只检查临时目录，不会把它们变成自动清理目标。APFS 克隆文件如果仍共享全部数据块只计一次，复制出来的多份项目不会再让总大小超过磁盘容量。
 
 以 `+` 结尾的大小是部分扫描里实际测到的字节数，`unknown` 表示没法测出大小。因临时超时中断的条目不会覆盖已有完整缓存，后续刷新可自动补全。macOS 不允许终端读取的文件夹会一直标为部分扫描，直到访问权限改变。终端界面只列出最大的 30 项，读不到的条目可能不在这 30 项里，但总量仍会标为部分扫描，JSON 格式输出则包含所有扫描条目。
 
