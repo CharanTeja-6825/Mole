@@ -701,7 +701,7 @@ for _ in range(3):
 print("finished=%.2fs interrupted=%.2fs" % (finished, interrupted))
 assert interrupted < 2.0 * finished, (finished, interrupted)
 PY
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "mo history does not create logs when none exist" {
