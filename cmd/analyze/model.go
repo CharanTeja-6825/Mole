@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io/fs"
 	"slices"
-	"sort"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -322,10 +321,7 @@ func (m *model) hydrateOverviewEntries() {
 }
 
 func (m *model) sortOverviewEntriesBySize() {
-	// Stable sort by size.
-	sort.SliceStable(m.entries, func(i, j int) bool {
-		return m.entries[i].Size > m.entries[j].Size
-	})
+	sortDirEntriesBySize(m.entries)
 }
 
 func (m *model) getScanProgress() (files, dirs, bytes int64) {

@@ -5,9 +5,18 @@ package main
 // entryHeap is a min-heap of dirEntry used to keep Top N largest entries.
 type entryHeap []dirEntry
 
-func (h entryHeap) Len() int           { return len(h) }
-func (h entryHeap) Less(i, j int) bool { return h[i].Size < h[j].Size }
-func (h entryHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h entryHeap) Len() int { return len(h) }
+
+// The heap evicts its smallest item first. Equal sizes fall back to the path
+// (the later path goes first), so the surviving rows and their pop order do
+// not depend on which worker finished first.
+func (h entryHeap) Less(i, j int) bool {
+	if h[i].Size != h[j].Size {
+		return h[i].Size < h[j].Size
+	}
+	return h[i].Path > h[j].Path
+}
+func (h entryHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 func (h *entryHeap) Push(x any) {
 	*h = append(*h, x.(dirEntry))
@@ -24,9 +33,14 @@ func (h *entryHeap) Pop() any {
 // largeFileHeap is a min-heap for fileEntry.
 type largeFileHeap []fileEntry
 
-func (h largeFileHeap) Len() int           { return len(h) }
-func (h largeFileHeap) Less(i, j int) bool { return h[i].Size < h[j].Size }
-func (h largeFileHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h largeFileHeap) Len() int { return len(h) }
+func (h largeFileHeap) Less(i, j int) bool {
+	if h[i].Size != h[j].Size {
+		return h[i].Size < h[j].Size
+	}
+	return h[i].Path > h[j].Path
+}
+func (h largeFileHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 func (h *largeFileHeap) Push(x any) {
 	*h = append(*h, x.(fileEntry))

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"container/heap"
 	"context"
 	"encoding/gob"
 	"encoding/json"
@@ -4118,6 +4119,33 @@ func TestPreviousSchemaCacheEntryIsRejected(t *testing.T) {
 	}
 }
 
+func TestCacheSchemaSevenFromBeforeCloneDeduplicationIsRejected(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	target := filepath.Join(home, "target")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cachePath, err := getCachePath(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Create(cachePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Schema 7 totals can still hold every APFS clone in full.
+	old := cacheEntry{TotalSize: 1 << 30, TotalFiles: 3, ModTime: time.Now(), ScanTime: time.Now(), SchemaVersion: 7}
+	if err := gob.NewEncoder(file).Encode(old); err != nil {
+		file.Close() //nolint:errcheck
+		t.Fatal(err)
+	}
+	file.Close() //nolint:errcheck
+	if entry, err := loadCacheFromDisk(target); err == nil {
+		t.Fatalf("schema 7 entry was accepted: %+v", entry)
+	}
+}
+
 func TestUnavailableEntryCannotBeSelectedForDeletion(t *testing.T) {
 	root := t.TempDir()
 	locked := filepath.Join(root, "locked")
@@ -4846,5 +4874,90 @@ func TestOverviewPartialMarkerSitsRightOfAlignedUnits(t *testing.T) {
 	}
 	if len(unitColumn) != 2 || unitColumn["User Library"] != unitColumn["Applications"] {
 		t.Fatalf("partial and complete rows should share the unit column, got %v in:\n%s", unitColumn, ansi.Strip(m.View()))
+	}
+}
+
+// Rows of equal size must not swap places between scans, refreshes or --json
+// runs; the list a user is reading should hold still.
+func TestSortDirEntriesBySizeBreaksTiesByPath(t *testing.T) {
+	entries := []dirEntry{
+		{Name: "c", Path: "/x/c", Size: 100},
+		{Name: "a", Path: "/x/a", Size: 100},
+		{Name: "big", Path: "/x/big", Size: 500},
+		{Name: "b", Path: "/x/b", Size: 100},
+	}
+
+	sortDirEntriesBySize(entries)
+
+	want := []string{"/x/big", "/x/a", "/x/b", "/x/c"}
+	for i, path := range want {
+		if entries[i].Path != path {
+			t.Fatalf("row %d: got %s, want %s (all: %+v)", i, entries[i].Path, path, entries)
+		}
+	}
+}
+
+func TestSortFileEntriesBySizeBreaksTiesByPath(t *testing.T) {
+	files := []fileEntry{
+		{Name: "z", Path: "/f/z", Size: 7},
+		{Name: "y", Path: "/f/y", Size: 7},
+		{Name: "top", Path: "/f/top", Size: 9},
+	}
+
+	sortFileEntriesBySize(files)
+
+	want := []string{"/f/top", "/f/y", "/f/z"}
+	for i, path := range want {
+		if files[i].Path != path {
+			t.Fatalf("row %d: got %s, want %s", i, files[i].Path, path)
+		}
+	}
+}
+
+func TestOverviewSortBreaksTiesByPath(t *testing.T) {
+	m := model{entries: []dirEntry{
+		{Name: "b", Path: "/o/b", Size: 10},
+		{Name: "a", Path: "/o/a", Size: 10},
+	}}
+
+	m.sortOverviewEntriesBySize()
+
+	if m.entries[0].Path != "/o/a" || m.entries[1].Path != "/o/b" {
+		t.Fatalf("overview rows of equal size must order by path, got %+v", m.entries)
+	}
+}
+
+func TestSizeHeapsPopEqualSizesInPathOrderWhateverTheArrivalOrder(t *testing.T) {
+	popPaths := func(order []string) []string {
+		h := &entryHeap{}
+		heap.Init(h)
+		for _, path := range order {
+			heap.Push(h, dirEntry{Path: path, Size: 42})
+		}
+		popped := make([]string, 0, len(order))
+		for h.Len() > 0 {
+			popped = append(popped, heap.Pop(h).(dirEntry).Path)
+		}
+		return popped
+	}
+	first := popPaths([]string{"/p/a", "/p/b", "/p/c", "/p/d"})
+	second := popPaths([]string{"/p/d", "/p/b", "/p/a", "/p/c"})
+	for i := range first {
+		if first[i] != second[i] {
+			t.Fatalf("pop order depends on arrival order: %v vs %v", first, second)
+		}
+	}
+
+	fileHeap := &largeFileHeap{}
+	heap.Init(fileHeap)
+	for _, path := range []string{"/q/c", "/q/a", "/q/b"} {
+		heap.Push(fileHeap, fileEntry{Path: path, Size: 5})
+	}
+	var filePaths []string
+	for fileHeap.Len() > 0 {
+		filePaths = append(filePaths, heap.Pop(fileHeap).(fileEntry).Path)
+	}
+	if filePaths[0] != "/q/c" || filePaths[2] != "/q/a" {
+		t.Fatalf("the later path must be evicted first, got %v", filePaths)
 	}
 }

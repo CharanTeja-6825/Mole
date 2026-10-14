@@ -155,6 +155,7 @@ func readLiveScanInitialEntries(root string, limiter *scanLimiter) (scanResult, 
 	var totalFiles int64
 	state := scanComplete
 	transient := false
+	dedupedFile := false
 
 	for _, child := range children {
 		fullPath := filepath.Join(root, child.Name())
@@ -218,7 +219,8 @@ func readLiveScanInitialEntries(root string, limiter *scanLimiter) (scanResult, 
 			transient = transient || isTransientFailure(err)
 			continue
 		}
-		size, _ := countableFileSize(info, &limiter.seen)
+		size, deduped := countableFileSize(fullPath, info, &limiter.seen)
+		dedupedFile = dedupedFile || deduped
 		totalSize += size
 		totalFiles++
 		entries = append(entries, dirEntry{
@@ -235,7 +237,7 @@ func readLiveScanInitialEntries(root string, limiter *scanLimiter) (scanResult, 
 
 	sortDirEntriesBySize(entries)
 	largeFiles = topLargeFiles(largeFiles)
-	return scanResult{Entries: entries, TotalSize: totalSize, TotalFiles: totalFiles, LargeFiles: largeFiles, State: state, transientFailure: transient}, targets, nil
+	return scanResult{Entries: entries, TotalSize: totalSize, TotalFiles: totalFiles, LargeFiles: largeFiles, State: state, transientFailure: transient, dedupedHardlink: dedupedFile}, targets, nil
 }
 
 func runLiveScan(
@@ -268,6 +270,7 @@ func runLiveScan(
 	go collectLiveLargeFiles(initial.LargeFiles, largeFileChan, &largeFileMinSize, largeFilesDone)
 
 	var dedupedHardlink atomic.Bool
+	dedupedHardlink.Store(initial.dedupedHardlink)
 	var incomplete atomic.Bool
 	var transient atomic.Bool
 	incomplete.Store(initial.State != scanComplete)
@@ -523,17 +526,29 @@ func waitLiveScanEventCmd(events <-chan liveScanEventMsg) tea.Cmd {
 	}
 }
 
+// Rows of equal size keep one order across scans, refreshes and --json runs:
+// the path breaks the tie, so a list the user is reading does not reshuffle.
 func sortDirEntriesBySize(entries []dirEntry) {
 	sort.SliceStable(entries, func(i, j int) bool {
-		return entries[i].Size > entries[j].Size
+		if entries[i].Size != entries[j].Size {
+			return entries[i].Size > entries[j].Size
+		}
+		return entries[i].Path < entries[j].Path
+	})
+}
+
+func sortFileEntriesBySize(files []fileEntry) {
+	sort.SliceStable(files, func(i, j int) bool {
+		if files[i].Size != files[j].Size {
+			return files[i].Size > files[j].Size
+		}
+		return files[i].Path < files[j].Path
 	})
 }
 
 func topLargeFiles(files []fileEntry) []fileEntry {
 	if len(files) <= maxLargeFiles {
-		sort.SliceStable(files, func(i, j int) bool {
-			return files[i].Size > files[j].Size
-		})
+		sortFileEntriesBySize(files)
 		return files
 	}
 	h := &largeFileHeap{}

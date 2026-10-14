@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -529,7 +528,7 @@ scanChildren:
 			continue
 		}
 		// Actual disk usage for sparse/cloud files, deduping hardlinks.
-		size, deduped := countableFileSize(info, &limiter.seen)
+		size, deduped := countableFileSize(fullPath, info, &limiter.seen)
 		if deduped {
 			dedupedHardlink.Store(true)
 		}
@@ -575,9 +574,7 @@ scanChildren:
 	var entries []dirEntry
 	if collectAllEntries {
 		entries = append(entries, collectedEntries...)
-		sort.SliceStable(entries, func(i, j int) bool {
-			return entries[i].Size > entries[j].Size
-		})
+		sortDirEntriesBySize(entries)
 	} else {
 		entries = make([]dirEntry, entriesHeap.Len())
 		for i := range slices.Backward(entries) {
@@ -600,6 +597,7 @@ scanChildren:
 			largeFiles = spotlightFiles
 		}
 	}
+	sortFileEntriesBySize(largeFiles)
 
 	state := scanComplete
 	if incomplete.Load() {
@@ -1232,23 +1230,42 @@ func getDirectoryLogicalSizeWithExclude(ctx context.Context, path string, exclud
 	return total, failures.err()
 }
 
+// cloneKeyDevice marks a clone id in the shared seen map; no real device
+// number can equal it, so clone ids never collide with hardlink keys.
+const cloneKeyDevice = ^uint64(0)
+
 // countableFileSize returns the on-disk size to attribute to a regular file.
 // Hardlinked files are deduplicated the way `du` does: the first link counts
-// its full size and subsequent links seen in the same scan count zero. The
-// bool reports whether this call was a deduplicated (zero-counted) hardlink.
+// its full size and subsequent links seen in the same scan count zero. An APFS
+// clone that still shares every block with another file is counted once per
+// clone id the same way, because each clone reports its full allocated size
+// (#1728: copied worktrees summed to 2.28 TB on a 994 GB disk); an edited clone
+// owns blocks and counts in full, since macOS does not say how many it shares.
+// The bool reports whether this call was a deduplicated (zero-counted) file.
 // A nil seen map disables deduplication.
-func countableFileSize(info fs.FileInfo, seen *sync.Map) (int64, bool) {
+func countableFileSize(path string, info fs.FileInfo, seen *sync.Map) (int64, bool) {
 	size := getActualFileSize("", info)
 	if seen == nil {
 		return size, false
 	}
 	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || stat.Nlink <= 1 {
+	if !ok {
 		return size, false
 	}
-	key := [2]uint64{uint64(uint32(stat.Dev)), stat.Ino}
-	if _, loaded := seen.LoadOrStore(key, struct{}{}); loaded {
-		return 0, true
+	if stat.Nlink > 1 {
+		key := [2]uint64{uint64(uint32(stat.Dev)), stat.Ino}
+		if _, loaded := seen.LoadOrStore(key, struct{}{}); loaded {
+			return 0, true
+		}
+		return size, false
+	}
+	if size == 0 {
+		return size, false
+	}
+	if cloneID, sharesAll, known := cloneIdentity(path); known && sharesAll {
+		if _, loaded := seen.LoadOrStore([2]uint64{cloneKeyDevice, cloneID}, struct{}{}); loaded {
+			return 0, true
+		}
 	}
 	return size, false
 }

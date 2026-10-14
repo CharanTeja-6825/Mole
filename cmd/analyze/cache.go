@@ -31,7 +31,8 @@ import (
 // permission denials can be cached and still reads as partial.
 // v6: deletions invalidate ancestor totals and overview measurements.
 // v7: Library overview totals count cross-directory hardlinks once again.
-const cacheSchemaVersion = 7
+// v8: APFS clones that share every block count once, so v7 totals can be inflated.
+const cacheSchemaVersion = 8
 
 type overviewSizeSnapshot struct {
 	Size          int64     `json:"size"`
