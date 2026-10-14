@@ -128,12 +128,22 @@ stat() {
             interrupted) return 130 ;;
             *) printf '0:42\n0:42\n' ;;
         esac
+    elif [[ "$1" == -f && "$2" == '%d' ]]; then
+        # Every fixture entry stands for a mounted disk, which reports its
+        # own device, except the folder cases, which keep the real answer.
+        case "$SCAN_CASE" in
+            folder | folder-sibling) /usr/bin/stat "$@" ;;
+            folder-unknown) return 1 ;;
+            folder-interrupted) return 130 ;;
+            *) printf '43\n42\n' ;;
+        esac
     else
         /usr/bin/stat "$@"
     fi
 }
 case "$SCAN_CASE" in
     mounted) survivor="$snapshots/Survivor.app" ;;
+    folder-sibling) survivor="$volumes/External/Applications/Survivor.app" ;;
     lookalike) survivor="$volumes/com.apple.TimeMachine.localsnapshots-copy/Survivor.app" ;;
     sibling) survivor="$volumes/External/Applications/Survivor.app" ;;
     # Sorts after the skipped share, so the scan must continue past it.
@@ -147,6 +157,13 @@ if [[ -n "$survivor" ]]; then
 fi
 if [[ "$SCAN_CASE" != mounted ]]; then chmod 000 "$snapshots"; fi
 if [[ "$SCAN_CASE" == ordinary ]]; then mkdir -p "$volumes/Ordinary"; chmod 000 "$volumes/Ordinary"; fi
+case "$SCAN_CASE" in
+    # Time Machine's leftover network-backup folder: searchable, not listable.
+    folder | folder-sibling | folder-unknown | folder-interrupted)
+        mkdir -p "$volumes/Ordinary"
+        chmod 111 "$volumes/Ordinary"
+        ;;
+esac
 case "$SCAN_CASE" in
     stale-share | stale-share-sibling | reachable-share | mount-timeout | mount-failed | mount-interrupted | probe-timeout | probe-interrupted)
         mkdir -p "$volumes/Share"
@@ -1461,6 +1478,22 @@ EOF
 
 @test "ordinary unreadable volumes still make sibling discovery incomplete" {
     assert_time_machine_volume_scan ordinary 3
+}
+
+@test "an unreadable folder that is not a mounted volume does not make sibling discovery incomplete (#1735)" {
+    assert_time_machine_volume_scan folder 1
+}
+
+@test "skipping an unmounted unreadable folder still finds a sibling on another volume" {
+    assert_time_machine_volume_scan folder-sibling 0
+}
+
+@test "unknown device metadata keeps an unreadable folder in sibling discovery" {
+    assert_time_machine_volume_scan folder-unknown 3
+}
+
+@test "a device probe interruption cancels sibling discovery" {
+    assert_time_machine_volume_scan folder-interrupted 130
 }
 
 @test "an unreachable network share does not make sibling discovery incomplete" {

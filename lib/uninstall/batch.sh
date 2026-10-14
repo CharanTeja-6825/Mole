@@ -1255,6 +1255,27 @@ _uninstall_volume_is_unreachable_share() {
     [[ $probe_rc -eq 0 ]]
 }
 
+# A folder under /Volumes that sits on the same device as /Volumes itself is
+# not a mount point, so no disk is attached there (Time Machine leaves root
+# 0111 "Backups of <Mac>" folders behind after network backups, #1735). When
+# it is also unreadable it is left out instead of making the scan incomplete;
+# an unreadable mounted volume still does. Unknown metadata keeps the entry.
+_uninstall_volume_is_unmounted_unreadable_folder() {
+    local entry="$1"
+    local deadline_seconds="$2"
+    [[ -d "$entry" && ! -L "$entry" ]] || return 1
+    [[ ! -r "$entry" || ! -x "$entry" ]] || return 1
+    local probe_timeout="" devices="" probe_rc=0
+    probe_timeout=$(_mole_timeout_with_deadline "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" "$deadline_seconds") || return 1
+    devices=$(run_with_timeout "$probe_timeout" stat -f '%d' \
+        "$entry" "$_MOLE_UNINSTALL_LIVE_VOLUMES_ROOT" < /dev/null 2> /dev/null) || probe_rc=$?
+    [[ $probe_rc -ge 128 ]] && return "$probe_rc"
+    [[ $probe_rc -eq 0 && "$devices" == *$'\n'* ]] || return 1
+    local entry_device="${devices%%$'\n'*}"
+    local root_device="${devices#*$'\n'}"
+    [[ "$entry_device" =~ ^[0-9]+$ && "$entry_device" == "$root_device" ]]
+}
+
 # Return 0 for one or more other live installs, 1 only for a complete
 # proof of absence, 2 for incomplete/unknown state, and preserve signals.
 # A deadline timeout degrades to MOLE_UNINSTALL_SCAN_PARTIAL: out of budget
@@ -1373,6 +1394,17 @@ uninstall_live_bundle_has_other_install() {
                     "$deadline_seconds" || share_rc=$?
                 if [[ $share_rc -eq 0 ]]; then
                     debug_log "Skipping unreachable network share: $(mole_terminal_safe_text "$volume_entry")"
+                    continue
+                elif [[ $share_rc -ge 128 ]]; then
+                    eval "$restore_glob_options"
+                    rm -f -- "$volume_roots_file" "$scan_file" "$pkg_paths_file" 2> /dev/null || true # SAFE: exact tracked temp files created above
+                    return "$share_rc"
+                fi
+                share_rc=0
+                _uninstall_volume_is_unmounted_unreadable_folder "$volume_entry" \
+                    "$deadline_seconds" || share_rc=$?
+                if [[ $share_rc -eq 0 ]]; then
+                    debug_log "Skipping unreadable folder that is not a mounted volume: $(mole_terminal_safe_text "$volume_entry")"
                     continue
                 elif [[ $share_rc -ge 128 ]]; then
                     eval "$restore_glob_options"
