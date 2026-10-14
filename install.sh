@@ -761,7 +761,8 @@ resolve_source_dir() {
             stop_line_spinner
             # Only exit early for version tags (not for main/dev branches)
             if [[ "$branch" != "main" && "$branch" != "dev" ]]; then
-                log_error "Failed to fetch version ${branch}. Check if tag exists."
+                log_error "Could not download Mole ${branch} from GitHub. Check that github.com is reachable from this network"
+                log_error "Retry when it is, or confirm the tag exists on the releases page if the network is fine"
                 exit 1
             fi
         fi
@@ -1394,6 +1395,7 @@ download_binary() {
     fi
     rm -f "$staged_path"
     log_error "Failed to install ${binary_name} binary"
+    log_error "Its release download from github.com did not complete, so ${binary_name} stays unavailable; run mo update again once github.com is reachable"
     return 1
 }
 

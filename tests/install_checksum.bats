@@ -1457,3 +1457,54 @@ EOF
 	[ "$status" -eq 0 ] || return 1
 	[ "$output" = "V1.60.0" ]
 }
+
+@test "download_binary names the GitHub download as the cause when the helper cannot be fetched or built" {
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF2'
+set -uo pipefail
+mole_source_installer
+
+INSTALL_DIR="$HOME/install"
+CONFIG_DIR="$HOME/config"
+SOURCE_DIR="$HOME/source"
+VERBOSE=1
+GREEN='' BLUE='' YELLOW='' RED='' NC=''
+start_line_spinner() { :; }
+stop_line_spinner() { :; }
+log_success() { echo "SUCCESS:$*"; }
+log_warning() { echo "WARNING:$*"; }
+log_error() { echo "ERROR:$*"; }
+get_latest_release_tag() { echo "V1.2.3"; }
+get_source_version() { echo "1.2.3"; }
+build_binary_from_source() { return 1; }
+curl_download_with_retry() { return 22; }
+
+rc=0
+download_binary "analyze" || rc=$?
+echo "RC=$rc"
+EOF2
+
+	[[ "$output" == *"RC=1"* ]] || {
+		echo "$output"
+		return 1
+	}
+	[[ "$output" == *"ERROR:Failed to install analyze binary"* ]] || {
+		echo "$output"
+		return 1
+	}
+	[[ "$output" == *"github.com did not complete"* && "$output" == *"run mo update again"* ]] || {
+		echo "$output"
+		return 1
+	}
+}
+
+@test "a failed source archive download blames the network before the tag" {
+	run awk '
+		/^[[:space:]]*#/ { next }
+		/Could not download Mole \$\{branch\} from GitHub/ { net = NR }
+		/confirm the tag exists/ { tag = NR }
+		/Check if tag exists/ { stale = 1 }
+		END { exit (!net || !tag || tag <= net || stale) }
+	' "$PROJECT_ROOT/install.sh"
+
+	[ "$status" -eq 0 ]
+}
