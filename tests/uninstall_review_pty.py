@@ -49,6 +49,16 @@ def read_until(master, marker, timeout=8):
     return output
 
 
+def wait_for_key_read(slave, timeout=8):
+    # The prompt prints, drains pending input, then starts read -s, which
+    # turns echo off. A key sent before that is drained on purpose, so wait
+    # for echo to go off instead of sleeping a fixed time.
+    deadline = time.monotonic() + timeout
+    while termios.tcgetattr(slave)[3] & termios.ECHO:
+        assert time.monotonic() < deadline, 'prompt never started reading a key'
+        time.sleep(.01)
+
+
 def check(cols, choice):
     with tempfile.TemporaryDirectory(prefix='mole-uninstall-review-') as home:
         master, slave = pty.openpty()
@@ -66,7 +76,7 @@ def check(cols, choice):
         try:
             preview = read_until(master, b'cancel: ')
             assert b'Personal data kept:' in preview, preview
-            time.sleep(.12)
+            wait_for_key_read(slave)
             os.write(master, b'd')
             menu = read_until(master, b'Q Cancel')
             assert b'0/1 selected' in menu and b'IncorrectAppName' not in menu, menu
@@ -78,7 +88,7 @@ def check(cols, choice):
             os.write(master, b'q' if choice == 'cancel' else b'\r')
             reviewed = read_until(master, b'cancel: ')
             assert (b'Personal data kept:' in reviewed) == (choice != 'select'), reviewed
-            time.sleep(.12)
+            wait_for_key_read(slave)
             os.write(master, b'\r')
             expected = b'TEST_REMOVE_DATA' if choice == 'select' else b'TEST_KEEP_DATA'
             read_until(master, expected)
