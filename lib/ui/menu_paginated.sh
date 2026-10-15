@@ -657,7 +657,11 @@ paginated_multi_select() {
         fi
 
         local key
-        key=$(read_key)
+        # Idle ticks return to this shell once a second, so a TERM or HUP sent
+        # to the menu process runs its trap instead of waiting for a keypress.
+        if ! key=$(read_key 1); then
+            continue
+        fi
         if [[ "$ignore_initial_enter" == "true" || "$ignore_initial_enter" == "1" ]]; then
             ignore_initial_enter=false
             if [[ "$key" == "ENTER" ]]; then
