@@ -1973,7 +1973,10 @@ _batch_scan_app_details_impl() {
         if [[ -e "$info_plist" ]]; then
             exec_name=$(plutil -extract CFBundleExecutable raw "$info_plist" 2> /dev/null || echo "")
         fi
-        if pgrep -qx "${exec_name:-$app_name}" 2> /dev/null; then
+        # A shared runtime name such as Electron would report any other
+        # unrenamed Electron app as this one.
+        if ! mole_is_shared_runtime_executable "$exec_name" &&
+            pgrep -qx "${exec_name:-$app_name}" 2> /dev/null; then
             running_apps+=("$app_name")
         fi
 

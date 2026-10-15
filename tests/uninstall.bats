@@ -2833,6 +2833,83 @@ EOF
         }
 }
 
+@test "an unrenamed Electron executable names no app for crash reports or kills" {
+    # Every unrenamed Electron app ships its binary as Electron, so neither its
+    # crash-report prefix nor a name-based kill may treat it as this app.
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+app_path="$HOME/Applications/WorkBuddy.app"
+mkdir -p "$app_path/Contents"
+cat > "$app_path/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+  <key>CFBundleExecutable</key><string>Electron</string>
+  <key>CFBundleIdentifier</key><string>com.example.workbuddy</string>
+</dict></plist>
+PLIST
+reports="$HOME/Library/Logs/DiagnosticReports"
+mkdir -p "$reports"
+touch "$reports/Electron-2026-10-15-101010.ips" "$reports/WorkBuddy-2026-10-15-101010.ips"
+found=$(get_diagnostic_report_paths_for_app "$app_path" "WorkBuddy" "$reports")
+[[ "$found" == *"WorkBuddy-2026-10-15-101010.ips"* ]] || { echo "missed own report: $found"; exit 1; }
+[[ "$found" != *"Electron-"* ]] || { echo "took another app's Electron report: $found"; exit 1; }
+pgrep() { echo "pgrep $*" >> "$HOME/kill-trace"; return 0; }
+pkill() { echo "pkill $*" >> "$HOME/kill-trace"; return 0; }
+force_kill_app "WorkBuddy" "$app_path"
+[[ ! -e "$HOME/kill-trace" ]] || { cat "$HOME/kill-trace"; exit 1; }
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "force_kill_app quits an unrenamed Electron app only by its bundle id" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_MODE=0 MOLE_TEST_NO_AUTH=0 /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+app_path="$HOME/Applications/WorkBuddy.app"
+mkdir -p "$app_path/Contents"
+cat > "$app_path/Contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+  <key>CFBundleExecutable</key><string>Electron</string>
+  <key>CFBundleIdentifier</key><string>com.example.workbuddy</string>
+</dict></plist>
+PLIST
+pgrep() { echo "pgrep $*" >> "$HOME/name-trace"; return 0; }
+pkill() { echo "pkill $*" >> "$HOME/name-trace"; return 0; }
+run_with_timeout() { shift; "$@"; }
+sleep() { :; }
+# Each scenario lists the answers to successive "is running" queries.
+osascript() {
+    local answer
+    if [[ "$2" == *"to quit"* ]]; then
+        echo "quit" >> "$HOME/trace"
+        return 0
+    fi
+    [[ "$2" == 'application id "com.example.workbuddy" is running' ]] || return 1
+    answer=$(head -1 "$HOME/answers")
+    sed -i '' '1d' "$HOME/answers" 2> /dev/null || true
+    [[ "$answer" == signal ]] && return 130
+    echo "$answer"
+}
+scenario() {
+    printf '%s\n' "$@" > "$HOME/answers"
+    : > "$HOME/trace"
+    local rc=0
+    force_kill_app "WorkBuddy" "$app_path" || rc=$?
+    echo "$rc"
+}
+[[ $(scenario false) == 0 ]] || exit 1
+[[ ! -s "$HOME/trace" ]] || { echo "quit a stopped app"; exit 1; }
+[[ $(scenario true true false) == 0 ]] || exit 1
+[[ $(cat "$HOME/trace") == quit ]] || { echo "expected one quit"; exit 1; }
+[[ $(scenario $(for i in $(seq 1 30); do echo true; done)) == 1 ]] || { echo "kept running not reported"; exit 1; }
+[[ $(scenario signal) == 130 ]] || { echo "signal not propagated"; exit 1; }
+[[ ! -e "$HOME/name-trace" ]] || { cat "$HOME/name-trace"; exit 1; }
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "force_kill_app refuses to operate on system process names" {
     # Defensive guard: a third-party .app could set CFBundleExecutable to a
     # system process name (Finder, Dock, loginwindow, etc.). Even though the

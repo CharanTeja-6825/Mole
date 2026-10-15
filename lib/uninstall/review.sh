@@ -3,7 +3,11 @@
 
 _uninstall_disposable_leftover() {
     case "$1" in
+        # Data that only lives under Caches: Spotify offline music, Raycast
+        # clipboard-history images, Mullvad Browser's profile root.
         "$HOME/Library/Caches/com.spotify.client" | "$HOME/Library/Caches/com.spotify.client/"*) return 1 ;;
+        "$HOME/Library/Caches/com.raycast.macos" | "$HOME/Library/Caches/com.raycast.macos/"*) return 1 ;;
+        "$HOME/Library/Caches/MullvadBrowser" | "$HOME/Library/Caches/MullvadBrowser/"*) return 1 ;;
         "$HOME/Library/Caches/"* | "$HOME/Library/Logs/"*) return 0 ;;
         *) return 1 ;;
     esac

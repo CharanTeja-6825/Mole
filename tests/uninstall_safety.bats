@@ -489,8 +489,10 @@ EOF
 	mkdir -p "$HOME/Library/Huawei/SDK"
 	mkdir -p "$HOME/.huawei/AppGallery"
 	mkdir -p "$HOME/.ohos/sdk"
-	mkdir -p "$HOME/Library/Caches/Huawei"
-	mkdir -p "$HOME/Library/Logs/Huawei"
+	mkdir -p "$HOME/Library/Caches/Huawei/DevEcoStudio5.0"
+	mkdir -p "$HOME/Library/Logs/Huawei/DevEcoStudio5.0"
+	mkdir -p "$HOME/Library/Caches/Huawei/HiSuite"
+	mkdir -p "$HOME/Library/Logs/Huawei/HiSuite"
 
 	result="$(
 		HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
@@ -507,8 +509,31 @@ EOF
 	[[ "$result" != *"$HOME/Library/Huawei"* ]] || { echo "leaked Huawei SDK tree"; exit 1; }
 	[[ "$result" != *"$HOME/.huawei"* ]] || { echo "leaked Huawei account state"; exit 1; }
 	[[ "$result" != *"$HOME/.ohos"* ]] || { echo "leaked OHOS SDK config"; exit 1; }
-	[[ "$result" == *"Caches/Huawei"* ]] || { echo "missed Huawei cache"; exit 1; }
-	[[ "$result" == *"Logs/Huawei"* ]] || { echo "missed Huawei logs"; exit 1; }
+	[[ "$result" == *"Caches/Huawei/DevEcoStudio5.0"* ]] || { echo "missed DevEco cache"; exit 1; }
+	[[ "$result" == *"Logs/Huawei/DevEcoStudio5.0"* ]] || { echo "missed DevEco logs"; exit 1; }
+	# The Huawei roots are shared with other Huawei products.
+	[[ $'\n'"$result"$'\n' != *$'\n'"$HOME/Library/Caches/Huawei"$'\n'* ]] || { echo "took shared Huawei cache root"; exit 1; }
+	[[ $'\n'"$result"$'\n' != *$'\n'"$HOME/Library/Logs/Huawei"$'\n'* ]] || { echo "took shared Huawei log root"; exit 1; }
+	[[ "$result" != *"HiSuite"* ]] || { echo "took another Huawei product"; exit 1; }
+}
+
+@test "uninstall keeps cache-resident user data out of automatic removal" {
+	# Raycast keeps clipboard-history images and Mullvad Browser its profile
+	# root under ~/Library/Caches; both become opt-in rows like Spotify.
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/uninstall/review.sh"
+for kept in \
+    "$HOME/Library/Caches/com.raycast.macos" \
+    "$HOME/Library/Caches/com.raycast.macos/Clipboard" \
+    "$HOME/Library/Caches/MullvadBrowser" \
+    "$HOME/Library/Caches/com.spotify.client"; do
+    if _uninstall_disposable_leftover "$kept"; then echo "automatic: $kept"; exit 1; fi
+done
+_uninstall_disposable_leftover "$HOME/Library/Caches/com.example.app" || exit 1
+_uninstall_disposable_leftover "$HOME/Library/Caches/com.raycast.macosx" || exit 1
+EOF
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "find_app_files rejects bundle ids with glob metacharacters" {

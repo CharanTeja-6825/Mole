@@ -936,6 +936,22 @@ _privileged_helper_bundle_id_from_binary() {
     printf '%s\n' "$helper_bundle_id"
 }
 
+# Device-management, endpoint-security and VPN services keep running when their
+# app looks gone (an MDM profile, a half-removed agent, a VPN daemon), and only
+# the vendor's own tool may remove them. Never an orphan, matching Mole Mac.
+_orphan_service_vendor_protected() {
+    local identity token
+    for identity in "$@"; do
+        [[ -n "$identity" ]] || continue
+        mole_ascii_lowercase identity "$identity"
+        for token in mdm jamf crowdstrike sentinelone carbonblack defender eset sophos \
+            littlesnitch tailscale wireguard protonvpn nordvpn mullvad surge clash mihomo; do
+            [[ "$identity" == *"$token"* ]] && return 0
+        done
+    done
+    return 1
+}
+
 # Clean orphaned system-level services (LaunchDaemons, LaunchAgents, PrivilegedHelperTools)
 # These are left behind when apps are uninstalled but their system services remain
 clean_orphaned_system_services() {
@@ -1007,6 +1023,9 @@ clean_orphaned_system_services() {
         # own uninstaller finishes that. Empty evidence = never an orphan.
         "com.symantec.*:"
         "com.broadcom.*:"
+        # Microsoft AutoUpdate serves Edge, Teams, OneDrive and Defender too,
+        # and lives outside every app root, so no installed app proves it.
+        "com.microsoft.autoupdate.helper:"
         # Homebrew-managed services (managed by brew services, not .app bundles)
         "homebrew.mxcl.*:"
     )
@@ -1193,6 +1212,28 @@ clean_orphaned_system_services() {
                 ;;
         esac
 
+        # Check protect patterns before the binary probes: an installed helper
+        # whose app cannot be resolved (Microsoft AutoUpdate serves products
+        # outside every app root) would otherwise be called orphaned below.
+        # A matching pattern declares the app as installed.
+        local pattern_entry
+        _orphan_service_vendor_protected "$bundle_id" "${binary##*/}" && return 1
+        for pattern_entry in "${known_protect_patterns[@]}"; do
+            local file_pattern="${pattern_entry%%:*}"
+            local app_path="${pattern_entry#*:}"
+            # shellcheck disable=SC2053
+            [[ "$bundle_id" == $file_pattern ]] || continue
+            local protect_rc=0
+            _system_service_app_exists "$bundle_id" "$app_path" || protect_rc=$?
+            if [[ $protect_rc -eq 0 ]]; then
+                return 1
+            elif [[ $protect_rc -ge 128 ]]; then
+                return "$protect_rc"
+            fi
+            # Pattern matched and app is gone → don't protect (fall through).
+            break
+        done
+
         # Self-protecting software (Intego and similar antivirus / endpoint
         # agents) makes its install directories root-only readable, so an
         # unprivileged -e probe reports the daemon binary missing even though
@@ -1265,25 +1306,6 @@ clean_orphaned_system_services() {
 
         # If the binary is in a package-manager / system path, skip.
         _is_package_managed_binary "$binary" && return 1
-
-        # Check protect patterns: if any matching pattern declares the app as
-        # installed, this plist is protected.
-        local pattern_entry
-        for pattern_entry in "${known_protect_patterns[@]}"; do
-            local file_pattern="${pattern_entry%%:*}"
-            local app_path="${pattern_entry#*:}"
-            # shellcheck disable=SC2053
-            [[ "$bundle_id" == $file_pattern ]] || continue
-            local protect_rc=0
-            _system_service_app_exists "$bundle_id" "$app_path" || protect_rc=$?
-            if [[ $protect_rc -eq 0 ]]; then
-                return 1
-            elif [[ $protect_rc -ge 128 ]]; then
-                return "$protect_rc"
-            fi
-            # Pattern matched and app is gone → don't protect (fall through).
-            break
-        done
 
         return 0 # orphaned
     }
@@ -1453,6 +1475,7 @@ clean_orphaned_system_services() {
             _plist_is_orphaned "$candidate" "$bundle_id" || return $?
         else
             local pattern_entry
+            _orphan_service_vendor_protected "$bundle_id" "$filename" && return 1
             for pattern_entry in "${known_protect_patterns[@]}"; do
                 local file_pattern="${pattern_entry%%:*}"
                 local app_path="${pattern_entry#*:}"
@@ -1635,6 +1658,7 @@ clean_orphaned_system_services() {
                 local is_protected=false
                 local protect_interrupt_rc=0
                 local pattern_entry
+                _orphan_service_vendor_protected "$bundle_id" "$filename" && is_protected=true
                 for pattern_entry in "${known_protect_patterns[@]}"; do
                     local file_pattern="${pattern_entry%%:*}"
                     local app_path="${pattern_entry#*:}"

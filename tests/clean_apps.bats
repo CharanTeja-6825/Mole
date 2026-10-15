@@ -2630,6 +2630,81 @@ EOF
     [[ "$output" != *"com.broadcom.mes.agent.plist"* ]] || { echo "$output"; return 1; }
 }
 
+@test "clean_orphaned_system_services never nominates AutoUpdate, MDM, security or VPN services" {
+    # Microsoft AutoUpdate serves products no app root proves, and management,
+    # security and VPN daemons keep running after their app looks gone. Mole
+    # Mac never offers them; a genuine orphan in the same scan still is.
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_MODE=0 MOLE_TEST_NO_AUTH=0 DRY_RUN=false MOLE_DRY_RUN=0 /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/apps.sh"
+
+start_section_spinner() { :; }
+stop_section_spinner() { :; }
+note_activity() { :; }
+debug_log() { :; }
+
+tmp_dir="$(mktemp -d)"
+plists=()
+for id in com.microsoft.autoupdate.helper com.west2online.ClashXPro.ProxyConfigHelper \
+    com.jamf.management.daemon io.tailscale.ipn.macsys.network-extension com.example.gone.daemon; do
+    /usr/libexec/PlistBuddy -c "Add :Program string $tmp_dir/missing-$id" "$tmp_dir/$id.plist" > /dev/null 2>&1 || true
+    plists+=("$tmp_dir/$id.plist")
+done
+# Helper binaries listed straight from PrivilegedHelperTools.
+helpers=("$tmp_dir/com.microsoft.autoupdate.helper" "$tmp_dir/io.tailscale.ipn.macsys.helper")
+touch "${helpers[@]}"
+
+safe_sudo_remove() {
+  echo "removed:$1"
+  return 0
+}
+
+sudo() {
+  if [[ "$1" == "-n" && "$2" == "true" ]]; then
+    return 0
+  fi
+  [[ "${1:-}" == "-n" ]] && shift
+  if [[ "$1" == "test" ]]; then
+    # The protection decides before any binary probe, so the installed
+    # helper branch (whose app no root proves) is never reached.
+    echo "probe:${3:-}" >> "$tmp_dir/probes"
+    return 1
+  fi
+  if [[ "$1" == "find" ]]; then
+    case "$2" in
+      /Library/LaunchDaemons) printf '%s\0' "${plists[@]}" ;;
+      /Library/PrivilegedHelperTools) printf '%s\0' "${helpers[@]}" ;;
+      *) : ;;
+    esac
+    return 0
+  fi
+  if [[ "$1" == "du" ]]; then
+    echo "4 ${3:-}"
+    return 0
+  fi
+  if [[ "$1" == "launchctl" ]]; then
+    return 0
+  fi
+  command "$@"
+}
+
+clean_orphaned_system_services
+if grep -v 'missing-com.example.gone' "$tmp_dir/probes" 2> /dev/null; then
+  echo "probed a protected service"
+  exit 1
+fi
+EOF
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"Orphaned services · cleaned 1"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"com.example.gone.daemon.plist"* ]] || { echo "$output"; return 1; }
+    local kept
+    for kept in com.microsoft.autoupdate.helper ClashXPro com.jamf.management io.tailscale; do
+        [[ "$output" != *"$kept"* ]] || { echo "nominated $kept: $output"; return 1; }
+    done
+}
+
 @test "clean_orphaned_system_services keeps daemons whose binary is root-only readable (#1188)" {
     # Intego-style self-protecting software (antivirus, endpoint agents) makes
     # its install tree root-only readable, so the unprivileged -e probe misses

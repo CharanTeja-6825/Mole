@@ -980,6 +980,14 @@ mole_is_reverse_dns_bundle_id() {
     [[ "$bundle_id" =~ ^[A-Za-z0-9][-A-Za-z0-9]*(\.[A-Za-z0-9][-A-Za-z0-9]*)+$ ]]
 }
 
+# An executable name a runtime gives every app that does not rename it, so it
+# names no single app: an unrenamed Electron binary is `Electron` everywhere.
+mole_is_shared_runtime_executable() {
+    local lowered=""
+    mole_ascii_lowercase lowered "${1:-}"
+    [[ "$lowered" == "electron" ]]
+}
+
 mole_name_starts_with_bundle_id_boundary() {
     local name="${1##*/}"
     local bundle_id="${2:-}"

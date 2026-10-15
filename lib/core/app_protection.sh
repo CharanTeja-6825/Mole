@@ -1616,9 +1616,10 @@ find_app_files() {
         # source); ~/DevEco-Studio (IDE config + license state); ~/Library/
         # Application Support/Huawei, ~/Library/Huawei, ~/.huawei, ~/.ohos
         # (Huawei account tokens, signed device profiles, SDK config). Only
-        # sweep cache and log roots; everything else is opt-in.
-        for d in ~/Library/Caches/Huawei ~/Library/Logs/Huawei; do
-            [[ -d "$d" ]] && files_to_clean+=("$d")
+        # sweep DevEco's own cache and log leaves; the Huawei roots are shared
+        # with other Huawei products.
+        for d in ~/Library/Caches/Huawei/DevEcoStudio* ~/Library/Logs/Huawei/DevEcoStudio*; do
+            [[ -d "$d" && ! -L "$d" ]] && files_to_clean+=("$d")
         done
     fi
 
@@ -1884,8 +1885,13 @@ get_diagnostic_report_paths_for_app() {
             exec_name=$(grep -A1 "CFBundleExecutable" "$app_path/Contents/Info.plist" 2> /dev/null | grep "<string>" | sed -n 's/.*<string>\([^<]*\)<\/string>.*/\1/p' | head -1)
         fi
     fi
+    # Every unrenamed Electron app reports as Electron-*.ips; that prefix
+    # would take other apps' reports, so use the app name instead.
+    mole_is_shared_runtime_executable "$exec_name" && exec_name=""
     prefix="${exec_name:-$nospace_name}"
     [[ -z "$prefix" || ${#prefix} -lt 3 ]] && return 0
+    # The Electron runtime app itself has no reports of its own to claim.
+    mole_is_shared_runtime_executable "$prefix" && return 0
     local -a prefixes=("$prefix")
     if [[ "$prefix" != *" Helper" ]]; then
         prefixes+=("$prefix Helper")
@@ -2398,6 +2404,33 @@ force_kill_app() {
             return 1
             ;;
     esac
+    # A shared runtime name such as Electron matches every unrenamed Electron
+    # app, so name-based probes and kills would reach apps the user did not
+    # select. Only Apple Events addressed by bundle id stay exact: quit the app
+    # if it runs, and report it as possibly running when it does not exit.
+    if mole_is_shared_runtime_executable "$match_pattern"; then
+        debug_log "force_kill_app: no name-based kill for shared runtime executable '$match_pattern'"
+        [[ "${MOLE_TEST_MODE:-0}" == "1" || "${MOLE_TEST_NO_AUTH:-0}" == "1" ]] && return 0
+        command -v osascript > /dev/null 2>&1 || return 1
+        mole_is_reverse_dns_bundle_id "$bundle_id" || return 1
+        local shared_state="" shared_rc=0 shared_wait=20
+        while true; do
+            shared_rc=0
+            shared_state=$(run_with_timeout "$MOLE_TIMEOUT_SHORT_QUERY_SEC" \
+                osascript -e "application id \"$bundle_id\" is running" 2> /dev/null < /dev/null) || shared_rc=$?
+            [[ $shared_rc -ge 128 ]] && return "$shared_rc"
+            [[ $shared_rc -eq 0 && "$shared_state" == "false" ]] && return 0
+            [[ $shared_rc -eq 0 && "$shared_state" == "true" ]] || return 1
+            [[ $shared_wait -gt 0 ]] || return 1
+            if [[ $shared_wait -eq 20 ]]; then
+                run_with_timeout "$MOLE_TIMEOUT_SHORT_QUERY_SEC" \
+                    osascript -e "tell application id \"$bundle_id\" to quit" > /dev/null 2>&1 < /dev/null || shared_rc=$?
+                [[ $shared_rc -ge 128 ]] && return "$shared_rc"
+            fi
+            sleep 0.1 || return $?
+            shared_wait=$((shared_wait - 1))
+        done
+    fi
 
     # Check if process is running using exact match only
     local process_probe_rc=0
