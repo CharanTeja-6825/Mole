@@ -5197,11 +5197,10 @@ clean_codex_cli() {
 }
 
 _MOLE_CODEX_MARKETPLACE_STAGING_ROOT=""
-_MOLE_CODEX_MARKETPLACE_STAGING_ENTRY=""
 
 _codex_marketplace_staging_entry_is_still_stale() {
     local staging_root="$_MOLE_CODEX_MARKETPLACE_STAGING_ROOT"
-    local stale_entry="$_MOLE_CODEX_MARKETPLACE_STAGING_ENTRY"
+    local stale_entry="$1"
     [[ -n "$staging_root" && -n "$stale_entry" ]] || return 1
     [[ "${stale_entry%/*}" == "$staging_root" ]] || return 1
     [[ -d "$stale_entry" && ! -L "$stale_entry" ]] || return 1
@@ -5220,10 +5219,18 @@ _codex_marketplace_staging_entry_is_still_stale() {
     return 0
 }
 
+# Called by safe_clean_guarded with each entry right before its removal. An
+# entry that changed is skipped alone; an unknown or live Codex stops the batch.
+# The open-file probe covers only the entry being removed: the whole root was
+# probed once before the batch, and a fresh write elsewhere does not touch it.
 _codex_marketplace_staging_delete_guard_allows() {
-    _codex_marketplace_staging_entry_is_still_stale || return 1
+    local stale_entry="$1"
+    if ! _codex_marketplace_staging_entry_is_still_stale "$stale_entry"; then
+        _MOLE_SAFE_CLEAN_SKIP_PATH="$stale_entry"
+        return 1
+    fi
     mole_clean_process_guard codex_runtime_process_state "Codex started" || return 1
-    if codex_sparkle_staging_has_open_files "$_MOLE_CODEX_MARKETPLACE_STAGING_ROOT"; then
+    if codex_sparkle_staging_has_open_files "$stale_entry"; then
         _MOLE_CLEAN_GUARD_REASON="open files"
         return 1
     else
@@ -5238,16 +5245,17 @@ _codex_marketplace_staging_delete_guard_allows() {
             return 1
         fi
     fi
-    _codex_marketplace_staging_entry_is_still_stale || return 1
+    if ! _codex_marketplace_staging_entry_is_still_stale "$stale_entry"; then
+        _MOLE_SAFE_CLEAN_SKIP_PATH="$stale_entry"
+        return 1
+    fi
     return 0
 }
 
 _codex_marketplace_staging_safe_clean_guarded() {
     local staging_root="$1"
-    local stale_entry="$2"
-    local display_name="$3"
+    shift
     _MOLE_CODEX_MARKETPLACE_STAGING_ROOT="$staging_root"
-    _MOLE_CODEX_MARKETPLACE_STAGING_ENTRY="$stale_entry"
     local _MOLE_CLEAN_GUARD_REASON="staging entry changed"
 
     # No engine-absent fallback here on purpose: a second, degraded copy of the
@@ -5256,7 +5264,7 @@ _codex_marketplace_staging_safe_clean_guarded() {
     # Standalone callers provide `safe_clean_guarded` instead.
     local guarded_rc=0
     safe_clean_guarded _codex_marketplace_staging_delete_guard_allows \
-        "$stale_entry" "$display_name" || guarded_rc=$?
+        "$@" || guarded_rc=$?
     return "$guarded_rc"
 }
 
@@ -5337,18 +5345,21 @@ clean_codex_marketplace_staging() {
         return 0
     fi
 
-    local open_file_state=0
-    # Reuse the Sparkle open-file helper shape against each staging root only
-    # when that root still has candidates (open files on an idle sibling root
-    # must not block cleanup elsewhere).
-    local idx=0
-    for stale_entry in "${stale_entries[@]}"; do
-        staging_root="${stale_roots[$idx]}"
-        idx=$((idx + 1))
-
-        if is_path_whitelisted "$stale_entry"; then
-            continue
-        fi
+    # One open-file probe per root and one cleanup row per root: a Codex that
+    # left a hundred upgrade folders must not print a hundred rows or probe
+    # the whole root once per folder (#1742).
+    local -a root_entries=()
+    local idx open_file_state guarded_rc
+    for staging_root in "${staging_roots[@]}"; do
+        root_entries=()
+        idx=0
+        for stale_entry in "${stale_entries[@]}"; do
+            if [[ "${stale_roots[$idx]}" == "$staging_root" ]] && ! is_path_whitelisted "$stale_entry"; then
+                root_entries+=("$stale_entry")
+            fi
+            idx=$((idx + 1))
+        done
+        [[ ${#root_entries[@]} -gt 0 ]] || continue
 
         open_file_state=0
         if codex_sparkle_staging_has_open_files "$staging_root"; then
@@ -5369,9 +5380,9 @@ clean_codex_marketplace_staging() {
             return 0
         fi
 
-        local guarded_rc=0
+        guarded_rc=0
         _codex_marketplace_staging_safe_clean_guarded \
-            "$staging_root" "$stale_entry" \
+            "$staging_root" "${root_entries[@]}" \
             "Codex marketplace staging" || guarded_rc=$?
         if [[ $guarded_rc -eq 75 ]]; then
             case "${_MOLE_CLEAN_GUARD_REASON:-}" in
@@ -5380,7 +5391,7 @@ clean_codex_marketplace_staging() {
                     note_activity
                     ;;
                 "staging entry changed")
-                    debug_log "Codex marketplace staging entry changed before cleanup: $stale_entry"
+                    debug_log "Codex marketplace staging changed before cleanup: $staging_root"
                     ;;
                 *) mole_defer_cleanup_family "Codex" ;;
             esac

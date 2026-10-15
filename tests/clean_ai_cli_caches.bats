@@ -1177,14 +1177,21 @@ pgrep() { return 1; }
 lsof() { return 1; }
 run_with_timeout() { shift; "$@"; }
 is_path_whitelisted() { return 1; }
-safe_clean() { echo "SAFE_CLEAN:$2|$1"; }
 # The staging cleanup has no engine-absent fallback (see the audited-count
-# gate in clean_core.bats), so a standalone case supplies the guard itself.
+# gate in clean_core.bats), so a standalone case supplies the guard itself,
+# called per target with its path like the engine.
 safe_clean_guarded() {
     local guard="$1"
     shift
-    "$guard" || return 75
-    safe_clean "$@"
+    local label="${*: -1}" path
+    for path in "${@:1:$#-1}"; do
+        _MOLE_SAFE_CLEAN_SKIP_PATH=""
+        if ! "$guard" "$path"; then
+            [[ "$_MOLE_SAFE_CLEAN_SKIP_PATH" == "$path" ]] && continue
+            return 75
+        fi
+        echo "SAFE_CLEAN:$label|$path"
+    done
 }
 note_activity() { :; }
 clean_codex_marketplace_staging
@@ -1198,6 +1205,61 @@ INNER
     [[ "$output" != *"openai-bundled.staging-fresh"* ]] || return 1
     [[ "$output" != *"my-marketplace"* ]] || return 1
     [[ "$output" != *"marketplace-backup-old"* ]] || return 1
+}
+
+@test "clean_codex_marketplace_staging cleans a large backlog as one row with one root probe (#1742)" {
+    # 94 abandoned upgrade folders used to print 94 rows and probe the whole
+    # root twice per folder, which read as a hang. One row per root now; the
+    # per-entry guard probes only the folder it removes, and a folder that
+    # changed before removal is skipped alone.
+    local staging="$HOME/.codex/.tmp/marketplaces/.staging"
+    local i
+    for ((i = 1; i <= 94; i++)); do
+        mkdir -p "$staging/marketplace-upgrade-$i"
+    done
+    touch -t 202001010000 "$staging"/marketplace-upgrade-*
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" DRY_RUN=false /bin/bash --noprofile --norc << 'INNER'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+staging="$HOME/.codex/.tmp/marketplaces/.staging"
+_MOLE_COMPLETE_LSOF_MODE=direct
+pgrep() { return 1; }
+lsof() { echo "${*: -1}" >> "$HOME/lsof-targets"; return 1; }
+_mole_run_complete_lsof() { shift; lsof "$@"; }
+run_with_timeout() { shift; "$@"; }
+is_path_whitelisted() { return 1; }
+note_activity() { :; }
+calls=0
+safe_clean_guarded() {
+    local guard="$1"
+    shift
+    calls=$((calls + 1))
+    local label="${*: -1}" path cleaned=0
+    for path in "${@:1:$#-1}"; do
+        # Entry 7 is touched by a new Codex run between sizing and removal.
+        [[ "$path" == "$staging/marketplace-upgrade-7" ]] && touch "$path"
+        _MOLE_SAFE_CLEAN_SKIP_PATH=""
+        if ! "$guard" "$path"; then
+            [[ "$_MOLE_SAFE_CLEAN_SKIP_PATH" == "$path" ]] && continue
+            return 75
+        fi
+        cleaned=$((cleaned + 1))
+    done
+    echo "ROW:$label|$cleaned"
+}
+clean_codex_marketplace_staging
+echo "CALLS:$calls"
+echo "ROOT_PROBES:$(grep -cx "$staging" "$HOME/lsof-targets")"
+echo "ENTRY_PROBES:$(grep -c "$staging/marketplace-upgrade-" "$HOME/lsof-targets")"
+INNER
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"CALLS:1"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"ROW:Codex marketplace staging|93"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"ROOT_PROBES:1"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"ENTRY_PROBES:93"* ]] || { echo "$output"; return 1; }
 }
 
 @test "clean_codex_marketplace_staging defers while Codex runtime is active" {
