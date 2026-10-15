@@ -4559,3 +4559,29 @@ EOF
 	[[ "$output" != *"WALK_DATALESS=false"* ]] || return 1
 	[[ "$output" != *"FD_USED"* ]]
 }
+
+@test "dataless capability signals cancel discovery before any candidate is published" {
+    local signal
+    for signal in 130 143; do
+        run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" SIGNAL="$signal" /bin/bash --noprofile --norc <<'SH'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/clean/project.sh"
+mkdir -p "$HOME/.cache/mole" "$HOME/projects/app/node_modules"
+touch "$HOME/projects/app/package.json"
+run_with_timeout() { shift; "$@"; }
+fd() { return 1; }
+find() {
+    local arg
+    for arg in "$@"; do
+        if [[ "$arg" == -flags ]]; then return "$SIGNAL"; fi
+    done
+    /usr/bin/find "$@"
+}
+rc=0
+scan_purge_targets "$HOME/projects" "$HOME/result" || rc=$?
+[[ $rc -eq $SIGNAL ]] || exit 1
+[[ ! -s "$HOME/result" ]] || exit 1
+SH
+        [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    done
+}
