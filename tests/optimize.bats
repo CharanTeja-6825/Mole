@@ -86,24 +86,6 @@ EOF
 	[[ "$output" == *"User directory permissions already optimal"* ]] || return 1
 }
 
-@test "opt_system_maintenance reports DNS and Spotlight" {
-	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_DRY_RUN=1 /bin/bash --noprofile --norc <<'EOF'
-set -euo pipefail
-source "$PROJECT_ROOT/lib/core/common.sh"
-source "$PROJECT_ROOT/lib/optimize/tasks.sh"
-flush_dns_cache() { return 0; }
-mkdir -p "$HOME/bin"
-printf '#!/bin/bash\necho "Indexing enabled."\n' > "$HOME/bin/mdutil"
-chmod +x "$HOME/bin/mdutil"
-PATH="$HOME/bin:$PATH"
-execute_optimization system_maintenance
-EOF
-
-	[ "$status" -eq 0 ]
-	[[ "$output" == *"DNS cache flushed"* ]] || return 1
-	[[ "$output" == *"Spotlight index verified"* ]]
-}
-
 @test "opt_network_optimization refreshes DNS" {
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_DRY_RUN=1 /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
@@ -118,10 +100,44 @@ EOF
 	[[ "$output" != *"mDNSResponder"* ]]
 }
 
-@test "DNS flush is skipped in both optimize tasks while a VPN is active" {
-	# run_with_timeout execs a binary, so a shell-function mdutil is never
-	# reached and the real Spotlight probe would decide failed vs skipped.
-	mole_test_fake_command mdutil 'echo "Indexing enabled."'
+@test "one optimize task refreshes DNS and one checks the Spotlight index" {
+	# A separate DNS & Spotlight Check task used to repeat both: a second VPN
+	# skip line and a second Spotlight status line in every run.
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/optimize/tasks.sh"
+dns=0
+spotlight=0
+for ((index = 0; index < ${#MOLE_OPTIMIZE_ACTIONS[@]}; index++)); do
+    handler=${MOLE_OPTIMIZE_HANDLERS[$index]}
+    if declare -f "$handler" | grep -q 'flush_dns_cache'; then dns=$((dns + 1)); fi
+    if declare -f "$handler" | grep -q 'mdutil -s'; then spotlight=$((spotlight + 1)); fi
+done
+echo "DNS=$dns SPOTLIGHT=$spotlight"
+EOF
+
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"DNS=1 SPOTLIGHT=1"* ]] || { echo "$output"; return 1; }
+}
+
+@test "a saved DNS & Spotlight Check opt-out still keeps DNS untouched" {
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_OPTIMIZE_SUDO_AVAILABLE=true MOLE_DRY_RUN=0 /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/optimize/tasks.sh"
+is_whitelisted() { [[ "$1" == "system_maintenance" ]]; }
+flush_dns_cache() { echo "UNEXPECTED_FLUSH"; return 0; }
+execute_optimization network_optimization
+[[ "$(optimize_outcome_count skipped)" == "1" ]] || exit 1
+EOF
+
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"Skipped (whitelisted): Network Cache Refresh"* ]] || { echo "$output"; return 1; }
+	[[ "$output" != *"UNEXPECTED_FLUSH"* ]]
+}
+
+@test "DNS refresh is skipped once while a VPN is active" {
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_ASSUME_VPN_ACTIVE=1 MOLE_OPTIMIZE_SUDO_AVAILABLE=true MOLE_DRY_RUN=0 /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -129,41 +145,33 @@ source "$PROJECT_ROOT/lib/optimize/tasks.sh"
 unset MOLE_TEST_NO_AUTH MOLE_TEST_MODE
 sudo() { echo "UNEXPECTED_SUDO:$*"; return 0; }
 
-execute_optimization system_maintenance
 execute_optimization network_optimization
-[[ "$(optimize_outcome_count skipped)" == "2" ]] || exit 1
+[[ "$(optimize_outcome_count skipped)" == "1" ]] || exit 1
 [[ "$(optimize_outcome_count applied)" == "0" ]] || exit 1
 [[ "$(optimize_outcome_count failed)" == "0" ]] || exit 1
-[[ "${MOLE_DNS_FLUSHED:-0}" == "0" ]] || exit 1
 EOF
 
 	[[ "$status" -eq 0 ]] || { echo "$output"; return 1; }
-	[[ "$output" == *"DNS cache flush skipped, active VPN detected"* ]] || return 1
-	[[ "$output" == *"DNS cache refresh skipped, active VPN detected"* ]] || return 1
-	[[ "$output" != *"UNEXPECTED_SUDO"* ]] || return 1
-	[[ "$output" != *"already refreshed"* ]]
+	[[ "$(grep -c 'skipped, active VPN detected' <<< "$output")" == "1" ]] || { echo "$output"; return 1; }
+	[[ "$output" != *"UNEXPECTED_SUDO"* ]]
 }
 
 @test "dry-run previews the VPN skip instead of a DNS flush" {
-	mole_test_fake_command mdutil 'echo "Indexing enabled."'
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_ASSUME_VPN_ACTIVE=1 MOLE_DRY_RUN=1 /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/optimize/tasks.sh"
 
-execute_optimization system_maintenance
 execute_optimization network_optimization
-[[ "$(optimize_outcome_count skipped)" == "2" ]] || exit 1
+[[ "$(optimize_outcome_count skipped)" == "1" ]] || exit 1
 EOF
 
 	[[ "$status" -eq 0 ]] || { echo "$output"; return 1; }
-	[[ "$output" == *"DNS cache flush skipped, active VPN detected"* ]] || return 1
-	[[ "$output" != *"DNS cache flushed"* ]] || return 1
+	[[ "$output" == *"DNS cache refresh skipped, active VPN detected"* ]] || return 1
 	[[ "$output" != *"DNS cache refreshed"* ]]
 }
 
-@test "DNS flush runs once without a VPN and the second task reports it unchanged" {
-	mole_test_fake_command mdutil 'echo "Indexing enabled."'
+@test "DNS flush runs once without a VPN" {
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_ASSUME_VPN_ACTIVE=0 MOLE_OPTIMIZE_SUDO_AVAILABLE=true MOLE_DRY_RUN=0 /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -171,24 +179,18 @@ source "$PROJECT_ROOT/lib/optimize/tasks.sh"
 unset MOLE_TEST_NO_AUTH MOLE_TEST_MODE
 sudo() { echo "SUDO:$*"; return 0; }
 
-execute_optimization system_maintenance
 execute_optimization network_optimization
 [[ "$(optimize_outcome_count applied)" == "1" ]] || exit 1
-[[ "$(optimize_outcome_count unchanged)" == "1" ]] || exit 1
 EOF
 
 	[[ "$status" -eq 0 ]] || { echo "$output"; return 1; }
-	[[ "$output" == *"SUDO:dscacheutil -flushcache"* ]] || return 1
-	[[ "$output" == *"SUDO:killall -HUP mDNSResponder"* ]] || return 1
 	[[ "$(grep -c 'SUDO:dscacheutil -flushcache' <<< "$output")" == "1" ]] || return 1
-	[[ "$output" == *"DNS cache flushed"* ]] || return 1
-	[[ "$output" == *"DNS cache already refreshed"* ]] || return 1
-	[[ "$output" != *"Failed to refresh DNS cache"* ]] || return 1
-	[[ "$output" != *"restarted"* ]]
+	[[ "$output" == *"SUDO:killall -HUP mDNSResponder"* ]] || return 1
+	[[ "$output" == *"DNS cache refreshed"* ]] || return 1
+	[[ "$output" != *"Failed to refresh DNS cache"* ]]
 }
 
 @test "DNS flush fails closed when the VPN state cannot be determined" {
-	mole_test_fake_command mdutil 'echo "Indexing enabled."'
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_OPTIMIZE_SUDO_AVAILABLE=true MOLE_DRY_RUN=0 /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -197,19 +199,17 @@ unset MOLE_TEST_NO_AUTH MOLE_TEST_MODE MOLE_ASSUME_VPN_ACTIVE
 has_active_vpn_interface() { return 2; }
 sudo() { echo "UNEXPECTED_SUDO:$*"; return 0; }
 
-execute_optimization system_maintenance
 execute_optimization network_optimization
-[[ "$(optimize_outcome_count failed)" == "2" ]] || exit 1
+[[ "$(optimize_outcome_count failed)" == "1" ]] || exit 1
 [[ "$(optimize_outcome_count applied)" == "0" ]] || exit 1
 EOF
 
 	[[ "$status" -eq 0 ]] || { echo "$output"; return 1; }
-	[[ "$(grep -c 'Failed to inspect active VPN state' <<< "$output")" == "2" ]] || return 1
+	[[ "$(grep -c 'Failed to inspect active VPN state' <<< "$output")" == "1" ]] || return 1
 	[[ "$output" != *"UNEXPECTED_SUDO"* ]]
 }
 
-@test "a failed DNS flush is named by both optimize tasks that attempt it" {
-	mole_test_fake_command mdutil 'echo "Indexing enabled."'
+@test "a failed DNS flush is named" {
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_ASSUME_VPN_ACTIVE=0 MOLE_OPTIMIZE_SUDO_AVAILABLE=true MOLE_DRY_RUN=0 /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -217,17 +217,14 @@ source "$PROJECT_ROOT/lib/optimize/tasks.sh"
 unset MOLE_TEST_NO_AUTH MOLE_TEST_MODE
 sudo() { echo "SUDO_FAILED:$*"; return 1; }
 
-execute_optimization system_maintenance
 execute_optimization network_optimization
-[[ "$(optimize_outcome_count failed)" == "2" ]] || exit 1
+[[ "$(optimize_outcome_count failed)" == "1" ]] || exit 1
 [[ "$(optimize_outcome_count applied)" == "0" ]] || exit 1
 EOF
 
 	[[ "$status" -eq 0 ]] || { echo "$output"; return 1; }
-	# system_maintenance used to count the failure without saying why.
-	[[ "$(grep -c 'Failed to refresh DNS cache' <<< "$output")" == "2" ]] || { echo "$output"; return 1; }
-	[[ "$output" == *"Spotlight index verified"* ]] || return 1
-	[[ "$output" != *"DNS cache flushed"* ]]
+	[[ "$(grep -c 'Failed to refresh DNS cache' <<< "$output")" == "1" ]] || { echo "$output"; return 1; }
+	[[ "$output" != *"DNS cache refreshed"* ]]
 }
 
 @test "fix_broken_preferences repairs only non-Apple preference plists" {
@@ -1634,7 +1631,7 @@ EOF
 @test "run_optimize_diagnostics honors optimize whitelist paths for mounted images (#977)" {
 	mkdir -p "$HOME/.config/mole"
 	cat > "$HOME/.config/mole/whitelist_optimize" <<'EOF'
-system_maintenance
+network_optimization
 /Volumes/EXT3/Mail/TB.dmg
 /Volumes/mail
 EOF
