@@ -642,6 +642,22 @@ remove_login_item() {
     fi
 }
 
+# A container survives a removal in two shapes: an emptied root that
+# containermanagerd keeps (only its metadata plist left), or the whole
+# container because macOS denied the move. Only the first is a stub. An
+# unlistable or slow root is not proof of emptiness. Returns 0 for a stub,
+# 1 otherwise, and a signal status unchanged.
+_uninstall_container_is_stub() {
+    local container="$1"
+    [[ -f "$container/.com.apple.containermanagerd.metadata.plist" ]] || return 1
+    local entry="" scan_rc=0
+    entry=$(run_with_timeout "$MOLE_TIMEOUT_QUICK_DETECT_SEC" find "$container" \
+        -mindepth 1 -maxdepth 1 ! -name ".com.apple.containermanagerd.metadata.plist" \
+        -print -quit 2> /dev/null) || scan_rc=$?
+    mole_rc_signal "$scan_rc" && return "$scan_rc"
+    [[ $scan_rc -eq 0 && -z "$entry" ]]
+}
+
 # Remove files (handles symlinks, optional sudo).
 # Security: All paths pass validate_path_for_deletion() before any deletion.
 # Performance: when MOLE_DELETE_MODE=trash and the batch is sudo-free and
@@ -2705,11 +2721,15 @@ _batch_execute_removals() {
                 while IFS= read -r _lf; do
                     [[ -n "$_lf" && -e "$_lf" ]] || continue
                     # Skip macOS-managed container stubs: containermanagerd protects
-                    # these directories via com.apple.provenance xattr; rm -rf always
-                    # fails on them by design. User data is already gone at this point.
+                    # the emptied root via com.apple.provenance xattr, so rm -rf
+                    # always leaves it. A denied Trash move leaves the whole
+                    # container instead, which must be reported and not counted.
                     if [[ $related_remove_rc -ne $MOLE_ERR_OWNER_UNVERIFIED &&
-                        "$_lf" == */Library/Containers/* && -f "$_lf/.com.apple.containermanagerd.metadata.plist" ]]; then
-                        continue
+                        "$_lf" == */Library/Containers/* ]]; then
+                        local _stub_rc=0
+                        _uninstall_container_is_stub "$_lf" || _stub_rc=$?
+                        [[ $_stub_rc -eq 0 ]] && continue
+                        mole_rc_signal "$_stub_rc" && return "$_stub_rc"
                     fi
                     leftover_paths+=("$_lf")
                 done <<< "$related_files"

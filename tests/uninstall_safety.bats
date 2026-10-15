@@ -1219,6 +1219,65 @@ EOF
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
+@test "a container whose Trash move macOS denied is reported and not counted as freed" {
+    # A denied move leaves the whole container, metadata plist included. Only
+    # a root emptied down to that plist is a containermanagerd stub.
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 MOLE_UNINSTALL_MODE=1 MOLE_DELETE_MODE=trash /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+run_with_timeout() { shift; "$@"; }
+pkg_receipt_nonstandard_app_paths() { :; }
+_MOLE_UNINSTALL_LIVE_APP_ROOTS=("$HOME/Applications")
+_MOLE_UNINSTALL_LIVE_VOLUMES_ROOT="$HOME/no-volumes"
+selected="$HOME/Applications/Soda Music.app"
+data="$HOME/Library/Containers/com.soda.music"
+_batch_selected_app_plan_matches() { return 0; }
+stop_launch_services() { :; }
+unregister_app_bundle() { :; }
+remove_login_item() { :; }
+force_kill_app() { :; }
+stop_inline_spinner() { :; }
+bootout_login_item_helpers() { :; }
+for outcome in denied emptied; do
+    rm -rf "$data" "$HOME/removed-fixture.app"
+    mkdir -p "$selected/Contents" "$data/Data/Library/Application Support/SodaMusic/LunaCacheV2"
+    printf '%s\n' '<plist><dict><key>CFBundleIdentifier</key><string>com.soda.music</string></dict></plist>' > "$selected/Contents/Info.plist"
+    printf 'container metadata\n' > "$data/.com.apple.containermanagerd.metadata.plist"
+    head -c 65536 /dev/zero > "$data/Data/Library/Application Support/SodaMusic/LunaCacheV2/track"
+    container_kb=$(du -skP "$data" | awk '{print $1}')
+    encoded=$(printf '%s' "$data" | base64 | tr -d '\n')
+    fields=(Soda "$selected" com.soda.music "$((1000 + container_kb))" "$encoded" '' false false false '' '' '' '' none x com.soda.music '' x)
+    IFS='|' detail="${fields[*]}"; unset IFS
+    app_details=("$detail")
+    mole_delete() {
+        if [[ "$1" == "$selected" ]]; then
+            mv "$selected" "$HOME/removed-fixture.app"
+            return 0
+        fi
+        if [[ "$outcome" == denied ]]; then
+            _mole_record_uninstall_refusal "$1" access-denied
+            return "$MOLE_ERR_PRIVACY_DENIED"
+        fi
+        rm -rf "$1/Data"
+    }
+    success_count=0 failed_count=0 brew_apps_removed=0 total_size_freed=0 files_cleaned=0 total_items=0
+    failed_items=() success_items=() success_dock_targets=() system_extension_warning_apps=()
+    review_only_system_leftovers=() review_only_system_leftover_keys=() running_at_uninstall_apps=()
+    _batch_execute_removals > "$HOME/removal-output" 2>&1
+    out=$(cat "$HOME/removal-output")
+    printf '%s FREED_KB=%s\n%s\n' "$outcome" "$total_size_freed" "$out"
+    if [[ "$outcome" == denied ]]; then
+        [[ "$out" == *"macOS denied access: ~/Library/Containers/com.soda.music"* ]] || exit 1
+        [[ $total_size_freed -eq 1000 ]] || exit 1
+    else
+        [[ "$out" != *"Library/Containers/com.soda.music"* ]] || exit 1
+        [[ $total_size_freed -eq $((1000 + container_kb)) ]] || exit 1
+    fi
+done
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "leftover sink keeps data when the selected app path is reinstalled" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 MOLE_UNINSTALL_MODE=1 MOLE_DELETE_MODE=permanent /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
