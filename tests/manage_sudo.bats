@@ -186,3 +186,17 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"CLEAR:3"* ]]
 }
+
+
+@test "the Touch ID wait hides typed input and restores echo, also after Ctrl-C" {
+    # People often type the password instead of touching the sensor; during
+    # the six-second wait that text used to echo on screen.
+    run python3 "$PROJECT_ROOT/tests/sudo_tty_pty.py"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    local body
+    body=$(sed -n '/^request_sudo_access() {/,/^}/p' "$PROJECT_ROOT/lib/core/sudo.sh")
+    # shellcheck disable=SC2016  # Literal source text, not an expansion.
+    [[ "$body" == *'_mole_tty_quiet "$tty_path" _mole_touchid_poll "$sudo_pid"'* ]] || return 1
+    # shellcheck disable=SC2016  # Literal source text, not an expansion.
+    [[ "$body" == *'_mole_tty_quiet "$tty_path" sleep 1'* ]] || return 1
+}
