@@ -1066,6 +1066,104 @@ directory_has_entries() {
     return 1
 }
 
+# Rendered wallpaper bitmaps the wallpaper agent keeps in its container: one
+# uncompressed BMP per picture and display size, named
+# `<sha256>-<width>-<height>-<n>-<hex>.bmp`. The agent never prunes them (a
+# user report measured 179.53 GB) and renders again from the source picture.
+# Only an exact render file older than a week that is not a render of a
+# picture that may be on screen (the newest of each display size, plus the
+# newest overall) is offered; the rest of the container stays. Two displays of
+# one size showing different pictures keep only the newer render, whose loss
+# costs a re-render; Mole Mac's policy accepts the same limit. Fills
+# _MOLE_WALLPAPER_RENDERS with at most the 50 oldest candidates, so a large
+# backlog drains over a few runs instead of probing thousands of files in one;
+# a listing timeout offers nothing, a signal returns its status.
+_MOLE_WALLPAPER_RENDERS=()
+_wallpaper_stale_render_files() {
+    _MOLE_WALLPAPER_RENDERS=()
+    local root="$HOME/Library/Containers/com.apple.wallpaper.agent/Data/Library/Caches/com.apple.wallpaper.caches"
+    local probe="$HOME" component
+    for component in Library Containers com.apple.wallpaper.agent Data Library Caches com.apple.wallpaper.caches; do
+        probe="$probe/$component"
+        [[ -d "$probe" && ! -L "$probe" ]] || return 0
+    done
+
+    local cutoff uid folder kind listing list_rc path
+    cutoff=$(($(date +%s) - 7 * 24 * 60 * 60))
+    uid=$(id -u)
+    for folder in "$root"/extension-com.apple.wallpaper.extension.*; do
+        kind="${folder##*/extension-com.apple.wallpaper.extension.}"
+        [[ -n "$kind" && ${#kind} -le 64 && "$kind" != *..* && "$kind" =~ ^[a-z0-9.]+$ ]] || continue
+        [[ -d "$folder" && ! -L "$folder" ]] || continue
+        list_rc=0
+        listing=$(run_with_timeout "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" find "$folder" -maxdepth 1 -type f -name '*.bmp' \
+            -user "$uid" -links 1 -exec stat -f '%m %N' {} + 2> /dev/null) || list_rc=$?
+        if mole_rc_signal "$list_rc"; then
+            _MOLE_WALLPAPER_RENDERS=()
+            return "$list_rc"
+        fi
+        # A timed-out or failed listing cannot show which picture is newest.
+        [[ $list_rc -eq 0 && -n "$listing" ]] || continue
+        # The newest picture must be judged on the whole listing; a folder too
+        # large to judge offers nothing rather than a truncated prefix.
+        [[ $(printf '%s\n' "$listing" | wc -l) -le 20000 ]] || continue
+        while IFS= read -r path; do
+            [[ -f "$path" && ! -L "$path" ]] && _MOLE_WALLPAPER_RENDERS+=("$path")
+        done < <(printf '%s\n' "$listing" | awk -v folder="$folder/" -v cutoff="$cutoff" '
+            {
+                mtime = $1
+                path = substr($0, length($1) + 2)
+                if (substr(path, 1, length(folder)) != folder) next
+                name = substr(path, length(folder) + 1)
+                if (name !~ /^[0-9a-f]+-[0-9]+-[0-9]+-[0-9]+-[0-9a-f]+\.bmp$/) next
+                split(name, part, "-")
+                if (length(part[1]) != 64 || length(part[2]) > 6 || length(part[3]) > 6 || length(part[4]) > 6) next
+                tail = part[5]
+                sub(/\.bmp$/, "", tail)
+                if (length(tail) > 32) next
+                n++
+                paths[n] = path
+                times[n] = mtime + 0
+                digests[n] = part[1]
+                size = part[2] "x" part[3]
+                if (!(size in newest_time) || times[n] > newest_time[size]) {
+                    newest_time[size] = times[n]
+                    newest_digest[size] = part[1]
+                }
+                if (n == 1 || times[n] > top_time) {
+                    top_time = times[n]
+                    top_digest = part[1]
+                }
+            }
+            END {
+                for (size in newest_digest) on_screen[newest_digest[size]] = 1
+                if (n > 0) on_screen[top_digest] = 1
+                for (i = 1; i <= n; i++)
+                    if (!(digests[i] in on_screen) && times[i] < cutoff) print times[i] " " paths[i]
+            }' | sort -n | head -n 50 | cut -d' ' -f2-)
+        [[ ${#_MOLE_WALLPAPER_RENDERS[@]} -lt 50 ]] || break
+    done
+    if [[ ${#_MOLE_WALLPAPER_RENDERS[@]} -gt 50 ]]; then
+        _MOLE_WALLPAPER_RENDERS=("${_MOLE_WALLPAPER_RENDERS[@]:0:50}")
+    fi
+    return 0
+}
+
+# Own probe budget: every render is one handle probe, and the shared section
+# budget must stay with the container rows after it.
+_clean_wallpaper_renders() {
+    local _MOLE_CONTAINER_CACHE_PROBE_DEADLINE=""
+    local wallpaper_rc=0
+    _wallpaper_stale_render_files || wallpaper_rc=$?
+    if mole_rc_signal "$wallpaper_rc"; then
+        return "$wallpaper_rc"
+    fi
+    if [[ ${#_MOLE_WALLPAPER_RENDERS[@]} -gt 0 ]]; then
+        safe_clean "${_MOLE_WALLPAPER_RENDERS[@]}" "Wallpaper agent cache"
+    fi
+    return 0
+}
+
 clean_app_caches() {
     # Every App Container handle probe in this section shares one wall-clock
     # budget, including the explicit Apple cache rows before the generic scan.
@@ -1097,7 +1195,7 @@ clean_app_caches() {
     stop_section_spinner
 
     # Sandboxed app caches
-    safe_clean ~/Library/Containers/com.apple.wallpaper.agent/Data/Library/Caches/* "Wallpaper agent cache"
+    _clean_wallpaper_renders || return $?
     safe_clean ~/Library/Containers/com.apple.mediaanalysisd/Data/Library/Caches/* "Media analysis cache"
     safe_clean ~/Library/Containers/com.apple.mediaanalysisd/Data/tmp/* "Media analysis temp files"
     safe_clean ~/Library/Containers/com.apple.AppStore/Data/Library/Caches/* "App Store cache"
