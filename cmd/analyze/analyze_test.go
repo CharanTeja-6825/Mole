@@ -4961,3 +4961,18 @@ func TestSizeHeapsPopEqualSizesInPathOrderWhateverTheArrivalOrder(t *testing.T) 
 		t.Fatalf("the later path must be evicted first, got %v", filePaths)
 	}
 }
+
+func TestTopLargeFilesKeepsEarlierEqualSizePathsAfterHeapFills(t *testing.T) {
+	files := make([]fileEntry, 0, maxLargeFiles+1)
+	for i := 0; i <= maxLargeFiles; i++ {
+		files = append(files, fileEntry{Path: fmt.Sprintf("/files/%04d", i), Size: 1 << 30})
+	}
+	forward := topLargeFiles(append([]fileEntry(nil), files...))
+	slices.Reverse(files)
+	backward := topLargeFiles(files)
+	for i := range forward {
+		if forward[i].Path != backward[i].Path {
+			t.Fatalf("arrival order changed selection: %s vs %s", forward[i].Path, backward[i].Path)
+		}
+	}
+}

@@ -32,7 +32,8 @@ import (
 // v6: deletions invalidate ancestor totals and overview measurements.
 // v7: Library overview totals count cross-directory hardlinks once again.
 // v8: APFS clones that share every block count once, so v7 totals can be inflated.
-const cacheSchemaVersion = 8
+// v9: mixed clone/hardlink groups deduplicate together; bounded lists use path ties.
+const cacheSchemaVersion = 9
 
 type overviewSizeSnapshot struct {
 	Size          int64     `json:"size"`

@@ -326,7 +326,7 @@ func scanPathConcurrentWithLimiter(ctx context.Context, root string, filesScanne
 
 			if entriesHeap.Len() < entryLimit {
 				heap.Push(entriesHeap, entry)
-			} else if entry.Size > (*entriesHeap)[0].Size {
+			} else if sizePathBefore(entry.Size, entry.Path, (*entriesHeap)[0].Size, (*entriesHeap)[0].Path) {
 				heap.Pop(entriesHeap)
 				heap.Push(entriesHeap, entry)
 			}
@@ -339,7 +339,7 @@ func scanPathConcurrentWithLimiter(ctx context.Context, root string, filesScanne
 				if largeFilesHeap.Len() == maxLargeFiles {
 					atomic.StoreInt64(&largeFileMinSize, (*largeFilesHeap)[0].Size)
 				}
-			} else if file.Size > (*largeFilesHeap)[0].Size {
+			} else if sizePathBefore(file.Size, file.Path, (*largeFilesHeap)[0].Size, (*largeFilesHeap)[0].Path) {
 				heap.Pop(largeFilesHeap)
 				heap.Push(largeFilesHeap, file)
 				atomic.StoreInt64(&largeFileMinSize, (*largeFilesHeap)[0].Size)
@@ -859,7 +859,7 @@ func findLargeFilesWithSpotlight(ctx context.Context, root string, minSize int64
 
 		if h.Len() < maxLargeFiles {
 			heap.Push(h, candidate)
-		} else if candidate.Size > (*h)[0].Size {
+		} else if sizePathBefore(candidate.Size, candidate.Path, (*h)[0].Size, (*h)[0].Path) {
 			heap.Pop(h)
 			heap.Push(h, candidate)
 		}
@@ -1230,9 +1230,11 @@ func getDirectoryLogicalSizeWithExclude(ctx context.Context, path string, exclud
 	return total, failures.err()
 }
 
-// cloneKeyDevice marks a clone id in the shared seen map; no real device
-// number can equal it, so clone ids never collide with hardlink keys.
-const cloneKeyDevice = ^uint64(0)
+// Clone IDs are volume-local and separate from inode identities.
+type cloneKey struct {
+	device uint32
+	id     uint64
+}
 
 // countableFileSize returns the on-disk size to attribute to a regular file.
 // Hardlinked files are deduplicated the way `du` does: the first link counts
@@ -1257,13 +1259,12 @@ func countableFileSize(path string, info fs.FileInfo, seen *sync.Map) (int64, bo
 		if _, loaded := seen.LoadOrStore(key, struct{}{}); loaded {
 			return 0, true
 		}
-		return size, false
 	}
 	if size == 0 {
 		return size, false
 	}
 	if cloneID, sharesAll, known := cloneIdentity(path); known && sharesAll {
-		if _, loaded := seen.LoadOrStore([2]uint64{cloneKeyDevice, cloneID}, struct{}{}); loaded {
+		if _, loaded := seen.LoadOrStore(cloneKey{uint32(stat.Dev), cloneID}, struct{}{}); loaded {
 			return 0, true
 		}
 	}

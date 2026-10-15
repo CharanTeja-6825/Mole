@@ -153,3 +153,26 @@ func TestScanPathConcurrentCountsSharedBlockClonesOnce(t *testing.T) {
 		t.Fatal("a clone-deduplicated total depends on scan order and must not be cached per folder")
 	}
 }
+
+func TestCountableFileSizeDeduplicatesClonesWithHardlinks(t *testing.T) {
+	f := newCloneFixture(t)
+	link := filepath.Join(f.root, "hardlink")
+	if err := os.Link(f.orig, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, paths := range [][]string{{f.orig, f.clone1, link}, {f.clone1, link, f.orig}} {
+		var seen sync.Map
+		var total int64
+		for _, path := range paths {
+			info, err := os.Lstat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			size, _ := countableFileSize(path, info, &seen)
+			total += size
+		}
+		if total != 1<<20 {
+			t.Fatalf("hardlinks and clones counted %d, want %d", total, 1<<20)
+		}
+	}
+}

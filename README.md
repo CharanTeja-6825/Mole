@@ -246,7 +246,7 @@ Applied 2 optimizations
 
 ### Analyze
 
-`mo analyze` opens a terminal disk explorer. It supports arrow keys and Vim navigation, filtering, multi-selection, Finder preview, and confirmed moves to Trash. External drives are skipped from the default overview; inspect them with `mo analyze /Volumes` or a specific mount path. Use `mo analyze /private/tmp` to review user-owned temporary files without turning them into automatic cleanup targets. APFS clones that still share all their blocks are counted once, so folders of copied projects no longer add up past the disk size.
+`mo analyze` opens a terminal disk explorer. It supports arrow keys and Vim navigation, filtering, multi-selection, Finder preview, and confirmed moves to Trash. External drives are skipped from the default overview; inspect them with `mo analyze /Volumes` or a specific mount path. Use `mo analyze /private/tmp` to review user-owned temporary files without turning them into automatic cleanup targets. File-by-file scans count APFS clones that share all blocks once; fast folder estimates can still count shared blocks more than once.
 
 A size ending in `+` contains measured bytes from a partial scan; `unknown` means the size could not be measured. Results cut short by temporary failures such as timeouts do not replace complete cached measurements, and a later refresh can recover the missing data. Folders macOS will not let the terminal read stay partial until access changes. The terminal list keeps the 30 largest entries, so an unreadable entry may fall outside that list; the total still indicates a partial scan. Directory JSON output includes all scanned entries.
 

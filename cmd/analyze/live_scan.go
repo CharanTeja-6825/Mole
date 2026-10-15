@@ -509,7 +509,7 @@ func pushLiveLargeFile(h *largeFileHeap, file fileEntry, largeFileMinSize *int64
 		}
 		return
 	}
-	if file.Size > (*h)[0].Size {
+	if sizePathBefore(file.Size, file.Path, (*h)[0].Size, (*h)[0].Path) {
 		heap.Pop(h)
 		heap.Push(h, file)
 		atomic.StoreInt64(largeFileMinSize, (*h)[0].Size)
@@ -530,19 +530,13 @@ func waitLiveScanEventCmd(events <-chan liveScanEventMsg) tea.Cmd {
 // the path breaks the tie, so a list the user is reading does not reshuffle.
 func sortDirEntriesBySize(entries []dirEntry) {
 	sort.SliceStable(entries, func(i, j int) bool {
-		if entries[i].Size != entries[j].Size {
-			return entries[i].Size > entries[j].Size
-		}
-		return entries[i].Path < entries[j].Path
+		return sizePathBefore(entries[i].Size, entries[i].Path, entries[j].Size, entries[j].Path)
 	})
 }
 
 func sortFileEntriesBySize(files []fileEntry) {
 	sort.SliceStable(files, func(i, j int) bool {
-		if files[i].Size != files[j].Size {
-			return files[i].Size > files[j].Size
-		}
-		return files[i].Path < files[j].Path
+		return sizePathBefore(files[i].Size, files[i].Path, files[j].Size, files[j].Path)
 	})
 }
 
