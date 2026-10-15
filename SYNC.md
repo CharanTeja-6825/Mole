@@ -1,6 +1,6 @@
 # Product synchronization
 
-This is the synchronization entry point for **Mole CLI (macOS)**, branch `main` of `tw93/Mole`. Workflow and the four canonical product names are in [AGENTS.md](AGENTS.md#product-synchronization). Source review baseline: `3fdf4040`, 2026-10-14, Asia/Singapore. This is a source/record review, not a new full runtime audit or a release.
+This is the synchronization entry point for **Mole CLI (macOS)**, branch `main` of `tw93/Mole`. Workflow and the four canonical product names are in [AGENTS.md](AGENTS.md#product-synchronization). Source review baseline: `3fdf4040`, with incremental review through `c5ca9f69` on 2026-10-15, Asia/Singapore. This is a source/record review, not a new full runtime audit or a release.
 
 ## Ownership
 
@@ -15,11 +15,12 @@ This is the synchronization entry point for **Mole CLI (macOS)**, branch `main` 
 | --- | --- | --- |
 | Log-root traversal and late Git ownership | Implemented | `8811fcbd` and follow-ups `61756c27`, `f5b5a335`, `a5ba6e79`, `1c323dba`; `lib/clean/user.sh` and `lib/clean/caches.sh` recheck roots/ownership. The app-owned comparison must no longer call these unfixed. This record does not re-certify the full test suite. |
 | Offline and generated media | Implemented | `b364d17d`, `lib/clean/app_caches.sh`; preserve data that a user cannot regenerate from the cache alone. Windows paths require their own policy review, tracked by CLI-SYNC-01 (Spotify, implemented) and CLI-SYNC-09 (recordings, pending) on `windows`. |
-| Uninstall review and configuration references | Implemented | `eb21fff1`, `lib/uninstall/config_refs.sh`; Windows adaptation remains pending, not an instruction to copy macOS paths. |
+| Uninstall review and configuration references | Implemented | `eb21fff1`, `lib/uninstall/config_refs.sh`; `c653d19e` now classifies personal data before sizing, reuses the bundle size within that preview and never sizes kept personal data. A fresh invocation measures again. Windows configuration-reference adaptation remains pending, not an instruction to copy macOS paths. |
 | Process CPU denominator | Intentional difference | `cmd/status/metrics_process.go` consumes macOS `ps` process CPU; both CLIs use one logical CPU as 100%. Do not divide by machine CPU count just to match a GUI. |
 | Unreadable whitelist | Implemented | `clean`, `purge` and `optimize` stop when the whitelist exists but cannot be opened, instead of running as if it were empty; `lib/core/base.sh`, `lib/manage/whitelist.sh`, `tests/manage_whitelist.bats`. |
-| APFS clone sizing in `analyze` | Implemented | Clones that share every block count once per clone id, an edited clone counts in full, hardlinks keep the existing dedupe; `cmd/analyze/clone_darwin.go`, cache schema 8. The User Library overview row stays one serial `du` and is clone-unaware by design. |
-| Stable `analyze` ordering | Implemented | Equal sizes tie-break by path in lists, large files and the heap; `cmd/analyze/live_scan.go`, `heap.go`. |
+| APFS clone sizing in `analyze` | Implemented (source) | `8aeddbbe`: file-by-file scans deduplicate fully shared clones, including files with hardlinks, by volume and clone id; edited clones count in full. Cache schema 9 invalidates earlier totals and list ordering. Folded directories and overview measurements retain bounded `du` estimates and can count shared blocks repeatedly; replacing them with per-file probes would change the fast-scan cost. The nine README copies state that boundary. |
+| Purge capability-probe cancellation | Implemented (source) | `df2f5e06`: the dataless capability probe propagates interrupt and termination statuses before discovery can publish candidates; unsupported flags still use the ordinary find fallback. `tests/purge.bats` covers both signal statuses. Not released. |
+| Stable `analyze` ordering | Implemented (source) | `8aeddbbe`: equal sizes tie-break by path both when a full heap selects survivors and when lists render; `cmd/analyze/live_scan.go`, `heap.go`. |
 | Battery temperature on macOS 27 | Implemented | `cmd/status/metrics_battery.go` falls back to `AppleSmartBatteryPack` when the top-level key is 0. |
 | Alibaba Cloud Security, Symantec and Broadcom | Implemented | Official-uninstaller and endpoint-security protection for `com.alibaba.security.`, never-orphan for `com.symantec.*` and `com.broadcom.*`. |
 | Audio plugin roots, Claude Code temp folders, SwiftPM checkouts | Pending | Each needs a measured value and an explicit non-target list before any cleanup row (AGENTS.md); Claude Code temp folders need a read-only probe first. Next check: probe output from real machines. |
@@ -38,3 +39,5 @@ This is the synchronization entry point for **Mole CLI (macOS)**, branch `main` 
 | GUI-only capabilities | Not applicable | Menu/tray, app bulk updates and private leftover catalogs are not CLI parity requirements. |
 
 Delivery: GitHub's latest macOS stable checked on 2026-10-14 is `V1.59.1`; source after that tag must not be called released. Consult the live release and exact commit ancestry before replying to users.
+
+Verification for the 2026-10-15 review fixes: `make build`, `go test ./...`, `./scripts/check.sh --no-format` and the full `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 ./scripts/test.sh` passed. The full suite was repeated in an isolated checkout based on `81c12fd3` with the exact owned patch. These source changes have not been released.
