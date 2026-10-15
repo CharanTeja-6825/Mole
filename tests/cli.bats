@@ -176,6 +176,28 @@ SCRIPT
 	[[ "$output" == *"Install: Manual"* ]]
 }
 
+@test "mole --version names the commit of a Homebrew HEAD build" {
+	local prefix keg
+	prefix="$(mktemp -d "${BATS_TEST_TMPDIR}/mole-brew-head.XXXXXX")"
+	for keg in HEAD-1a2b3c4 9.9.9; do
+		mkdir -p "$prefix/Cellar/mole/$keg/libexec"
+		cp "$PROJECT_ROOT/mole" "$prefix/Cellar/mole/$keg/libexec/mole"
+		ln -s "$PROJECT_ROOT/lib" "$prefix/Cellar/mole/$keg/libexec/lib"
+		ln -s "$PROJECT_ROOT/bin" "$prefix/Cellar/mole/$keg/libexec/bin"
+	done
+	mkdir -p "$prefix/bin"
+
+	ln -s "$prefix/Cellar/mole/HEAD-1a2b3c4/libexec/mole" "$prefix/bin/mole"
+	run env HOME="$HOME" MOLE_HOMEBREW_DETECT_TIMEOUT=1 "$prefix/bin/mole" --version
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"Install: Homebrew (HEAD 1a2b3c4)"* ]] || { echo "$output"; return 1; }
+
+	ln -sf "$prefix/Cellar/mole/9.9.9/libexec/mole" "$prefix/bin/mole"
+	run env HOME="$HOME" MOLE_HOMEBREW_DETECT_TIMEOUT=1 "$prefix/bin/mole" --version
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"Install: Homebrew"$'\n'* ]] || { echo "$output"; return 1; }
+}
+
 @test "mole invoked through a cross-directory symlink still sources lib" {
 	local link_dir
 	link_dir="$(mktemp -d "${BATS_TEST_TMPDIR}/mole-abs-link.XXXXXX")"

@@ -1054,6 +1054,12 @@ show_version() {
         install_method="Nix"
     elif is_homebrew_install; then
         install_method="Homebrew"
+        # A --HEAD build keeps the release number in VERSION; only its keg
+        # name says which main commit it built.
+        local head_keg_re='/Cellar/mole/HEAD-([0-9a-fA-F]+)(/|$)'
+        if [[ "${SCRIPT_DIR:-}" =~ $head_keg_re ]]; then
+            install_method="Homebrew (HEAD ${BASH_REMATCH[1]})"
+        fi
     fi
 
     local channel
