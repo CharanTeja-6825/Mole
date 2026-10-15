@@ -2841,8 +2841,11 @@ clean_dev_mobile() {
 
                             # Analyze error and provide helpful message
                             local error_hint=""
-                            if echo "$delete_output" | grep -qi "permission denied"; then
-                                error_hint=" (permission denied)"
+                            # simctl reports a macOS privacy refusal as "You don't
+                            # have permission" / "Operation not permitted" (NSCocoa
+                            # 513), never as "permission denied".
+                            if echo "$delete_output" | grep -qi "permission denied\|have permission\|operation not permitted"; then
+                                error_hint=" (macOS denied access)"
                             elif echo "$delete_output" | grep -qi "in use\|busy"; then
                                 error_hint=" (device in use)"
                             elif echo "$delete_output" | grep -qi "unable to boot\|failed to boot"; then

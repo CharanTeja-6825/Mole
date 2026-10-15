@@ -2670,6 +2670,59 @@ EOF
     done
 }
 
+@test "clean_dev_mobile names a macOS privacy refusal from simctl delete unavailable" {
+    # On macOS 27 CoreSimulator cannot move a device's data folder and simctl
+    # says "You don't have permission" with an Operation not permitted cause.
+    # That is macOS refusing access, not a generic failure.
+    local udid="ABCDEF01-2345-6789-ABCD-EF0123456789"
+    local case_home="$HOME/simctl-delete-privacy"
+    mkdir -p "$case_home/Library/Developer/CoreSimulator/Devices/$udid"
+
+    run env HOME="$case_home" PROJECT_ROOT="$PROJECT_ROOT" DRY_RUN=false \
+        MOLE_CURRENT_COMMAND=clean MOLE_CLEAN_CANCEL_STATUS=0 \
+        /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+check_android_ndk() { :; }
+clean_xcode_documentation_cache() { :; }
+clean_xcode_system_coresimulator_caches() { :; }
+clean_xcode_xctest_devices() { :; }
+clean_xcode_device_support() { :; }
+safe_clean() { :; }
+get_path_size_kb() { echo "1"; }
+note_activity() { :; }
+debug_log() { :; }
+start_section_spinner() { :; }
+stop_section_spinner() { :; }
+cleanup_result_color_kb() { printf '%s' "$GREEN"; }
+xcrun() { :; }
+_resolve_simctl_developer_dir() {
+    _MOLE_SIMCTL_DEVELOPER_DIR="$HOME/Xcode.app/Contents/Developer"
+    _MOLE_SIMCTL_RESOLUTION_STATUS="ready"
+}
+_run_simctl() {
+    shift
+    case "$*" in
+        "list devices unavailable")
+            printf '    iPhone 16 (ABCDEF01-2345-6789-ABCD-EF0123456789) (Shutdown) (unavailable)\n'
+            return 0
+            ;;
+        "delete unavailable")
+            printf '%s\n' 'An error was encountered processing the command (domain=NSCocoaErrorDomain, code=513):' \
+                'Errors encountered while deleting multiple devices.' "You don’t have permission." >&2
+            return 1
+            ;;
+    esac
+    return 1
+}
+clean_dev_mobile
+EOF
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"Xcode unavailable simulators cleanup failed (macOS denied access)"* ]] || { echo "$output"; return 1; }
+}
+
 @test "clean_dev_mobile stops when simctl delete unavailable is interrupted" {
     # Ctrl-C while `simctl delete unavailable` holds the terminal reaches only
     # the child. A signal stops cleanup before the recount and later caches;
