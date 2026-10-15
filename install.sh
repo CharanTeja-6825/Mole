@@ -68,12 +68,12 @@ ICON_ADMIN="●"
 ICON_CONFIRM="◎"
 ICON_ERROR="☻"
 
-log_info() { [[ ${VERBOSE} -eq 1 ]] && echo -e "${BLUE}$1${NC}"; }
-log_success() { [[ ${VERBOSE} -eq 1 ]] && echo -e "${GREEN}${ICON_SUCCESS}${NC} $1"; }
-log_warning() { [[ ${VERBOSE} -eq 1 ]] && echo -e "${YELLOW}$1${NC}"; }
+log_info() { if [[ ${VERBOSE} -eq 1 ]]; then echo -e "${BLUE}$1${NC}"; fi; }
+log_success() { if [[ ${VERBOSE} -eq 1 ]]; then echo -e "${GREEN}${ICON_SUCCESS}${NC} $1"; fi; }
+log_warning() { if [[ ${VERBOSE} -eq 1 ]]; then echo -e "${YELLOW}$1${NC}"; fi; }
 log_error() { echo -e "${YELLOW}${ICON_ERROR}${NC} $1"; }
-log_admin() { [[ ${VERBOSE} -eq 1 ]] && echo -e "${BLUE}${ICON_ADMIN}${NC} $1"; }
-log_confirm() { [[ ${VERBOSE} -eq 1 ]] && echo -e "${BLUE}${ICON_CONFIRM}${NC} $1"; }
+log_admin() { if [[ ${VERBOSE} -eq 1 ]]; then echo -e "${BLUE}${ICON_ADMIN}${NC} $1"; fi; }
+log_confirm() { if [[ ${VERBOSE} -eq 1 ]]; then echo -e "${BLUE}${ICON_CONFIRM}${NC} $1"; fi; }
 
 curl_download_with_retry() {
     local url="$1"

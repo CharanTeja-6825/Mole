@@ -23,6 +23,58 @@ VERSION="1.2.3"
 MOLE
 }
 
+@test "quiet installer loggers do not abort errexit callers" {
+	local logger failed=0
+	for logger in log_info log_success log_warning log_admin log_confirm; do
+		run env PROJECT_ROOT="$PROJECT_ROOT" LOGGER="$logger" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+mole_source_installer
+# The source helper restores options captured in command substitution, which
+# disables errexit in Bash 3.2. Restore the real installer's execution mode.
+set -e
+VERBOSE=0
+"$LOGGER" 'hidden message'
+printf 'continued\n'
+EOF
+		if [[ "$status" -ne 0 || "$output" != continued ]]; then
+			printf '%s exited %s instead of continuing silently: %s\n' "$logger" "$status" "$output"
+			failed=1
+		fi
+	done
+	[ "$failed" -eq 0 ]
+}
+
+@test "quiet installer update with a custom prefix finishes and writes its receipt" {
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+mole_source_installer
+set -e
+INSTALL_DIR="$HOME/custom-prefix/bin"
+CONFIG_DIR="$HOME/config"
+SOURCE_DIR="$HOME/source"
+MOLE_INSTALL_RECEIPT=update-123-456-789
+updated=false
+check_requirements() { :; }
+homebrew_owns_mole() { return 1; }
+resolve_source_dir() { :; }
+get_installed_version() { if [[ "$updated" == true ]]; then echo 1.59.2; else echo 1.59.1; fi; }
+get_source_version() { echo 1.59.2; }
+create_directories() { mkdir -p "$INSTALL_DIR" "$CONFIG_DIR"; }
+acquire_install_lock() { :; }
+install_files() { updated=true; }
+verify_installation() { :; }
+resolve_install_channel() { echo stable; }
+# A bare call preserves errexit, unlike invoking the update in an if/|| test.
+[[ ":$PATH:" != *":$INSTALL_DIR:"* ]] || exit 1
+perform_update
+[[ "$VERBOSE" -eq 1 && "$updated" == true ]] || exit 1
+grep -qx 'CHANNEL=stable' "$CONFIG_DIR/install_channel" || exit 1
+grep -qx 'INSTALL_RECEIPT=update-123-456-789' "$CONFIG_DIR/install_channel" || exit 1
+EOF
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"Updated to latest version, 1.59.2"* ]] || return 1
+}
+
 @test "download_binary installs release asset only after checksum verification" {
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
