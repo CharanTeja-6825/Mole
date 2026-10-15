@@ -216,19 +216,21 @@ load_whitelist() {
         config_file="$WHITELIST_CONFIG_CLEAN"
     fi
 
-    local using_legacy="false"
-    if [[ ! -f "$config_file" && -n "$legacy_file" && -f "$legacy_file" ]]; then
-        config_file="$legacy_file"
-        using_legacy="true"
+    local using_legacy="false" config_state=0 unreadable_label="whitelist"
+    [[ "$mode" != "optimize" ]] || unreadable_label="optimize whitelist"
+    mole_whitelist_file_state "$config_file" "$unreadable_label" || config_state=$?
+    [[ $config_state -ne 2 ]] || return 1
+    if [[ $config_state -eq 1 && -n "$legacy_file" ]]; then
+        config_state=0
+        mole_whitelist_file_state "$legacy_file" "$unreadable_label" || config_state=$?
+        [[ $config_state -ne 2 ]] || return 1
+        if [[ $config_state -eq 0 ]]; then
+            config_file="$legacy_file"
+            using_legacy="true"
+        fi
     fi
 
-    if [[ -f "$config_file" ]]; then
-        if ! mole_file_openable "$config_file"; then
-            local unreadable_label="whitelist"
-            [[ "$mode" != "optimize" ]] || unreadable_label="optimize whitelist"
-            mole_report_unreadable_whitelist "$config_file" "$unreadable_label"
-            return 1
-        fi
+    if [[ $config_state -eq 0 ]]; then
         while IFS= read -r line; do
             # shellcheck disable=SC2295
             line="${line#"${line%%[![:space:]]*}"}"

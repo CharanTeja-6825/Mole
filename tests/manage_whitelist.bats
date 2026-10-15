@@ -1075,3 +1075,153 @@ EOF
     done
     chmod 644 "$WHITELIST_PATH" "$HOME/.config/mole/whitelist_optimize"
 }
+
+@test "whitelist loaders refuse inaccessible ancestors before treating lists as absent" {
+    [ "$(id -u)" -ne 0 ] || skip "root bypasses directory permissions"
+    mkdir -p "$HOME/.config/mole"
+    printf '%s\n' "$HOME/Library/Caches/keep-me" > "$WHITELIST_PATH"
+    printf '%s\n' custom-task > "$HOME/.config/mole/whitelist_checks"
+    chmod 000 "$HOME/.config/mole"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash <<'SH'
+source "$PROJECT_ROOT/lib/manage/whitelist.sh"
+for loader in shared clean optimize; do
+    rc=0
+    if [[ "$loader" == shared ]]; then load_mole_whitelist "$HOME" || rc=$?; else load_whitelist "$loader" || rc=$?; fi
+    printf '%s=%s\n' "$loader" "$rc"
+done
+SH
+    chmod 700 "$HOME/.config/mole"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"shared=1"* && "$output" == *"clean=1"* && "$output" == *"optimize=1"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"chmod u+rx"*"$HOME/.config/mole"* ]] || { echo "$output"; return 1; }
+}
+
+@test "whitelist entrypoints refuse inaccessible ancestors before scanning" {
+    [ "$(id -u)" -ne 0 ] || skip "root bypasses directory permissions"
+    mkdir -p "$HOME/.config/mole"
+    printf '%s\n' "$HOME/Library/Caches/keep-me" > "$WHITELIST_PATH"
+    chmod 000 "$HOME/.config/mole"
+    local cmd failed=0
+    for cmd in clean purge optimize; do
+        run env HOME="$HOME" MOLE_TEST_NO_AUTH=1 "$PROJECT_ROOT/mole" "$cmd" --dry-run
+        if [[ "$status" -ne 1 || "$output" != *"Cannot access your"* || "$output" != *"chmod u+rx"* ]]; then
+            printf '%s status=%s %s\n' "$cmd" "$status" "$output"
+            failed=1
+        fi
+    done
+    chmod 700 "$HOME/.config/mole"
+    [ "$failed" -eq 0 ]
+}
+
+@test "whitelist loaders distinguish missing readable linked and broken config paths" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash <<'SH'
+source "$PROJECT_ROOT/lib/manage/whitelist.sh"
+check_loaders() {
+    local expected="$1" loader rc
+    for loader in shared clean optimize; do
+        rc=0
+        if [[ "$loader" == shared ]]; then load_mole_whitelist "$HOME" || rc=$?; else load_whitelist "$loader" || rc=$?; fi
+        [[ "$rc" == "$expected" ]] || { echo "$loader: expected $expected got $rc"; exit 1; }
+    done
+}
+check_loaders 0
+mkdir -p "$HOME/config-target"
+ln -s "$HOME/config-target" "$HOME/.config"
+check_loaders 0
+mkdir -p "$HOME/.config/mole"
+printf '%s\n' "$HOME/Library/Caches/keep-me" > "$HOME/readable-list"
+ln -s "$HOME/readable-list" "$HOME/.config/mole/whitelist"
+ln -s "$HOME/readable-list" "$HOME/.config/mole/whitelist_optimize"
+check_loaders 0
+is_path_whitelisted "$HOME/Library/Caches/keep-me" || exit 1
+rm "$HOME/readable-list"
+check_loaders 1
+rm "$HOME/.config/mole/whitelist" "$HOME/.config/mole/whitelist_optimize"
+printf '%s\n' custom-task > "$HOME/.config/mole/whitelist_checks"
+ln -s "$HOME/missing-current" "$HOME/.config/mole/whitelist_optimize"
+rc=0; load_whitelist optimize || rc=$?
+[[ "$rc" == 1 ]] || { echo legacy-bypassed-broken-current; exit 1; }
+rm "$HOME/.config/mole/whitelist_optimize"
+load_whitelist optimize || exit 1
+[[ "${CURRENT_WHITELIST_PATTERNS[0]}" == custom-task ]] || exit 1
+SH
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "optimize legacy whitelist must be readable before migration and current list takes precedence" {
+    [ "$(id -u)" -ne 0 ] || skip "root bypasses file permissions"
+    mkdir -p "$HOME/.config/mole"
+    local legacy="$HOME/.config/mole/whitelist_checks"
+    printf '%s\n' custom-legacy-task > "$legacy"
+    chmod 000 "$legacy"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash <<'SH'
+source "$PROJECT_ROOT/lib/manage/whitelist.sh"
+rc=0; load_whitelist optimize || rc=$?
+[[ "$rc" == 1 ]] || exit 1
+[[ ! -e "$HOME/.config/mole/whitelist_optimize" ]] || exit 1
+printf '%s\n' current-task > "$HOME/.config/mole/whitelist_optimize"
+load_whitelist optimize || exit 1
+[[ "${CURRENT_WHITELIST_PATTERNS[0]}" == current-task ]] || exit 1
+SH
+    chmod 644 "$legacy"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"Cannot read your optimize whitelist"*"$legacy"* ]] || { echo "$output"; return 1; }
+}
+
+@test "whitelist loaders refuse higher ancestors and inaccessible symlink targets" {
+    [ "$(id -u)" -ne 0 ] || skip "root bypasses directory permissions"
+    mkdir -p "$HOME/.config/mole"
+    printf '%s\n' "$HOME/Library/Caches/keep-me" > "$WHITELIST_PATH"
+    chmod 000 "$HOME/.config"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash <<'SH'
+source "$PROJECT_ROOT/lib/manage/whitelist.sh"
+rc=0; load_mole_whitelist "$HOME" || rc=$?
+[[ "$rc" == 1 ]] || exit 1
+rc=0; load_whitelist optimize || rc=$?
+[[ "$rc" == 1 ]] || exit 1
+SH
+    chmod 700 "$HOME/.config"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"chmod u+rx"*"$HOME/.config"* ]] || { echo "$output"; return 1; }
+
+    mkdir -p "$HOME/unsearchable-parent/list-root"
+    mv "$HOME/.config/mole" "$HOME/unsearchable-parent/list-root/mole"
+    ln -s "$HOME/unsearchable-parent/list-root/mole" "$HOME/.config/mole"
+    chmod 000 "$HOME/unsearchable-parent"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash <<'SH'
+source "$PROJECT_ROOT/lib/manage/whitelist.sh"
+rc=0; load_mole_whitelist "$HOME" || rc=$?
+[[ "$rc" == 1 ]] || exit 1
+rc=0; load_whitelist optimize || rc=$?
+[[ "$rc" == 1 ]] || exit 1
+SH
+    chmod 700 "$HOME/unsearchable-parent"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"Cannot inspect your"* ]] || { echo "$output"; return 1; }
+}
+
+@test "whitelist probe errors never authorize defaults or legacy fallback" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash <<'SH'
+source "$PROJECT_ROOT/lib/manage/whitelist.sh"
+mkdir -p "$HOME/.config/mole"
+printf '%s\n' legacy-task > "$HOME/.config/mole/whitelist_checks"
+# An OS inspection failure or unavailable runtime must not look like ENOENT.
+function /usr/bin/perl { return 5; }
+for loader in shared clean optimize; do
+    rc=0
+    if [[ "$loader" == shared ]]; then load_mole_whitelist "$HOME" || rc=$?; else load_whitelist "$loader" || rc=$?; fi
+    [[ "$rc" == 1 ]] || exit 1
+    [[ ! -e "$HOME/.config/mole/whitelist_optimize" ]] || exit 1
+done
+unset -f /usr/bin/perl
+# A directory at the list path is also not an absent list.
+mkdir "$HOME/.config/mole/whitelist" "$HOME/.config/mole/whitelist_optimize"
+rc=0; load_mole_whitelist "$HOME" || rc=$?
+[[ "$rc" == 1 ]] || exit 1
+rc=0; load_whitelist optimize || rc=$?
+[[ "$rc" == 1 ]] || exit 1
+SH
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"absence could not be verified"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"invalid path or broken link"* ]] || { echo "$output"; return 1; }
+}

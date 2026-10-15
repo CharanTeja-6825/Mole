@@ -368,9 +368,79 @@ mole_file_openable() {
 
 # One factual cause and one next action for an exclusion list that cannot be read.
 mole_report_unreadable_whitelist() {
-    local file="$1" label="${2:-whitelist}"
-    printf 'Cannot read your %s: %s\n' "$label" "${file//[[:cntrl:]]/?}" >&2
-    printf '  Mole stops so nothing you protected is cleaned by mistake. Run: chmod u+r %q\n' "$file" >&2
+    local file="$1" label="${2:-whitelist}" reason="${3:-file}"
+    case "$reason" in
+        directory)
+            printf 'Cannot access your %s directory: %s\n' "$label" "${file//[[:cntrl:]]/?}" >&2
+            printf '  Mole stops so nothing you protected is cleaned by mistake. Run: chmod u+rx %q\n' "$file" >&2
+            ;;
+        invalid)
+            printf 'Cannot read your %s: invalid path or broken link: %s\n' "$label" "${file//[[:cntrl:]]/?}" >&2
+            printf '  Mole stops so nothing you protected is cleaned by mistake. Restore this path or its link target before retrying.\n' >&2
+            ;;
+        unknown)
+            printf 'Cannot inspect your %s path: %s\n' "$label" "${file//[[:cntrl:]]/?}" >&2
+            printf '  Mole stops because absence could not be verified. Check access to this path before retrying.\n' >&2
+            ;;
+        *)
+            printf 'Cannot read your %s: %s\n' "$label" "${file//[[:cntrl:]]/?}" >&2
+            printf '  Mole stops so nothing you protected is cleaned by mistake. Run: chmod u+r %q\n' "$file" >&2
+            ;;
+    esac
+}
+
+# 0 = readable file, 1 = confirmed ENOENT, 2 = unknown/invalid. Shell test -f
+# cannot distinguish absence from EACCES or I/O failure. System Perl exposes
+# errno without adding a dependency beyond the existing macOS runtime probes.
+# Inspect parents first so an inaccessible directory names the right repair,
+# and a broken symlink never authorizes defaults or a legacy-list fallback.
+mole_whitelist_file_state() {
+    local file="$1" label="${2:-whitelist}" problem="" probe_rc=0
+    if [[ ! -x /usr/bin/perl ]]; then
+        printf 'Cannot inspect your %s: the system Perl runtime is unavailable.\n' "$label" >&2
+        printf '  Mole stops so nothing you protected is cleaned by mistake. Restore /usr/bin/perl before retrying.\n' >&2
+        return 2
+    fi
+    problem=$(/usr/bin/perl -e '
+        use strict;
+        use warnings;
+        use Errno qw(ENOENT);
+        use Fcntl qw(S_ISDIR S_ISREG S_ISLNK);
+        my $file = shift;
+        sub stop { my ($status, $path) = @_; print $path, "."; exit $status; }
+        $file =~ m{^/} or stop(5, $file);
+        my @parts = grep { length } split m{/}, $file;
+        my $path = "";
+        for my $i (0 .. $#parts) {
+            $path .= "/" . $parts[$i];
+            my @meta = lstat($path);
+            if (!@meta) { stop($! == ENOENT ? 1 : 5, $path); }
+            if (S_ISLNK($meta[2])) {
+                @meta = stat($path);
+                if (!@meta) { stop($! == ENOENT ? 3 : 5, $path); }
+            }
+            if ($i < $#parts) {
+                S_ISDIR($meta[2]) or stop(3, $path);
+                -x $path or stop(2, $path);
+            } else {
+                S_ISREG($meta[2]) or stop(3, $path);
+            }
+        }
+        exit 0;
+    ' -- "$file" 2> /dev/null) || probe_rc=$?
+    # Preserve trailing newlines in a path across command substitution.
+    problem="${problem%.}"
+    case "$probe_rc" in
+        0)
+            mole_file_openable "$file" && return 0
+            mole_report_unreadable_whitelist "$file" "$label"
+            ;;
+        1) return 1 ;;
+        2) mole_report_unreadable_whitelist "$problem" "$label" directory ;;
+        3) mole_report_unreadable_whitelist "$problem" "$label" invalid ;;
+        *) mole_report_unreadable_whitelist "${problem:-$file}" "$label" unknown ;;
+    esac
+    return 2
 }
 
 # Load and validate the invoking user's clean whitelist. Both `clean` and
@@ -391,11 +461,10 @@ load_mole_whitelist() {
     WHITELIST_WARNINGS=()
 
     local whitelist_file="$MOLE_USER_HOME/.config/mole/whitelist"
-    if [[ -f "$whitelist_file" ]]; then
-        if ! mole_file_openable "$whitelist_file"; then
-            mole_report_unreadable_whitelist "$whitelist_file" "whitelist"
-            return 1
-        fi
+    local whitelist_state=0
+    mole_whitelist_file_state "$whitelist_file" || whitelist_state=$?
+    [[ $whitelist_state -ne 2 ]] || return 1
+    if [[ $whitelist_state -eq 0 ]]; then
         local line duplicate existing
         while IFS= read -r line; do
             # shellcheck disable=SC2295
