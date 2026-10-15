@@ -217,9 +217,13 @@ format_uninstall_preview_path() {
     local display_path="${path/#$HOME/$tilde}"
     local size_kb="0"
     local size_rc=0
-    size_kb=$(get_path_size_kb "$path" 2> /dev/null) || size_rc=$?
-    mole_rc_timeout_or_signal "$size_rc" && return "$size_rc"
-    [[ $size_rc -eq 0 ]] || size_kb="0"
+    if [[ $# -gt 1 ]]; then
+        size_kb="$2"
+    else
+        size_kb=$(get_path_size_kb "$path" 2> /dev/null) || size_rc=$?
+        mole_rc_timeout_or_signal "$size_rc" && return "$size_rc"
+        [[ $size_rc -eq 0 ]] || size_kb="0"
+    fi
 
     if [[ "$size_kb" =~ ^[0-9]+$ && "$size_kb" -gt 0 ]]; then
         printf '%s %s, %s%s' "$display_path" "$GRAY" "$(bytes_to_human "$((size_kb * 1024))")" "$NC"
@@ -2125,17 +2129,6 @@ _batch_scan_app_details_impl() {
             eligible_related_files=$(append_line "$eligible_related_files" "$related_path")
         done <<< "$related_files"
         related_files="$eligible_related_files"
-        local related_size_kb="0"
-        local related_size_rc=0
-        related_size_kb=$(calculate_total_size "$related_files") || related_size_rc=$?
-        if mole_rc_timeout "$related_size_rc"; then
-            # Size is display-only here; keep the leftover plan and under-report.
-            related_size_kb=0
-            debug_log "Related-file size probe timed out for $app_name"
-        elif [[ $related_size_rc -ge 128 ]]; then
-            return "$related_size_rc"
-        fi
-        [[ $related_size_rc -eq 0 && "$related_size_kb" =~ ^[0-9]+$ ]] || related_size_kb=0
         local review_only_system_files="$system_files"
         review_only_system_files=$(append_line "$review_only_system_files" "$diag_system")
         # System-level remnants are review-only in the CLI: shown in the preview
@@ -2146,7 +2139,9 @@ _batch_scan_app_details_impl() {
         # this blanking, or system files would become deletable again.
         system_files=""
         diag_system=""
-        local total_kb=$((app_size_kb + related_size_kb))
+        # The review classifies personal data before measuring leftovers.
+        # Until then this field carries only this invocation's bundle size.
+        local total_kb=$app_size_kb
         total_estimated_size=$((total_estimated_size + total_kb))
 
         if [[ "$needs_sudo" == "true" ]]; then
@@ -2225,6 +2220,7 @@ _batch_preview_and_confirm() {
 
         echo -e "\n${PURPLE_BOLD}Files to be removed:${NC}"
 
+        local review_index=0
         for detail in "${app_details[@]}"; do
             IFS='|' read -r app_name app_path bundle_id total_kb encoded_files encoded_system_files has_sensitive_data needs_sudo_flag is_brew_cask cask_name encoded_diag_system encoded_review_system encoded_login_item_helpers sibling_guard _expected_app_identity _original_bundle_id _encoded_live_sibling_fingerprint _expected_info_identity <<< "$detail"
             local app_size_display=$(bytes_to_human "$((total_kb * 1024))")
@@ -2260,7 +2256,8 @@ _batch_preview_and_confirm() {
             done
 
             local preview_path=""
-            preview_path=$(format_uninstall_preview_path "$app_path") || return $?
+            preview_path=$(format_uninstall_preview_path "$app_path" "${_review_app_sizes[review_index]}") || return $?
+            review_index=$((review_index + 1))
             echo -e "  ${GREEN}${ICON_SUCCESS}${NC} $preview_path"
 
             _uninstall_print_preview_paths "$related_files" "  ${GREEN}${ICON_SUCCESS}${NC} " || return $?
@@ -2277,7 +2274,11 @@ _batch_preview_and_confirm() {
             done
             if [[ -n "$kept_data" ]]; then
                 echo -e "\n${GRAY}Personal data kept:${NC}"
-                _uninstall_print_preview_paths "$kept_data" "  ${GRAY}${ICON_REVIEW}${NC} " || return $?
+                while IFS= read -r personal_path; do
+                    local kept_display="$personal_path" tilde='~'
+                    kept_display="${kept_display/#$HOME/$tilde}"
+                    printf '  %b%s%b\n' "${GRAY}${ICON_REVIEW} " "$(mole_terminal_safe_text "$kept_display")" "$NC"
+                done <<< "$kept_data"
             fi
         fi
 

@@ -187,3 +187,51 @@ SH
     run python3 "$PROJECT_ROOT/tests/uninstall_review_pty.py"
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
+
+@test "default uninstall review never sizes kept data or remeasures its app bundle" {
+    run env HOME="$HOME/single-measure" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'SH'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+app="$HOME/Applications/Example.app"
+cache="$HOME/Library/Caches/com.example.app"
+data="$HOME/Library/Application Support/Example"
+mkdir -p "$app" "$cache" "$data"
+_batch_refresh_selected_app_bundle_id() { printf 'com.example.app\n'; }
+official_uninstaller_vendor() { return 1; }
+uninstall_live_bundle_has_other_install() {
+    _MOLE_UNINSTALL_LIVE_SIBLING_FINGERPRINT=""
+    _MOLE_UNINSTALL_LIVE_SIBLING_PATHS=()
+    return 1
+}
+pgrep() { return 1; }
+get_brew_cask_name() { return 1; }
+get_file_owner() { whoami; }
+find_app_files() { printf '%s\n' "$cache" "$data"; }
+get_diagnostic_report_paths_for_app() { :; }
+find_app_system_files() { :; }
+discover_login_item_helper_bundle_ids() { :; }
+has_sensitive_data() { return 1; }
+get_path_size_kb() { printf '%s\n' "$1" >> "$HOME/measured"; printf '10\n'; }
+drain_pending_input() { :; }
+selected_apps=("0|$app|Example|com.example.app|0|Never")
+running_apps=() sudo_apps=() brew_cask_apps=() blocked_apps=() manual_removal_apps=() app_details=() leftover_notes=()
+total_estimated_size=0
+_batch_scan_app_details
+MOLE_DRY_RUN=1 _batch_preview_and_confirm <<< ''
+[[ $(grep -Fxc "$app" "$HOME/measured") -eq 1 ]] || exit 1
+if grep -Fxq "$data" "$HOME/measured"; then exit 1; fi
+grep -Fxq "$cache" "$HOME/measured" || exit 1
+[[ $total_estimated_size -eq 20 ]] || exit 1
+# A new invocation measures again, and selected personal data joins its total.
+: > "$HOME/measured"
+app_details=()
+total_estimated_size=0
+_batch_scan_app_details
+paginated_multi_select() { MOLE_SELECTION_RESULT=0; }
+MOLE_DRY_RUN=1 _batch_preview_and_confirm <<< $'d\n'
+[[ $(grep -Fxc "$app" "$HOME/measured") -eq 1 ]] || exit 1
+grep -Fxq "$data" "$HOME/measured" || exit 1
+[[ $total_estimated_size -eq 30 ]] || exit 1
+SH
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}

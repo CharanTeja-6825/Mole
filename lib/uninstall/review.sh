@@ -15,7 +15,7 @@ _uninstall_disposable_leftover() {
 
 # shellcheck disable=SC2154  # Arrays belong to the calling batch preview scope.
 _uninstall_prepare_data_review() {
-    local detail name app id total encoded remainder files path automatic personal i=0 rc=0
+    local detail name app id total encoded remainder files path automatic personal i=0
     for detail in "${_review_original_details[@]}"; do
         IFS='|' read -r name app id total encoded remainder <<< "$detail"
         files=$(decode_file_list "$encoded" "$name")
@@ -38,13 +38,9 @@ _uninstall_prepare_data_review() {
         done <<< "$files"
         _review_auto_files[i]="$automatic"
         _review_personal_files[i]="$personal"
-        # Fresh, bounded bundle size; unknown is never invented as reclaimable.
-        local app_kb=0
-        rc=0
-        app_kb=$(get_path_size_kb "$app") || rc=$?
-        mole_rc_signal "$rc" && return "$rc"
-        [[ $rc -eq 0 && "$app_kb" =~ ^[0-9]+$ ]] || app_kb=0
-        _review_app_sizes[i]="$app_kb"
+        # The scan already measured this bundle for the current review.
+        # No persisted size or previous invocation is reused.
+        _review_app_sizes[i]="$total"
         i=$((i + 1))
     done
     _uninstall_apply_data_selection

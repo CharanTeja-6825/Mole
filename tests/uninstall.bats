@@ -5036,7 +5036,7 @@ INNER
     [[ "$output" != *"UNEXPECTED_DELETE"* ]]
 }
 
-@test "batch scan keeps the app plan when related-file sizing times out" {
+@test "uninstall data review keeps the app plan when selected-file sizing times out" {
     # Related size is display-only (#1383). A stalled du on leftovers must not
     # abort the batch; the leftover paths stay in the plan with size 0.
     run env HOME="$HOME/batch-related-size-timeout" PROJECT_ROOT="$PROJECT_ROOT" \
@@ -5084,8 +5084,15 @@ app_details=()
 total_estimated_size=0
 rc=0
 _batch_scan_app_details || rc=$?
+[[ $rc -eq 0 ]] || exit 1
+_review_original_details=("${app_details[@]}")
+_review_auto_files=() _review_personal_files=() _review_app_sizes=()
+_review_personal_paths=() _review_selected_paths=()
+_uninstall_prepare_data_review || rc=$?
 printf 'RC=%s DETAILS=%s\n' "$rc" "${#app_details[@]}"
-[[ $rc -eq 0 && ${#app_details[@]} -eq 1 ]]
+[[ $rc -eq 0 && ${#app_details[@]} -eq 1 && $total_estimated_size -eq 1 ]] || exit 1
+IFS='|' read -r _ _ _ _ encoded _ <<< "${app_details[0]}"
+[[ "$(decode_file_list "$encoded" TimedOut)" == "$related_path" ]] || exit 1
 INNER
 
     [ "$status" -eq 0 ] || return 1
