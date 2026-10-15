@@ -1735,6 +1735,18 @@ find_app_files() {
         [[ -d "$HOME/Library/Application Support/AnkiProgramFiles" ]] && files_to_clean+=("$HOME/Library/Application Support/AnkiProgramFiles")
     fi
 
+    # Claude Desktop signed in to a third-party provider (Bedrock, Vertex or a
+    # gateway) appends "-3p" to its userData and log folders (2.31226.1), so the
+    # display-name patterns never reach them; one uninstall left 436 MB of
+    # Application Support/Claude-3p behind. Exact paths only: ~/.claude and
+    # ~/.local/share/claude belong to the Claude Code CLI (#993).
+    if [[ "$collect_toolchain_leftovers" == "true" && "$bundle_id" == "com.anthropic.claudefordesktop" ]]; then
+        local claude_3p_dir
+        for claude_3p_dir in "$HOME/Library/Application Support/Claude-3p" "$HOME/Library/Logs/Claude-3p"; do
+            [[ -d "$claude_3p_dir" && ! -L "$claude_3p_dir" ]] && files_to_clean+=("$claude_3p_dir")
+        done
+    fi
+
     # 7. Raycast
     if [[ "$bundle_id" == "com.raycast.macos" ]]; then
         # Standard user directories

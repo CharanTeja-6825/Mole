@@ -251,6 +251,24 @@ find_app_files 'invalid_bundle' ''"
     [[ "$result" == *"Library/Application Support/AnkiProgramFiles"* ]]
 }
 
+@test "find_app_files detects Claude Desktop third-party provider folders" {
+    mkdir -p "$HOME/Library/Application Support/Claude-3p/claude-code"
+    mkdir -p "$HOME/Library/Logs/Claude-3p"
+    mkdir -p "$HOME/.local/share/claude"
+
+    result=$(find_app_files "com.anthropic.claudefordesktop" "Claude")
+
+    [[ "$result" == *"Library/Application Support/Claude-3p"* ]] || return 1
+    [[ "$result" == *"Library/Logs/Claude-3p"* ]] || return 1
+    [[ "$result" != *".local/share/claude"* ]] || return 1
+
+    other=$(find_app_files "com.example.other" "Other")
+    [[ "$other" != *"Claude-3p"* ]] || return 1
+
+    sibling=$(MOLE_UNINSTALL_SIBLING_SURVIVES=1 find_app_files "com.anthropic.claudefordesktop" "Claude")
+    [[ "$sibling" != *"Claude-3p"* ]]
+}
+
 # Independent CLI dotdir protection, issue #993.
 # Uninstalling a GUI app named "Claude" / "OpenCode" / etc. must not delete
 # the same-named standalone CLI tool's state directory.
