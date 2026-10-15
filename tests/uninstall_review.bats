@@ -165,6 +165,54 @@ SH
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
+@test "personal-data menu toggles every visible row with A while the app selector ignores it" {
+    run env PROJECT_ROOT="$PROJECT_ROOT" KEYS="$BATS_TEST_TMPDIR/keys" /bin/bash --noprofile --norc <<'SH'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/ui/menu_paginated.sh"
+enter_alt_screen() { :; }
+leave_alt_screen() { :; }
+stty() { :; }
+tput() { :; }
+clear() { :; }
+printf_at() { :; }
+export MOLE_MANAGED_ALT_SCREEN=1 COLUMNS=100
+read_key() {
+    local first
+    first=$(head -n 1 "$KEYS")
+    tail -n +2 "$KEYS" > "$KEYS.rest" && mv "$KEYS.rest" "$KEYS"
+    printf '%s\n' "$first"
+}
+pick() {
+    local title="$1"
+    shift
+    printf '%s\n' "$@" > "$KEYS"
+    MOLE_SELECTION_RESULT=""
+    paginated_multi_select "$title" alpha beta gamma <<< '' 2> "$KEYS.screen" > /dev/null || exit $?
+}
+MOLE_PRESELECTED_INDICES=""
+_MOLE_MENU_KEEP_EMPTY=true
+_MOLE_MENU_SELECT_ALL=true
+pick Data CHAR:a ENTER
+[[ "$MOLE_SELECTION_RESULT" == 0,1,2 ]] || exit 1
+grep -q 'A All' "$KEYS.screen" || exit 1
+pick Data CHAR:A CHAR:a ENTER
+[[ -z "$MOLE_SELECTION_RESULT" ]] || exit 1
+MOLE_PRESELECTED_INDICES=1
+pick Data CHAR:a ENTER
+[[ "$MOLE_SELECTION_RESULT" == 0,1,2 ]] || exit 1
+MOLE_PRESELECTED_INDICES=""
+# With a search applied, A covers only the rows the search shows.
+pick Data CHAR:/ CHAR:m CHAR:m ENTER CHAR:a CLEAR_LINE ENTER
+[[ "$MOLE_SELECTION_RESULT" == 2 ]] || exit 1
+unset _MOLE_MENU_KEEP_EMPTY _MOLE_MENU_SELECT_ALL
+pick Apps CHAR:a ENTER
+[[ "$MOLE_SELECTION_RESULT" == 0 ]] || exit 1
+if grep -q 'A All' "$KEYS.screen"; then exit 1; fi
+SH
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
 @test "configuration hints only inspect absent paths from successful non-dry removals" {
     run env HOME="$HOME/config-batch" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'SH'
 set -euo pipefail

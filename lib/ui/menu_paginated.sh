@@ -101,6 +101,9 @@ paginated_multi_select() {
     local filter_text="" # Filter keyword
     local filter_text_lower=""
     local ignore_initial_enter="${MOLE_MENU_IGNORE_INITIAL_ENTER:-false}"
+    # Only callers that opt in get A; selecting every app to remove in one key
+    # is not a shortcut the app selector should offer.
+    local select_all_enabled="${_MOLE_MENU_SELECT_ALL:-false}"
 
     # Metadata (optional)
     # epochs[i]   -> last_used_epoch (numeric) for item i
@@ -602,6 +605,7 @@ paginated_multi_select() {
         local nav="${GRAY}${ICON_NAV_UP}${ICON_NAV_DOWN}${NC}"
         local page_ctrl="${GRAY}h/l Page${NC}"
         local space_select="${GRAY}Space Select${NC}"
+        local select_all="${GRAY}A All${NC}"
         local enter="${GRAY}Enter Save${NC}"
         local cancel_label="${GRAY}Q Cancel${NC}"
 
@@ -623,10 +627,12 @@ paginated_multi_select() {
             local term_width="${COLUMNS:-}"
             [[ -z "$term_width" ]] && term_width=$(tput cols 2> /dev/null || echo 80)
             [[ "$term_width" =~ ^[0-9]+$ ]] || term_width=80
-            local -a _segs=("$space_select" "$enter")
+            local -a _segs=("$space_select")
             if [[ $term_width -ge 60 ]]; then
-                _segs=("$nav" "$space_select" "$enter")
+                _segs=("$nav" "$space_select")
             fi
+            [[ "$select_all_enabled" == true ]] && _segs+=("$select_all")
+            _segs+=("$enter")
             # Q clears an applied search like Esc, so it only cancels without one.
             [[ -z "$filter_text" ]] && _segs+=("$cancel_label")
             _print_wrapped_controls "$sep" "${_segs[@]}"
@@ -926,6 +932,31 @@ paginated_multi_select() {
                         sort_reverse="true"
                     fi
                     rebuild_view
+                    need_full_redraw=true
+                fi
+                ;;
+            "CHAR:a" | "CHAR:A")
+                if handle_filter_char "${key#CHAR:}"; then
+                    : # Handled as filter input
+                elif [[ "$select_all_enabled" == true && ${#view_indices[@]} -gt 0 ]]; then
+                    # Toggle the rows on screen: select them all, or clear them
+                    # when every visible row is already selected.
+                    local _real _all_selected=true
+                    for _real in "${view_indices[@]}"; do
+                        if [[ ${selected[_real]} != true ]]; then
+                            _all_selected=false
+                            break
+                        fi
+                    done
+                    for _real in "${view_indices[@]}"; do
+                        if [[ $_all_selected == true ]]; then
+                            selected[_real]=false
+                            selected_count=$((selected_count - 1))
+                        elif [[ ${selected[_real]} != true ]]; then
+                            selected[_real]=true
+                            selected_count=$((selected_count + 1))
+                        fi
+                    done
                     need_full_redraw=true
                 fi
                 ;;
