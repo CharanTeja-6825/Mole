@@ -75,7 +75,7 @@ clean_service_worker_cache() {
     if [[ $find_rc -eq 0 ]]; then
         # shellcheck disable=SC2016
         run_with_timeout "$find_timeout" sh -c \
-            'find "$1" -type d -depth 2 2>/dev/null' _ "$cache_path" \
+            'find "$1" -mindepth 2 -maxdepth 2 -type d 2>/dev/null' _ "$cache_path" \
             > "$candidates_file" || find_rc=$?
     fi
     if [[ $find_rc -ne 0 ]]; then

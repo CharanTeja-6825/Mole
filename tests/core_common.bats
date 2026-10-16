@@ -1351,15 +1351,15 @@ assert b'Cleaning fixture...' not in raw.split(b'Error:', 1)[1], raw
 PY
 }
 
-@test "BSD-only stat and date flags never resolve through PATH (#1196, #1752)" {
+@test "BSD-only stat, date and find forms never resolve through PATH (#1196, #1752)" {
     # GNU coreutils earlier in PATH reads stat -f as file-system status and
     # date -r/-j differently, so these calls go through $STAT_BSD and
-    # $_DATE_CMD. Match the command position, skip comment lines, and prove
+    # $_DATE_CMD; GNU find reads `-depth 2` as a path, so use -mindepth/-maxdepth. Match the command position, skip comment lines, and prove
     # the matcher fires on a known positive.
     run env PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
-pattern='(^|[[:space:];(|&`]|[$][(])(stat[[:space:]]+-|date[[:space:]]+-[A-Za-z]*[jrv])'
-for probe in '    age=$(( now - $(stat -f %m "$d") ))' '    -exec stat -f "%z" {} +' '    d=$(date -r "$n" +%F)'; do
+pattern='(^|[[:space:];(|&`]|[$][(])(stat[[:space:]]+-|date[[:space:]]+-[A-Za-z]*[jrv])|find[^|;]*[[:space:]]-depth[[:space:]]+[0-9]'
+for probe in '    age=$(( now - $(stat -f %m "$d") ))' '    -exec stat -f "%z" {} +' '    d=$(date -r "$n" +%F)' "    'find \"\$1\" -type d -depth 2'"; do
     printf '%s\n' "$probe" | grep -qE "$pattern" || { echo "matcher missed: $probe"; exit 1; }
 done
 printf '%s\n' '    x=$("$STAT_BSD" -f%m "$f")' | grep -qE "$pattern" && { echo "matcher flagged STAT_BSD"; exit 1; }

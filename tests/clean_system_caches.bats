@@ -78,6 +78,43 @@ setup() {
     rm -rf "$test_cache"
 }
 
+@test "clean_service_worker_cache finds depth-two entries with GNU find first in PATH" {
+    local test_cache="$HOME/sw_gnu_find"
+    local stub_bin="$HOME/sw-gnu-bin"
+    mkdir -p "$test_cache/origin_a/cache_one/deeper" "$stub_bin"
+    # GNU find takes -depth as an option with no argument, so the BSD-only
+    # `-depth 2` made it read "2" as a path and fail the whole discovery.
+    cat > "$stub_bin/find" << 'STUB'
+#!/bin/bash
+prev=""
+for arg in "$@"; do
+    if [[ "$prev" == "-depth" && "$arg" =~ ^[0-9]+$ ]]; then
+        echo "find: paths must precede expression: '$arg'" >&2
+        exit 1
+    fi
+    prev="$arg"
+done
+exec /usr/bin/find "$@"
+STUB
+    chmod +x "$stub_bin/find"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" PATH="$stub_bin:$PATH" CACHE="$test_cache" \
+        /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/caches.sh"
+DRY_RUN=true
+PROTECTED_SW_DOMAINS=(capcut.com)
+record_dry_run_cleanup_target() { echo "RECORD:$1"; }
+clean_service_worker_cache "TestBrowser" "$CACHE"
+EOF
+
+    rm -rf "$test_cache" "$stub_bin"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"RECORD:$test_cache/origin_a/cache_one"* ]] || { echo "$output"; return 1; }
+    [[ "$output" != *"RECORD:$test_cache/origin_a/cache_one/deeper"* ]] || { echo "$output"; return 1; }
+}
+
 @test "clean_service_worker_cache protects specified domains" {
     local test_cache="$HOME/test_sw_cache"
     mkdir -p "$test_cache/abc123_https_capcut.com_0"
