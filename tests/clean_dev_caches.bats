@@ -1378,7 +1378,7 @@ EOF
     [[ "$output" != *"docker called"* ]]
 }
 
-@test "codex_desktop_running recognizes current and legacy app aliases (#1305)" {
+@test "codex_desktop_process_state recognizes current and legacy app aliases (#1305)" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -1390,13 +1390,13 @@ pgrep() {
 }
 
 for matched_query in "-x Codex" "-f /Codex.app/" "-x ChatGPT" "-f /ChatGPT.app/"; do
-    codex_desktop_running || exit 1
+    codex_desktop_process_state || exit 1
 done
 
 matched_query="-x unrelated"
-if codex_desktop_running; then
-    exit 1
-fi
+state=0
+codex_desktop_process_state || state=$?
+[[ "$state" -eq 1 ]] || exit 1
 printf 'CODEX_DESKTOP_ALIASES_OK\n'
 EOF
 

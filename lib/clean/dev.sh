@@ -4101,12 +4101,6 @@ EOF
     return 1
 }
 
-codex_desktop_running() {
-    local process_state=0
-    codex_desktop_process_state || process_state=$?
-    [[ $process_state -ne 1 ]]
-}
-
 codex_runtime_process_state() {
     local cli_state=0
     local desktop_state=0
