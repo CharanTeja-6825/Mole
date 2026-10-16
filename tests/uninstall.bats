@@ -4463,6 +4463,29 @@ EOF
     [[ "$output" == *"count=1"* ]] || { printf '%s\n' "$output"; return 1; }
 }
 
+@test "match_apps_by_name keeps matching apps listed after a name tr cannot read" {
+    run env LC_ALL=en_US.UTF-8 /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+selected_apps=()
+bad=$(printf 'Bad\377Name')
+apps_data=(
+	"1000|$HOME/Applications/$bad.app|$bad|com.example.bad|1 MB|1000000|1024"
+	"1001|$HOME/Applications/Écrivain.app|Écrivain|com.example.ecrivain|1 MB|1000001|1024"
+)
+source "$PROJECT_ROOT/tests/test_match_apps_helper.sh"
+match_apps_by_name "écrivain" 2>&1
+echo "count=${#selected_apps[@]}"
+echo "match=${selected_apps[0]-}"
+EOF
+
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    # One unreadable name used to cut the batched tr short and leave every
+    # later app unmatched.
+    [[ "$output" == *"count=1"* ]] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"|Écrivain|"* ]] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" != *"Illegal byte sequence"* ]] || { printf '%s\n' "$output"; return 1; }
+}
+
 @test "main clears pending input before app selection after scan (#726)" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'INNER'
 set -euo pipefail

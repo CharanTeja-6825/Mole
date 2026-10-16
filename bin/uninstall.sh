@@ -1709,7 +1709,19 @@ match_apps_by_name() {
         done
         while IFS= read -r lower_line; do
             lower_output+=("$lower_line")
-        done < <(printf '%s\n' "${lower_input[@]}" | /usr/bin/tr '[:upper:]' '[:lower:]')
+        done < <(printf '%s\n' "${lower_input[@]}" | /usr/bin/tr '[:upper:]' '[:lower:]' 2> /dev/null)
+        # tr stops at the first byte that is not valid in the locale, which
+        # would leave every later app unmatched. Redo the names one by one
+        # then, folding only ASCII for a name tr cannot read.
+        if [[ ${#lower_output[@]} -ne ${#lower_input[@]} ]]; then
+            local lower_folded
+            lower_output=()
+            for lower_line in "${lower_input[@]}"; do
+                lower_folded=$(printf '%s\n' "$lower_line" | /usr/bin/tr '[:upper:]' '[:lower:]' 2> /dev/null) ||
+                    lower_folded=$(printf '%s\n' "$lower_line" | LC_ALL=C /usr/bin/tr '[:upper:]' '[:lower:]')
+                lower_output+=("$lower_folded")
+            done
+        fi
         while [[ $lower_i -lt ${#apps_data[@]} ]]; do
             app_names_lower+=("${lower_output[$((lower_i * 2))]-}")
             app_dirs_lower+=("${lower_output[$((lower_i * 2 + 1))]-}")
