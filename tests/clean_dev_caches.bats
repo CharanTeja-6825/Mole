@@ -4389,3 +4389,47 @@ done
 EOF
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
+
+@test "clean_dev_nix collects only unreachable store paths under a timeout" {
+    local trace="$HOME/nix-real.trace"
+    rm -f "$trace"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TRACE="$trace" MOLE_TIMEOUT_PKG_CLEANUP_SEC=77 \
+        /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+DRY_RUN=false
+is_path_whitelisted() { return 1; }
+run_with_timeout() { printf 'TIMEOUT:%s:%s\n' "$1" "${*:2}" >> "$TRACE"; shift; "$@"; }
+nix-store() { printf 'NIX_STORE:%s\n' "$*" >> "$TRACE"; }
+nix-collect-garbage() { printf 'UNEXPECTED_GENERATION_DELETE:%s\n' "$*" >> "$TRACE"; return 1; }
+clean_dev_nix
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    grep -qx 'TIMEOUT:77:nix-store --gc' "$trace" || { cat "$trace"; return 1; }
+    grep -qx 'NIX_STORE:--gc' "$trace" || return 1
+    if grep -q 'UNEXPECTED_GENERATION_DELETE' "$trace"; then
+        return 1
+    fi
+    [[ "$output" == *"Nix store garbage"* ]]
+}
+
+@test "clean_dev_nix dry run runs no Nix command" {
+    local trace="$HOME/nix-dry.trace"
+    rm -f "$trace"
+    : > "$trace"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TRACE="$trace" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+DRY_RUN=true
+is_path_whitelisted() { return 1; }
+run_with_timeout() { printf 'TIMEOUT:%s\n' "$*" >> "$TRACE"; shift; "$@"; }
+nix-store() { printf 'NIX_STORE:%s\n' "$*" >> "$TRACE"; }
+nix-collect-garbage() { printf 'NIX_COLLECT_GARBAGE:%s\n' "$*" >> "$TRACE"; return 1; }
+clean_dev_nix
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [ ! -s "$trace" ] || { cat "$trace"; return 1; }
+    [[ "$output" == *"Nix store garbage · would clean"* ]]
+}

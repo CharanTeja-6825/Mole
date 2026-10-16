@@ -1350,19 +1350,14 @@ clean_dev_docker() {
     fi
     safe_clean ~/.docker/buildx/cache/* "Docker BuildX cache"
 }
-# Nix garbage collection.
+# Nix store garbage collection.
+# `nix-store --gc` removes only store paths no GC root references, so profile
+# and home-manager generations stay as rollback points. Deleting generations
+# (`nix-collect-garbage --delete-older-than`) is the user's decision, not a
+# cache cleanup.
 clean_dev_nix() {
-    if command -v nix-collect-garbage > /dev/null 2>&1; then
-        if [[ "$DRY_RUN" != "true" ]]; then
-            clean_tool_cache "Nix garbage collection" "/nix/store" nix-collect-garbage --delete-older-than 30d || return $?
-        elif is_path_whitelisted "/nix/store"; then
-            echo -e "  ${YELLOW}${ICON_DRY_RUN}${NC} Nix garbage collection · would skip (whitelist)"
-            note_activity
-        else
-            echo -e "  ${YELLOW}${ICON_DRY_RUN}${NC} Nix garbage collection · would clean"
-        fi
-        note_activity
-    fi
+    command -v nix-store > /dev/null 2>&1 || return 0
+    clean_tool_cache "Nix store garbage" "/nix/store" run_with_timeout "$MOLE_TIMEOUT_PKG_CLEANUP_SEC" nix-store --gc || return $?
 }
 # Cloud CLI caches.
 clean_dev_cloud() {
