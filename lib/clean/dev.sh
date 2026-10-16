@@ -1451,7 +1451,12 @@ clean_xcode_documentation_cache() {
     local pre_skipped_count=0
     for entry in "${stale_entries[@]}"; do
         [[ ! -L "$entry" ]] || continue
-        if should_protect_path "$entry" || is_path_whitelisted "$entry" || holds_compiled_model_cache "$entry"; then
+        # Whitelisted entries stay silent, as safe_clean keeps them; only
+        # entries Mole itself refuses count as skipped protected items.
+        if is_path_whitelisted "$entry"; then
+            continue
+        fi
+        if should_protect_path "$entry" || holds_compiled_model_cache "$entry"; then
             pre_skipped_count=$((pre_skipped_count + 1))
             continue
         fi
@@ -1500,7 +1505,10 @@ clean_xcode_documentation_cache() {
     local stop_reason=""
     local stale_entry
     for stale_entry in "${stale_entries[@]}"; do
-        if should_protect_path "$stale_entry" || is_path_whitelisted "$stale_entry" || holds_compiled_model_cache "$stale_entry"; then
+        if is_path_whitelisted "$stale_entry"; then
+            continue
+        fi
+        if should_protect_path "$stale_entry" || holds_compiled_model_cache "$stale_entry"; then
             skipped_count=$((skipped_count + 1))
             continue
         fi
@@ -1893,7 +1901,12 @@ clean_xcode_system_coresimulator_caches() {
     local pre_skipped_count=0
     for entry in "${cache_entries[@]}"; do
         [[ ! -L "$entry" ]] || continue
-        if should_protect_path "$entry" || is_path_whitelisted "$entry" || holds_compiled_model_cache "$entry"; then
+        # Whitelisted entries stay silent, as safe_clean keeps them; only
+        # entries Mole itself refuses count as skipped protected items.
+        if is_path_whitelisted "$entry"; then
+            continue
+        fi
+        if should_protect_path "$entry" || holds_compiled_model_cache "$entry"; then
             pre_skipped_count=$((pre_skipped_count + 1))
             continue
         fi
@@ -1990,7 +2003,10 @@ clean_xcode_system_coresimulator_caches() {
             [[ $process_state -eq 2 ]] && stop_reason="process state unknown"
             break
         fi
-        if should_protect_path "$entry" || is_path_whitelisted "$entry" || holds_compiled_model_cache "$entry"; then
+        if is_path_whitelisted "$entry"; then
+            continue
+        fi
+        if should_protect_path "$entry" || holds_compiled_model_cache "$entry"; then
             skipped_count=$((skipped_count + 1))
             continue
         fi

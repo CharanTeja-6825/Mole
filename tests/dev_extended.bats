@@ -948,6 +948,83 @@ EOF
     [[ "$output" != *"UNEXPECTED_REMOVE"* ]]
 }
 
+@test "clean_xcode_documentation_cache keeps whitelisted indexes out of the skipped count" {
+    local doc_root mode
+    for mode in whitelist protect; do
+        doc_root="$HOME/DocumentationCacheSkipCount-$mode"
+        rm -rf "$doc_root"
+        mkdir -p "$doc_root"
+        touch "$doc_root/DeveloperDocumentation.index" "$doc_root/DeveloperDocumentation-16.0.index" "$doc_root/DeveloperDocumentation-15.0.index"
+        touch -t 202603010000 "$doc_root/DeveloperDocumentation.index"
+        touch -t 202602010000 "$doc_root/DeveloperDocumentation-16.0.index"
+        touch -t 202601010000 "$doc_root/DeveloperDocumentation-15.0.index"
+
+        run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_XCODE_DOCUMENTATION_CACHE_DIR="$doc_root" MODE="$mode" \
+            /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+note_activity() { :; }
+kept="$MOLE_XCODE_DOCUMENTATION_CACHE_DIR/DeveloperDocumentation-16.0.index"
+is_path_whitelisted() { [[ "$MODE" == whitelist && "$1" == "$kept" ]]; }
+should_protect_path() { [[ "$MODE" == protect && "$1" == "$kept" ]]; }
+has_sudo_session() { return 0; }
+_sim_runtime_size_kb() { echo 1; }
+_xcode_xctest_devices_process_running() { return 1; }
+safe_sudo_remove() { echo "REMOVE:$1"; }
+clean_xcode_documentation_cache
+EOF
+        [ "$status" -eq 0 ] || {
+            echo "$output"
+            return 1
+        }
+        [[ "$output" == *"Xcode documentation cache · removed 1 old indexes"* ]] || return 1
+        [[ "$output" == *"REMOVE:$doc_root/DeveloperDocumentation-15.0.index"* ]] || return 1
+        [[ "$output" != *"REMOVE:$doc_root/DeveloperDocumentation-16.0.index"* ]] || return 1
+        if [[ "$mode" == whitelist ]]; then
+            [[ "$output" != *"skipped"* ]] || return 1
+        else
+            [[ "$output" == *"Xcode documentation cache · skipped 1 protected items"* ]] || return 1
+        fi
+    done
+}
+
+@test "clean_xcode_system_coresimulator_caches keeps whitelisted entries out of the skipped count" {
+    local cache_root mode
+    for mode in whitelist protect; do
+        cache_root="$HOME/SystemCoreSimulatorSkipCount-$mode"
+        rm -rf "$cache_root"
+        mkdir -p "$cache_root/dyld" "$cache_root/metadata"
+
+        run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_XCODE_SYSTEM_CORESIMULATOR_CACHE_DIR="$cache_root" MODE="$mode" \
+            /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+note_activity() { :; }
+kept="$MOLE_XCODE_SYSTEM_CORESIMULATOR_CACHE_DIR/metadata"
+is_path_whitelisted() { [[ "$MODE" == whitelist && "$1" == "$kept" ]]; }
+should_protect_path() { [[ "$MODE" == protect && "$1" == "$kept" ]]; }
+_coresimulator_activity_state() { return 1; }
+has_sudo_session() { return 0; }
+get_path_size_kb() { echo 3; }
+safe_sudo_remove() { echo "REMOVE:$1"; }
+clean_xcode_system_coresimulator_caches
+EOF
+        [ "$status" -eq 0 ] || {
+            echo "$output"
+            return 1
+        }
+        [[ "$output" == *"REMOVE:$cache_root/dyld"* ]] || return 1
+        [[ "$output" != *"REMOVE:$cache_root/metadata"* ]] || return 1
+        if [[ "$mode" == whitelist ]]; then
+            [[ "$output" != *"skipped"* ]] || return 1
+        else
+            [[ "$output" == *"skipped 1 protected"* ]] || return 1
+        fi
+    done
+}
+
 @test "clean_xcode_device_support skips all deletion paths while build tooling owns it" {
     local ds_dir="$HOME/OwnedDeviceSupport"
     mkdir -p "$ds_dir/17.0/Symbols/System/Library/Caches" "$ds_dir/17.1" "$ds_dir/17.2"
