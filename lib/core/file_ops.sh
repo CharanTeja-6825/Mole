@@ -1131,8 +1131,11 @@ _mole_record_uninstall_refusal() {
 }
 
 # Validate path for deletion (absolute, no traversal, not system dir)
+# A refusal leaves its fixed operations-log reason in _MOLE_VALIDATION_REASON
+# so the sink that asked can record why the path stayed.
 validate_path_for_deletion() {
     local path="$1"
+    _MOLE_VALIDATION_REASON="invalid path"
 
     # Check path is not empty
     if [[ -z "$path" ]]; then
@@ -1162,6 +1165,7 @@ validate_path_for_deletion() {
 
     local policy_path
     policy_path=$(_mole_normalize_deletion_policy_path "$path")
+    _MOLE_VALIDATION_REASON="protected"
 
     # Check symlink target if path is a symbolic link
     if [[ -L "$path" ]]; then
@@ -1259,6 +1263,7 @@ validate_path_for_deletion() {
     _mole_should_refuse_live_user_cache_path "$policy_path" || live_cache_guard_rc=$?
     if [[ $live_cache_guard_rc -eq 0 ]]; then
         _mole_record_uninstall_refusal "$path" live-cache
+        _MOLE_VALIDATION_REASON="live user cache"
         debug_log "Path validation: live user cache kept: $policy_path"
         return 1
     fi
@@ -1277,6 +1282,7 @@ validate_path_for_deletion() {
             return "$sqlite_state"
         fi
         if [[ $sqlite_state -eq 0 || $sqlite_state -eq 2 ]]; then
+            _MOLE_VALIDATION_REASON="active or unknown SQLite database"
             debug_log "Path validation: in-use SQLite database kept: $policy_path"
             return 1
         fi
@@ -1293,6 +1299,7 @@ validate_path_for_deletion() {
             return "$download_open_state"
         fi
         if [[ $download_open_state -eq 0 || $download_open_state -eq 2 ]]; then
+            _MOLE_VALIDATION_REASON="active or unknown download"
             debug_log "Path validation: incomplete download not conclusively idle, keep: $policy_path"
             return 1
         fi
@@ -1488,6 +1495,7 @@ safe_remove() {
             _mole_record_clean_cancellation "$validation_rc"
             return "$validation_rc"
         fi
+        log_operation "${MOLE_CURRENT_COMMAND:-clean}" "SKIPPED" "$path" "${_MOLE_VALIDATION_REASON:-protected}"
         return 1
     fi
     _MOLE_DEFER_CONTAINER_HANDLE_PROBE=false
@@ -2397,6 +2405,7 @@ mole_delete() {
     fi
     if [[ $validation_rc -ne 0 ]]; then
         _mole_delete_log "$mode" "0" "rejected" "$path"
+        log_operation "${MOLE_CURRENT_COMMAND:-uninstall}" "SKIPPED" "$path" "${_MOLE_VALIDATION_REASON:-protected}"
         return 1
     fi
 
@@ -3371,13 +3380,6 @@ _mole_delete_log() {
         >> "$log_file" 2> /dev/null; then
         _mole_warn_log_broken "write to: $log_file"
     fi
-}
-
-_mole_warn_log_broken() {
-    [[ -n "${_MOLE_DELETE_LOG_WARNED:-}" ]] && return 0
-    _MOLE_DELETE_LOG_WARNED=1
-    export _MOLE_DELETE_LOG_WARNED
-    printf 'Warning: deletions audit log unavailable (%s). Forensic trail incomplete this session.\n' "$1" >&2
 }
 
 # ============================================================================

@@ -448,6 +448,8 @@ _update_verify_installed_generation() {
 _update_print_verified_success() {
     local update_ref="$1"
     local success_label="$2"
+    log_operation "update" "REBUILT" "${mole_path:-mole}" \
+        "updated to ${_MOLE_UPDATE_VERIFIED_VERSION:-${_MOLE_UPDATE_VERIFIED_COMMIT:-$update_ref}}"
     if [[ "$update_ref" == "main" && -n "$_MOLE_UPDATE_VERIFIED_COMMIT" ]]; then
         printf '\n%s\n\n' "${GREEN}${ICON_SUCCESS}${NC} Updated to ${success_label}, ${_MOLE_UPDATE_VERIFIED_COMMIT}"
     elif [[ "$update_ref" == "main" ]]; then
@@ -1396,8 +1398,12 @@ update_mole() (
                 new_version="$fallback_version"
             fi
             printf '%s\n\n' "${GREEN}${ICON_SUCCESS}${NC} Updated to ${success_label}, ${new_version:-unknown}"
+            log_operation "update" "REBUILT" "${mole_path:-mole}" "updated to ${new_version:-unknown}"
         else
             printf '\n'
+            if printf '%s\n' "$output" | grep -q "Updated to latest version"; then
+                log_operation "update" "REBUILT" "${mole_path:-mole}" "updated to ${fallback_version:-unknown}"
+            fi
         fi
     }
 

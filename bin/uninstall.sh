@@ -1967,7 +1967,6 @@ uninstall_list_apps() {
 main() {
     # Set current command for operation logging
     export MOLE_CURRENT_COMMAND="uninstall"
-    log_operation_session_start "uninstall"
 
     # Default to Trash routing so an accidental uninstall is recoverable.
     # The caller can opt back into rm -rf with --permanent. See #723.
@@ -2017,6 +2016,10 @@ main() {
         uninstall_list_apps
         return $?
     fi
+
+    # Opened only after flags are parsed: --dry-run must reach the marker, and
+    # --help, --list and a rejected flag change nothing worth a session.
+    log_operation_session_start "uninstall"
 
     hide_cursor
     if [[ "${MOLE_DRY_RUN:-0}" == "1" ]]; then

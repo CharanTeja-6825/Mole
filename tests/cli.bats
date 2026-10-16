@@ -679,6 +679,26 @@ EOF
 	[ "$status" -ne 0 ]
 }
 
+@test "touchid enable and disable each leave an operations.log row" {
+	pam_file="$HOME/pam_logged"
+	cat >"$pam_file" <<'EOF'
+auth       sufficient     pam_opendirectory.so
+EOF
+	rm -f "$HOME/Library/Logs/mole/operations.log"
+
+	fake_bin="$HOME/fake-bin-logged"
+	create_fake_utils "$fake_bin"
+
+	run env HOME="$HOME" PATH="$fake_bin:$PATH" MOLE_PAM_SUDO_FILE="$pam_file" "$PROJECT_ROOT/bin/touchid.sh" enable
+	[ "$status" -eq 0 ]
+	run env HOME="$HOME" PATH="$fake_bin:$PATH" MOLE_PAM_SUDO_FILE="$pam_file" "$PROJECT_ROOT/bin/touchid.sh" disable
+	[ "$status" -eq 0 ]
+
+	run cat "$HOME/Library/Logs/mole/operations.log"
+	[[ "$output" == *"[touchid] REBUILT $pam_file (touchid enabled)"* ]] || return 1
+	[[ "$output" == *"[touchid] REBUILT $pam_file (touchid disabled)"* ]] || return 1
+}
+
 @test "touchid enable --dry-run does not modify pam file" {
 	pam_file="$HOME/pam_enable_dry_run"
 	cat >"$pam_file" <<'EOF'

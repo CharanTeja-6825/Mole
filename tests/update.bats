@@ -332,7 +332,10 @@ SCRIPT
 	if grep -q -- "--update" "$installer_args_log"; then
 		return 1
 	fi
-	[ "$(cat "$installer_version_log")" = "V$current_version" ]
+	[ "$(cat "$installer_version_log")" = "V$current_version" ] || return 1
+	grep -Fq "[update] REBUILT $manual_bin/mo" "$HOME/Library/Logs/mole/operations.log" ||
+		grep -Fq "[update] REBUILT $manual_bin/mole" "$HOME/Library/Logs/mole/operations.log" || return 1
+	grep -Fq "(updated to $current_version)" "$HOME/Library/Logs/mole/operations.log" || return 1
 }
 
 @test "mo update retries transient installer download failures" {
@@ -984,6 +987,32 @@ EOF
 	[[ "$output" != *"UNEXPECTED_DIRECT_MO"* ]]
 }
 
+@test "Homebrew update logs the new version and a no-op upgrade logs nothing" {
+	run env HOME="$HOME/logged-homebrew-update" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+mkdir -p "$HOME"
+source "$PROJECT_ROOT/lib/core/common.sh"
+run_with_timeout() {
+	shift
+	case "$*" in
+		"brew upgrade mole") printf '%s\n' "${UPGRADE_OUTPUT:-==> Upgrading mole}" ;;
+		"brew list --versions mole") printf 'mole 9.9.9\n' ;;
+	esac
+}
+UPGRADE_OUTPUT="Warning: mole 9.9.9 already installed" update_via_homebrew "9.9.9"
+# Its own scratch files are not cleanup and must not be logged as such.
+[[ ! -s "$OPERATIONS_LOG_FILE" ]] || exit 1
+update_via_homebrew "1.0.0"
+cat "$OPERATIONS_LOG_FILE"
+EOF
+
+	[ "$status" -eq 0 ] || {
+		echo "$output"
+		return 1
+	}
+	[[ "$output" == *"[update] REBUILT Homebrew mole (updated to 9.9.9)"* ]]
+}
+
 @test "mo update preserves actionable Homebrew diagnostics on failure (#1247)" {
 	local fake_brew_bin="$TEST_ROOT/homebrew/bin"
 	local fake_brew_mole="$TEST_ROOT/homebrew/Cellar/mole/9.9.9/bin/mole"
@@ -1248,7 +1277,9 @@ SCRIPT
 	grep -q -- "--update" "$installer_args_log" || return 1
 	[[ "$output" == *"Retrying with a direct reinstall"* ]] || return 1
 	[[ "$output" == *"Updated to latest version, $current_version"* ]] || return 1
-	[ "$(cat "$heal_log")" = "V$current_version|$manual_bin|$manual_config" ]
+	[ "$(cat "$heal_log")" = "V$current_version|$manual_bin|$manual_config" ] || return 1
+	grep -Fq "] [update] REBUILT " "$HOME/Library/Logs/mole/operations.log" || return 1
+	grep -Fq "(updated to $current_version)" "$HOME/Library/Logs/mole/operations.log" || return 1
 }
 
 @test "mo update prints the manual reinstall command when self-heal fails too" {
@@ -1378,6 +1409,7 @@ SCRIPT
 	}
 	[[ "$output" == *"Retrying with a direct reinstall"* ]] || return 1
 	[[ "$output" == *"Updated to nightly build, abc1234"* ]] || return 1
+	grep -Fq "(updated to abc1234" "$HOME/Library/Logs/mole/operations.log" || return 1
 	[ "$(cat "$heal_log")" = "main|$manual_bin|$manual_config" ] || return 1
 	grep -qFx 'CHANNEL=nightly' "$manual_config/install_channel" || return 1
 	grep -qFx 'COMMIT_HASH=abc1234' "$manual_config/install_channel"

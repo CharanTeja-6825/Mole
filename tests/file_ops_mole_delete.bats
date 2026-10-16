@@ -999,6 +999,49 @@ EOF
     [ "$status_col" = "rejected" ]
 }
 
+@test "validation refusals leave a SKIPPED row with a fixed reason in operations.log" {
+    local victim="$SANDBOX/system-link"
+    ln -s "/System" "$victim"
+    local oplog_home="$SANDBOX/oplog-home"
+    mkdir -p "$oplog_home"
+
+    run env HOME="$oplog_home" /bin/bash --noprofile --norc <<EOF
+$(prelude)
+export MOLE_CURRENT_COMMAND=uninstall
+mole_delete "$victim" || true
+export MOLE_CURRENT_COMMAND=clean
+safe_remove "$victim" true || true
+EOF
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ -L "$victim" ]] || return 1
+    local oplog="$oplog_home/Library/Logs/mole/operations.log"
+    grep -Fq "] [uninstall] SKIPPED $victim (protected)" "$oplog" || { cat "$oplog"; return 1; }
+    grep -Fq "] [clean] SKIPPED $victim (protected)" "$oplog" || { cat "$oplog"; return 1; }
+}
+
+@test "an unwritable operations.log warns once instead of failing silently" {
+    local oplog_home="$SANDBOX/readonly-oplog-home"
+    mkdir -p "$oplog_home/Library/Logs/mole"
+    : > "$oplog_home/Library/Logs/mole/operations.log"
+    chmod 0444 "$oplog_home/Library/Logs/mole/operations.log"
+
+    run env HOME="$oplog_home" /bin/bash --noprofile --norc <<EOF
+$(prelude)
+log_operation clean REMOVED /tmp/first 1KB
+log_operation clean REMOVED /tmp/second 1KB
+log_operation_session_start clean
+log_operation_session_end clean 2 2
+EOF
+
+    chmod 0644 "$oplog_home/Library/Logs/mole/operations.log"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    local warn_count
+    warn_count=$(printf '%s\n' "$output" | grep -c "audit log unavailable" || true)
+    [ "$warn_count" = "1" ] || { echo "$output"; return 1; }
+    [[ ! -s "$oplog_home/Library/Logs/mole/operations.log" ]] || return 1
+}
+
 @test "a test without its own HOME never runs against the account home" {
     local account account_home=""
     account="$(id -un)"
@@ -1462,7 +1505,7 @@ EOF
     [ "$status" -eq 0 ]
     # Warning visible exactly once.
     local warn_count
-    warn_count=$(printf '%s\n' "$output" | grep -c "deletions audit log unavailable" || true)
+    warn_count=$(printf '%s\n' "$output" | grep -c "audit log unavailable" || true)
     [ "$warn_count" = "1" ]
 }
 

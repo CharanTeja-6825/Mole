@@ -443,6 +443,9 @@ brew_uninstall_cask() {
     # Success: uninstall worked and both are gone, or already uninstalled
     if $cask_gone && $app_gone; then
         debug_log "Successfully uninstalled cask '$cask_name'"
+        # Homebrew removed the bundle, so no Mole sink logged it.
+        log_operation "${MOLE_CURRENT_COMMAND:-uninstall}" "REMOVED" \
+            "${app_path:-$cask_name}" "brew uninstall $cask_name"
         return 0
     fi
 

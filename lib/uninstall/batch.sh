@@ -368,6 +368,10 @@ bootout_login_item_helpers() {
         run_with_timeout "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" launchctl \
             bootout "gui/$uid/$helper_id" > /dev/null 2>&1 || bootout_rc=$?
         mole_rc_timeout_or_signal "$bootout_rc" && return "$bootout_rc"
+        if [[ $bootout_rc -eq 0 ]]; then
+            log_operation "${MOLE_CURRENT_COMMAND:-uninstall}" "REMOVED" \
+                "gui/$uid/$helper_id" "launchctl bootout"
+        fi
     done <<< "$helper_ids"
     return 0
 }
@@ -429,6 +433,9 @@ unload_launch_plist() {
             unload "$plist" > /dev/null 2>&1 || unload_rc=$?
     fi
     mole_rc_timeout_or_signal "$unload_rc" && return "$unload_rc"
+    if [[ $unload_rc -eq 0 ]]; then
+        log_operation "${MOLE_CURRENT_COMMAND:-uninstall}" "REMOVED" "$plist" "launchctl unload"
+    fi
     return 0
 }
 
@@ -623,9 +630,10 @@ remove_login_item() {
             local escaped_name="${clean_name//\\/\\\\}"
             escaped_name="${escaped_name//\"/\\\"}"
 
-            local login_item_rc=0
-            run_with_timeout "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" osascript \
-                > /dev/null 2>&1 <<- EOF || login_item_rc=$?
+            local login_item_rc=0 deleted_count=""
+            deleted_count=$(
+                run_with_timeout "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" osascript 2> /dev/null <<- EOF
+				set deletedCount to 0
 				tell application "System Events"
 				    try
 				        set itemCount to count of login items
@@ -635,13 +643,19 @@ remove_login_item() {
 				                set itemName to name of login item i
 				                if itemName is "$escaped_name" then
 				                    delete login item i
+				                    set deletedCount to deletedCount + 1
 				                end if
 				            end try
 				        end repeat
 				    end try
 				end tell
+				return deletedCount
 			EOF
+            ) || login_item_rc=$?
             mole_rc_timeout_or_signal "$login_item_rc" && return "$login_item_rc"
+            if [[ $login_item_rc -eq 0 && "$deleted_count" =~ ^[1-9][0-9]*$ ]]; then
+                log_operation "${MOLE_CURRENT_COMMAND:-uninstall}" "REMOVED" "$clean_name" "login item"
+            fi
         fi
     fi
 }
@@ -731,7 +745,10 @@ remove_file_list() {
         local validation_rc=0
         validate_path_for_deletion "$file" || validation_rc=$?
         mole_rc_timeout_or_signal "$validation_rc" && return "$validation_rc"
-        [[ $validation_rc -eq 0 ]] || continue
+        if [[ $validation_rc -ne 0 ]]; then
+            log_operation "${MOLE_CURRENT_COMMAND:-uninstall}" "SKIPPED" "$file" "${_MOLE_VALIDATION_REASON:-protected}"
+            continue
+        fi
 
         local launch_agent=false
         local launch_agent_identity=""
@@ -3113,6 +3130,20 @@ _batch_render_summary() {
 # (scan, preview/confirm, execute, summary) and manages the cross-phase
 # shared state, the SIGINT/SIGTERM trap, sudo keepalive, and the deferred
 # Dock / LaunchServices refresh.
+# brew autoremove prints one "Uninstalling <keg>... (<files>, <size>)" line per
+# formula it removes. Homebrew does the removal, so record each keg here.
+_batch_log_brew_autoremove() {
+    local output="$1" line keg
+    while IFS= read -r line; do
+        line="${line#==> }"
+        [[ "$line" == "Uninstalling "*"... ("* ]] || continue
+        keg="${line#Uninstalling }"
+        keg="${keg%%... (*}"
+        [[ "$keg" == /* ]] || continue
+        log_operation "${MOLE_CURRENT_COMMAND:-uninstall}" "REMOVED" "$keg" "brew autoremove"
+    done <<< "$output"
+}
+
 batch_uninstall_applications() {
     local total_size_freed=0
 
@@ -3298,8 +3329,9 @@ batch_uninstall_applications() {
         # attached lets the Perl timeout fallback hand off the controlling tty
         # and suspend the foreground uninstall prompt with SIGTTIN.
         (
-            HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_AUTO_UPDATE=1 NONINTERACTIVE=1 \
-                run_with_timeout "$MOLE_TIMEOUT_DISK_VERIFY_SEC" brew autoremove > /dev/null 2>&1 || true
+            autoremove_output=$(HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_AUTO_UPDATE=1 NONINTERACTIVE=1 \
+                run_with_timeout "$MOLE_TIMEOUT_DISK_VERIFY_SEC" brew autoremove 2>&1) || true
+            _batch_log_brew_autoremove "$autoremove_output"
         ) > /dev/null 2>&1 < /dev/null &
         disown $! 2> /dev/null || true
     fi

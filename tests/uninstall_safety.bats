@@ -212,6 +212,57 @@ EOF
 	[ "$status" -eq 0 ]
 }
 
+@test "uninstall teardown logs each launchd, login item and Dock change it made" {
+	mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Preferences"
+	touch "$HOME/Library/LaunchAgents/com.example.foo.plist"
+	local dock="$HOME/Library/Preferences/com.apple.dock.plist"
+	/usr/libexec/PlistBuddy -c "Add :persistent-apps array" \
+		-c "Add :persistent-apps:0:tile-type string file-tile" \
+		-c "Add :persistent-apps:0:tile-data:bundle-identifier string com.example.gone" \
+		-c "Add :persistent-apps:0:tile-data:file-data:_CFURLString string file:///Applications/Gone.app/" \
+		"$dock" > /dev/null
+
+	run env -u MOLE_TEST_MODE -u MOLE_TEST_NO_AUTH HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" \
+		/bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+run_with_timeout() {
+	if [[ "$2" == shasum ]]; then
+		shift 2
+		shasum "$@"
+		return $?
+	fi
+	shift
+	case "$1" in
+		launchctl) return 0 ;;
+		osascript)
+			cat > /dev/null
+			printf '1\n'
+			;;
+		*) return 97 ;;
+	esac
+}
+killall() { :; }
+export MOLE_CURRENT_COMMAND=uninstall
+rm -f "$OPERATIONS_LOG_FILE"
+unload_launch_plist "$HOME/Library/LaunchAgents/com.example.foo.plist" false "" com.example.foo
+bootout_login_item_helpers "com.example.foo.LoginHelper"
+remove_login_item "Gone.app" com.example.gone
+remove_apps_from_dock "/Applications/Gone.app|com.example.gone"
+cat "$OPERATIONS_LOG_FILE"
+EOF
+
+	[ "$status" -eq 0 ] || {
+		echo "$output"
+		return 1
+	}
+	[[ "$output" == *"[uninstall] REMOVED $HOME/Library/LaunchAgents/com.example.foo.plist (launchctl unload)"* ]] || return 1
+	[[ "$output" == *"[uninstall] REMOVED gui/$(id -u)/com.example.foo.LoginHelper (launchctl bootout)"* ]] || return 1
+	[[ "$output" == *"[uninstall] REMOVED Gone (login item)"* ]] || return 1
+	[[ "$output" == *"[uninstall] REMOVED /Applications/Gone.app (dock entry)"* ]] || return 1
+}
+
 @test "launch plist unload validates path and uses timeout" {
 	mkdir -p "$HOME/Library/LaunchAgents"
 	touch "$HOME/Library/LaunchAgents/com.example.foo.plist"

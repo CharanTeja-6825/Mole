@@ -739,6 +739,52 @@ EOF
     [ "$status" -eq 0 ]
 }
 
+@test "brew_uninstall_cask logs the bundle Homebrew removed" {
+    local fixture_home
+    fixture_home=$(mktemp -d "$HOME/brew-oplog.XXXXXX")
+    mkdir -p "$fixture_home/Applications/Logged.app"
+
+    run env HOME="$fixture_home" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF2'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/uninstall/brew.sh"
+debug_log() { :; }
+get_path_size_kb() { echo "100"; }
+run_with_timeout() { shift; "$@"; }
+is_brew_cask_installed() { return 1; }
+brew() { /bin/rm -rf "$HOME/Applications/Logged.app"; }
+export -f brew
+export MOLE_CURRENT_COMMAND=uninstall
+brew_uninstall_cask "logged-cask" "$HOME/Applications/Logged.app" nozap
+EOF2
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    grep -Fq "] [uninstall] REMOVED $fixture_home/Applications/Logged.app (brew uninstall logged-cask)" \
+        "$fixture_home/Library/Logs/mole/operations.log" || return 1
+}
+
+@test "uninstall logs every keg brew autoremove removed" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF2'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+rm -f "$OPERATIONS_LOG_FILE"
+export MOLE_CURRENT_COMMAND=uninstall
+_batch_log_brew_autoremove "==> Autoremoving 2 unneeded formulae:
+libfoo
+libbar
+Uninstalling /opt/homebrew/Cellar/libfoo/1.2.3... (45 files, 3.2MB)
+==> Uninstalling /opt/homebrew/Cellar/libbar/0.9_1... (3 files, 12KB)
+Warning: something unrelated"
+cat "$OPERATIONS_LOG_FILE"
+EOF2
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"[uninstall] REMOVED /opt/homebrew/Cellar/libfoo/1.2.3 (brew autoremove)"* ]] || return 1
+    [[ "$output" == *"[uninstall] REMOVED /opt/homebrew/Cellar/libbar/0.9_1 (brew autoremove)"* ]] || return 1
+    [ "$(printf '%s\n' "$output" | grep -c 'brew autoremove')" -eq 2 ] || return 1
+}
+
 @test "_detect_cask_via_caskroom_search handles empty uniq array expansion under set -u" {
     mkdir -p "$BATS_TEST_TMPDIR/TestCaskApp.app"
 
