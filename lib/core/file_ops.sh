@@ -218,12 +218,6 @@ _mole_user_cache_scope() {
     return 0
 }
 
-_mole_user_cache_owner_component() {
-    local scope=""
-    scope=$(_mole_user_cache_scope "$1") || return 1
-    printf '%s\n' "${scope%%|*}"
-}
-
 # SQLite main file or -wal / -shm / -journal companion. Case-insensitive so a
 # cache sweep cannot delete a database through a case variant of its name
 # (contributor PR #1391 + main reverse-DNS gate).

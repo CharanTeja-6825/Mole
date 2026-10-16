@@ -304,9 +304,6 @@ paginated_multi_select() {
     hide_cursor
 
     # Helper functions
-    # shellcheck disable=SC2329
-    print_line() { printf "\r\033[2K%s\n" "$1" >&2; }
-
     # Print footer lines wrapping only at separators
     _print_wrapped_controls() {
         local sep="$1"
