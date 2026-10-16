@@ -754,7 +754,7 @@ get_cleanup_path_size_kb() {
     # with a zero/invalid stat we also fall back; a symlink reports 0 directly.
     if [[ -L "$path" || -f "$path" ]] && command -v stat > /dev/null 2>&1; then
         local bytes
-        bytes=$(stat -f%z "$path" 2> /dev/null || echo "0")
+        bytes=$("$STAT_BSD" -f%z "$path" 2> /dev/null || echo "0")
         if [[ "$bytes" =~ ^[0-9]+$ && "$bytes" -gt 0 ]]; then
             echo $(((bytes + 1023) / 1024))
             return 0
@@ -1018,7 +1018,7 @@ _safe_clean_impl() {
             local bulk_stat_file="$temp_dir/bulk_stat"
             local bulk_stat_rc=0
             run_with_timeout "$MOLE_TIMEOUT_DISK_VERIFY_SEC" \
-                stat -f%z "${existing_paths[@]}" < /dev/null \
+                "$STAT_BSD" -f%z "${existing_paths[@]}" < /dev/null \
                 > "$bulk_stat_file" 2> /dev/null || bulk_stat_rc=$?
             if [[ $bulk_stat_rc -ge 128 ]]; then
                 cleanup_interrupt_rc=$bulk_stat_rc

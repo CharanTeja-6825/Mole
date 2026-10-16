@@ -186,6 +186,7 @@ source "$PROJECT_ROOT/lib/clean/dev.sh"
 note_activity() { :; }
 pgrep() { return 1; }
 stat() { return 9; }
+STAT_BSD=stat
 safe_clean() { echo "UNEXPECTED_CLEAN:$*"; }
 clean_xcode_device_support "$HOME/UnreadableDeviceSupport" "iOS DeviceSupport"
 EOF

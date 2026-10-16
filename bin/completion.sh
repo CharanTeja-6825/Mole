@@ -70,7 +70,7 @@ remove_stale_completion_entries() {
 
     local original_mode=""
     local temp_file
-    original_mode="$(stat -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+    original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
     temp_file="$(mktemp)"
     grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
     mv "$temp_file" "$config_file"
@@ -213,7 +213,7 @@ if [[ $# -eq 0 ]]; then
                 echo ""
             else
                 original_mode=""
-                original_mode="$(stat -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+                original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
                 temp_file="$(mktemp)"
                 grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
                 mv "$temp_file" "$config_file"
@@ -237,7 +237,7 @@ if [[ $# -eq 0 ]]; then
         fi
 
         original_mode=""
-        original_mode="$(stat -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+        original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
         temp_file="$(mktemp)"
         grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
         mv "$temp_file" "$config_file"
@@ -291,7 +291,7 @@ if [[ $# -eq 0 ]]; then
     # Remove previous Mole completion lines to avoid duplicates
     if [[ -f "$config_file" ]]; then
         original_mode=""
-        original_mode="$(stat -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+        original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
         temp_file="$(mktemp)"
         grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
         mv "$temp_file" "$config_file"

@@ -1409,7 +1409,7 @@ clean_xcode_documentation_cache() {
     local -a index_mtimes=()
     local entry mtime
     for entry in "${index_entries[@]}"; do
-        mtime=$(stat -f%m "$entry" 2> /dev/null || echo "0")
+        mtime=$("$STAT_BSD" -f%m "$entry" 2> /dev/null || echo "0")
         [[ "$mtime" =~ ^[0-9]+$ ]] || mtime=0
         index_mtimes+=("$mtime")
     done
@@ -2096,7 +2096,7 @@ clean_xcode_device_support() {
         local -a preflight_mtimes=()
         local preflight_mtime=""
         for candidate in "${preflight_dirs[@]}"; do
-            if ! preflight_mtime=$(stat -f%m "$candidate" 2> /dev/null) || [[ ! "$preflight_mtime" =~ ^[0-9]+$ ]]; then
+            if ! preflight_mtime=$("$STAT_BSD" -f%m "$candidate" 2> /dev/null) || [[ ! "$preflight_mtime" =~ ^[0-9]+$ ]]; then
                 echo -e "  ${GRAY}${ICON_WARNING}${NC} ${display_name} · skipped (metadata unavailable)"
                 note_activity
                 return 0
@@ -2173,7 +2173,7 @@ clean_xcode_device_support() {
         local -a version_mtimes=()
         local mtime=""
         for entry in "${version_dirs[@]}"; do
-            if ! mtime=$(stat -f%m "$entry" 2> /dev/null) || [[ ! "$mtime" =~ ^[0-9]+$ ]]; then
+            if ! mtime=$("$STAT_BSD" -f%m "$entry" 2> /dev/null) || [[ ! "$mtime" =~ ^[0-9]+$ ]]; then
                 echo -e "  ${GRAY}${ICON_WARNING}${NC} ${display_name} · skipped (metadata unavailable)"
                 note_activity
                 return 0
@@ -3172,7 +3172,7 @@ clean_dev_jetbrains_toolbox() {
             done < <(
                 for version_dir in "${version_dirs[@]}"; do
                     local mtime
-                    mtime=$(stat -f%m "$version_dir" 2> /dev/null || echo "0")
+                    mtime=$("$STAT_BSD" -f%m "$version_dir" 2> /dev/null || echo "0")
                     printf '%s %s\n' "$mtime" "$version_dir"
                 done | sort -rn
             )
@@ -3963,7 +3963,7 @@ clean_dev_automation_browsers() {
         now=$(date +%s)
         for d in "$tmpdir"playwright_chromiumdev_profile-*; do
             [[ -d "$d" ]] || continue
-            age_hours=$(((now - $(stat -f %m "$d" 2> /dev/null || echo "$now")) / 3600))
+            age_hours=$(((now - $("$STAT_BSD" -f %m "$d" 2> /dev/null || echo "$now")) / 3600))
             [[ "$age_hours" -ge 2 ]] || continue
             local pgrep_rc=0
             pgrep -qf "$d" 2> /dev/null || pgrep_rc=$?

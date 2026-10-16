@@ -1304,7 +1304,7 @@ _uninstall_volume_is_unmounted_unreadable_folder() {
     [[ ! -r "$entry" || ! -x "$entry" ]] || return 1
     local probe_timeout="" devices="" probe_rc=0
     probe_timeout=$(_mole_timeout_with_deadline "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" "$deadline_seconds") || return 1
-    devices=$(run_with_timeout "$probe_timeout" stat -f '%d' \
+    devices=$(run_with_timeout "$probe_timeout" "$STAT_BSD" -f '%d' \
         "$entry" "$_MOLE_UNINSTALL_LIVE_VOLUMES_ROOT" < /dev/null 2> /dev/null) || probe_rc=$?
     [[ $probe_rc -ge 128 ]] && return "$probe_rc"
     [[ $probe_rc -eq 0 && "$devices" == *$'\n'* ]] || return 1
@@ -1377,7 +1377,7 @@ uninstall_live_bundle_has_other_install() {
             local snapshot_metadata="" snapshot_rc=0 metadata_timeout
             metadata_timeout=$(_mole_timeout_with_deadline "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" "$deadline_seconds") || snapshot_rc=$?
             if [[ $snapshot_rc -eq 0 ]]; then
-                snapshot_metadata=$(run_with_timeout "$metadata_timeout" stat -f '%u:%d' \
+                snapshot_metadata=$(run_with_timeout "$metadata_timeout" "$STAT_BSD" -f '%u:%d' \
                     "$snapshot_root" "$_MOLE_UNINSTALL_LIVE_VOLUMES_ROOT" < /dev/null 2> /dev/null) || snapshot_rc=$?
             fi
             if [[ $snapshot_rc -ge 128 ]]; then

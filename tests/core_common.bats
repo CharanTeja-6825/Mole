@@ -1350,3 +1350,26 @@ assert b'AFTER:14:\n' in raw, raw
 assert b'Cleaning fixture...' not in raw.split(b'Error:', 1)[1], raw
 PY
 }
+
+@test "BSD-only stat and date flags never resolve through PATH (#1196, #1752)" {
+    # GNU coreutils earlier in PATH reads stat -f as file-system status and
+    # date -r/-j differently, so these calls go through $STAT_BSD and
+    # $_DATE_CMD. Match the command position, skip comment lines, and prove
+    # the matcher fires on a known positive.
+    run env PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+pattern='(^|[[:space:];(|&`]|[$][(])(stat[[:space:]]+-|date[[:space:]]+-[A-Za-z]*[jrv])'
+for probe in '    age=$(( now - $(stat -f %m "$d") ))' '    -exec stat -f "%z" {} +' '    d=$(date -r "$n" +%F)'; do
+    printf '%s\n' "$probe" | grep -qE "$pattern" || { echo "matcher missed: $probe"; exit 1; }
+done
+printf '%s\n' '    x=$("$STAT_BSD" -f%m "$f")' | grep -qE "$pattern" && { echo "matcher flagged STAT_BSD"; exit 1; }
+matched=$(grep -rnE "$pattern" "$PROJECT_ROOT/lib" "$PROJECT_ROOT/bin" "$PROJECT_ROOT/mole" "$PROJECT_ROOT/install.sh" |
+    grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)
+if [[ -n "$matched" ]]; then
+    echo "BSD-only flags resolved through PATH: $matched"
+    exit 1
+fi
+EOF
+
+    [[ "$status" -eq 0 ]] || { echo "$output"; return 1; }
+}

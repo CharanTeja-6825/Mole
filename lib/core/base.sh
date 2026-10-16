@@ -540,7 +540,11 @@ load_mole_whitelist() {
 # ============================================================================
 # BSD Stat Compatibility
 # ============================================================================
-readonly STAT_BSD="/usr/bin/stat"
+# Every stat call names this path: a PATH stat can be GNU coreutils, whose
+# `-f` prints file-system text that reads as a value (#1196, #1752). Assigned
+# unconditionally on load, so the environment cannot redirect it; not readonly
+# so a test can rebind it to a fixture stub after sourcing.
+STAT_BSD="/usr/bin/stat"
 
 # Get file size in bytes
 get_file_size() {

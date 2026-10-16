@@ -1566,7 +1566,7 @@ safe_remove() {
                 if [[ -f "$path" || -d "$path" ]] && ! [[ -L "$path" ]]; then
                     local mod_time=0
                     local stat_rc=0
-                    mod_time=$(stat -f%m "$path" 2> /dev/null) || stat_rc=$?
+                    mod_time=$("$STAT_BSD" -f%m "$path" 2> /dev/null) || stat_rc=$?
                     if mole_rc_timeout_or_signal "$stat_rc"; then
                         _mole_record_clean_cancellation "$stat_rc"
                         return "$stat_rc"
@@ -2112,7 +2112,7 @@ safe_sudo_remove() {
                     local mod_time=0
                     local stat_rc=0
                     mod_time=$(_mole_bounded_sudo "$MOLE_TIMEOUT_QUICK_DETECT_SEC" \
-                        -n stat -f%m "$path" < /dev/null 2> /dev/null) || stat_rc=$?
+                        -n "$STAT_BSD" -f%m "$path" < /dev/null 2> /dev/null) || stat_rc=$?
                     if mole_rc_timeout_or_signal "$stat_rc"; then
                         _mole_record_clean_cancellation "$stat_rc"
                         return "$stat_rc"

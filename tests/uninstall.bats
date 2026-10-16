@@ -141,6 +141,8 @@ stat() {
         /usr/bin/stat "$@"
     fi
 }
+# Mole calls BSD stat through STAT_BSD; point it at the fixture stub.
+STAT_BSD=stat
 case "$SCAN_CASE" in
     mounted) survivor="$snapshots/Survivor.app" ;;
     folder-sibling) survivor="$volumes/External/Applications/Survivor.app" ;;
@@ -239,6 +241,8 @@ stat() {
         /usr/bin/stat "$@"
     fi
 }
+# Mole calls BSD stat through STAT_BSD; point it at the fixture stub.
+STAT_BSD=stat
 
 export MO_DEBUG=1
 mkdir -p "$HOME/selected/Chosen.app/Contents" "$HOME/Library/Preferences"
