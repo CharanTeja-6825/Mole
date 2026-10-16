@@ -1605,7 +1605,11 @@ EOF
 # before system CoreSimulator or XCTest data is removed.
 _coresimulator_booted_device_state() {
     if [[ "$_MOLE_SIMCTL_RESOLUTION_STATUS" != "ready" ]]; then
-        if ! command -v xcrun > /dev/null 2>&1 || ! _resolve_simctl_developer_dir; then
+        command -v xcrun > /dev/null 2>&1 || return 2
+        local resolve_rc=0
+        _resolve_simctl_developer_dir || resolve_rc=$?
+        mole_rc_signal "$resolve_rc" && return "$resolve_rc"
+        if [[ $resolve_rc -ne 0 ]]; then
             debug_log "Unable to resolve simctl for booted-device check"
             return 2
         fi
@@ -2413,19 +2417,24 @@ _simctl_developer_dir_is_usable() {
 # users pinned to a simulator version, so check with the owner's read-only
 # status query first and leave simctl alone until Xcode itself finishes setup.
 # A developer dir without its own xcodebuild cannot be checked and is used as
-# before; a timeout or any other status keeps simctl off.
+# before; a timeout or any other status keeps simctl off, and a signal is
+# returned so the run cancels. The bound is the medium probe because a cold
+# xcodebuild start is far slower than the warm 0.1 s.
 _simctl_first_launch_complete() {
     local developer_dir="$1"
     local xcodebuild_bin="$developer_dir/usr/bin/xcodebuild"
     [[ -x "$xcodebuild_bin" ]] || return 0
-    run_with_timeout "$MOLE_TIMEOUT_QUICK_DETECT_SEC" \
+    run_with_timeout "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" \
         env "DEVELOPER_DIR=$developer_dir" "$xcodebuild_bin" -checkFirstLaunchStatus > /dev/null 2>&1
 }
 
 _simctl_accept_developer_dir() {
     local developer_dir="$1"
-    if ! _simctl_first_launch_complete "$developer_dir"; then
+    local first_launch_rc=0
+    _simctl_first_launch_complete "$developer_dir" || first_launch_rc=$?
+    if [[ $first_launch_rc -ne 0 ]]; then
         _MOLE_SIMCTL_RESOLUTION_STATUS="first-launch-pending"
+        mole_rc_signal "$first_launch_rc" && return "$first_launch_rc"
         debug_log "Xcode first-launch setup is unfinished; leaving simctl alone: $developer_dir"
         return 1
     fi
@@ -2695,7 +2704,9 @@ clean_dev_mobile() {
     clean_xcode_xctest_devices || return $?
 
     if command -v xcrun > /dev/null 2>&1; then
-        _resolve_simctl_developer_dir || true
+        local resolve_rc=0
+        _resolve_simctl_developer_dir || resolve_rc=$?
+        mole_rc_signal "$resolve_rc" && return "$resolve_rc"
         if [[ "$_MOLE_SIMCTL_RESOLUTION_STATUS" == "ambiguous" ]]; then
             echo -e "  ${GRAY}${ICON_WARNING}${NC} Xcode unavailable simulators · multiple Xcode apps found; set DEVELOPER_DIR"
             note_activity

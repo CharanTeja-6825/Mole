@@ -2397,7 +2397,7 @@ XEOF
     chmod +x "$developer_dir/usr/bin/xcodebuild" "$tmp_bin/xcrun" "$tmp_bin/xcode-select"
 
     local first_launch_status
-    for first_launch_status in 1 0; do
+    for first_launch_status in 1 0 130; do
         rm -f "$call_log"
         run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" PATH="$tmp_bin:$PATH" \
             DRY_RUN=true FIRST_LAUNCH_STATUS="$first_launch_status" SIMCTL_CALL_LOG="$call_log" \
@@ -2419,13 +2419,20 @@ state=0
 _coresimulator_booted_device_state || state=$?
 echo "booted_state=$state"
 _MOLE_SIMCTL_RESOLUTION_STATUS=""
-clean_dev_mobile
+mobile_rc=0
+clean_dev_mobile || mobile_rc=$?
+echo "mobile_rc=$mobile_rc"
 EOF
         [ "$status" -eq 0 ] || {
             echo "$output"
             return 1
         }
-        if [[ "$first_launch_status" == "1" ]]; then
+        if [[ "$first_launch_status" == "130" ]]; then
+            # Ctrl-C during the check cancels instead of reading as unfinished.
+            [[ ! -e "$call_log" ]] || { cat "$call_log"; return 1; }
+            [[ "$output" == *"booted_state=130"* ]] || { echo "$output"; return 1; }
+            [[ "$output" == *"mobile_rc=130"* ]] || { echo "$output"; return 1; }
+        elif [[ "$first_launch_status" == "1" ]]; then
             [[ ! -e "$call_log" ]] || {
                 echo "simctl ran while setup was unfinished:"
                 cat "$call_log"
@@ -2433,6 +2440,7 @@ EOF
             }
             [[ "$output" == *"booted_state=2"* ]] || return 1
             [[ "$output" != *"simctl could not be resolved"* ]] || return 1
+            [[ "$output" == *"mobile_rc=0"* ]] || return 1
         else
             grep -q '^simctl list devices booted -j$' "$call_log" || return 1
             grep -q '^simctl list devices unavailable$' "$call_log" || return 1
