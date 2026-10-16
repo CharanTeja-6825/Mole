@@ -1025,6 +1025,23 @@ EOF
     done
 }
 
+@test "clean covers every DeviceSupport platform the Xcode uninstall sweep knows" {
+    local uninstall_platforms clean_platforms platform
+    # shellcheck disable=SC2016  # matches the literal $HOME in the source text
+    uninstall_platforms=$(sed -nE 's|.*"\$HOME/Library/Developer/Xcode/([A-Za-z]+) DeviceSupport".*|\1|p' \
+        "$PROJECT_ROOT/lib/core/app_protection.sh" | sort -u)
+    clean_platforms=$(sed -nE 's|^[[:space:]]*clean_xcode_device_support ~/Library/Developer/Xcode/([A-Za-z]+)\\ DeviceSupport .*|\1|p' \
+        "$PROJECT_ROOT/lib/clean/dev.sh" | sort -u)
+    [ -n "$uninstall_platforms" ] || return 1
+    [ -n "$clean_platforms" ] || return 1
+    for platform in $uninstall_platforms; do
+        if ! grep -qx "$platform" <<< "$clean_platforms"; then
+            echo "clean misses $platform DeviceSupport"
+            return 1
+        fi
+    done
+}
+
 @test "clean_xcode_device_support skips all deletion paths while build tooling owns it" {
     local ds_dir="$HOME/OwnedDeviceSupport"
     mkdir -p "$ds_dir/17.0/Symbols/System/Library/Caches" "$ds_dir/17.1" "$ds_dir/17.2"
