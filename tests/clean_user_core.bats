@@ -980,7 +980,9 @@ EOF
     rm -rf "$case_home" # SAFE: test fixture under the temporary HOME
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     [[ "$output" == *"SCENARIO=124:0 RC=0 CANCEL=0 PARTIAL=1 ROWS=1 RECORDED=[bigdir:0:false,small:8:true,]"* ]] || { echo "$output"; return 1; }
-    [[ "$output" == *"SCENARIO=1:0 RC=0 CANCEL=0 PARTIAL=1 ROWS=1 RECORDED=[bigdir:0:false,small:8:true,]"* ]] || { echo "$output"; return 1; }
+    # A failure that is not a timeout (the item vanished) leaves nothing to
+    # free, so it is listed as 0 and does not make the total a lower bound.
+    [[ "$output" == *"SCENARIO=1:0 RC=0 CANCEL=0 PARTIAL=0 ROWS=1 RECORDED=[bigdir:0:true,small:8:true,]"* ]] || { echo "$output"; return 1; }
     [ "$(grep -c '^PARITY=bigdir,small,$' <<< "$output")" -eq 2 ] || { echo "$output"; return 1; }
     [[ "$output" == *"SCENARIO=130:1 RC=130 CANCEL=130 PARTIAL=0 ROWS=0 RECORDED=[]"* ]] || { echo "$output"; return 1; }
     [[ "$output" == *"SCENARIO=143:1 RC=143 CANCEL=143 PARTIAL=0 ROWS=0 RECORDED=[]"* ]] || { echo "$output"; return 1; }

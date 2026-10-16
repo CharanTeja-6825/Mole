@@ -1380,7 +1380,7 @@ _record_file_ops_dry_run_target() {
         eligibility_still_current=false
         local measured_size=""
         local measure_rc=0
-        measured_size=$(get_path_size_kb "$path" 2> /dev/null) || measure_rc=$?
+        measured_size=$(get_path_size_kb "$path" "" readable 2> /dev/null) || measure_rc=$?
         if [[ $measure_rc -ge 128 ]]; then
             return "$measure_rc"
         fi
@@ -1553,7 +1553,7 @@ safe_remove() {
                     fi
                 else
                     local size_rc=0
-                    size_kb=$(get_path_size_kb "$path" 2> /dev/null) || size_rc=$?
+                    size_kb=$(get_path_size_kb "$path" "" readable 2> /dev/null) || size_rc=$?
                     if mole_rc_timeout_or_signal "$size_rc"; then
                         _mole_record_clean_cancellation "$size_rc"
                         return "$size_rc"
@@ -1605,7 +1605,7 @@ safe_remove() {
             size_probe_timeout=$(_mole_timeout_with_deadline "$MOLE_TIMEOUT_DISK_VERIFY_SEC" \
                 "$deadline_seconds") || size_probe_rc=$?
             if [[ $size_probe_rc -eq 0 ]]; then
-                size_kb=$(get_path_size_kb "$path" "$size_probe_timeout" 2> /dev/null) || size_probe_rc=$?
+                size_kb=$(get_path_size_kb "$path" "$size_probe_timeout" readable 2> /dev/null) || size_probe_rc=$?
             fi
             if mole_rc_timeout "$size_probe_rc"; then
                 # Sizing budget exhausted: still remove the item, with the
@@ -3448,7 +3448,7 @@ safe_find_delete() {
         if [[ "${MOLE_DRY_RUN:-0}" == "1" ]] && declare -f record_dry_run_cleanup_target > /dev/null 2>&1; then
             local match_size_kb=0
             local match_size_rc=0
-            match_size_kb=$(get_path_size_kb "$match" 2> /dev/null) || match_size_rc=$?
+            match_size_kb=$(get_path_size_kb "$match" "" readable 2> /dev/null) || match_size_rc=$?
             if mole_rc_timeout_or_signal "$match_size_rc"; then
                 delete_rc=$match_size_rc
                 break
@@ -3936,9 +3936,17 @@ safe_sudo_find_delete() {
 # only reports a single directory entry, not recursive content size. .app
 # bundles use Spotlight's physical size when available so uninstall previews
 # do not add logical bundle bytes to physical leftover sizes.
+#
+# Optional third argument "readable": du exits 1 when it cannot list some
+# directory, after printing the total of everything it could read. Uninstall
+# needs a complete size (#1404), so by default that is a failure. A cleanup
+# total passes "readable" and takes the readable bytes: a directory the user
+# cannot list cannot be removed by Mole either, so those bytes are exactly what
+# the cleanup can free, and dropping them counted the whole item as 0.
 get_path_size_kb() {
     local path="$1"
     local size_timeout="${2:-$MOLE_TIMEOUT_DISK_VERIFY_SEC}"
+    local size_mode="${3:-}"
     [[ -z "$path" || ! -e "$path" ]] && {
         echo "0"
         return
@@ -4010,7 +4018,15 @@ get_path_size_kb() {
         awk 'NR==1 {print $1; exit}') || du_rc=$?
     # `du` may print a partial aggregate before reporting an unreadable child.
     # Any nonzero status makes that number incomplete, so never return it as a
-    # successful size estimate (#1404).
+    # successful size estimate (#1404), unless the caller asked for readable
+    # bytes (see above).
+    if mole_rc_timeout "$du_rc" && declare -F debug_log > /dev/null; then
+        debug_log "Size check timed out after ${size_timeout}s: $path"
+    fi
+    if [[ $du_rc -eq 1 && "$size_mode" == "readable" && "$size" =~ ^[0-9]+$ ]]; then
+        echo "$size"
+        return 0
+    fi
     [[ $du_rc -eq 0 ]] || return "$du_rc"
 
     if [[ "$size" =~ ^[0-9]+$ ]]; then
@@ -4035,9 +4051,12 @@ mole_add_cleaned_row() {
 }
 
 # Classify a per-item get_path_size_kb status for a caller whose size only
-# feeds totals (bugs reference, section 15). A timeout or failure leaves the
-# item eligible with an unknown size and marks the freed total partial; a
-# signal records the cancellation and returns its status so the caller stops.
+# feeds totals (bugs reference, section 15). Callers measure with "readable",
+# so an unlistable directory already arrives as its readable bytes. A timeout
+# leaves the item eligible with an unknown size and marks the freed total
+# partial; any other failure (the item vanished) leaves nothing to free and no
+# mark; a signal records the cancellation and returns its status so the caller
+# stops.
 mole_item_size_continues() {
     local rc="${1:-0}"
     [[ $rc -eq 0 ]] && return 0
@@ -4045,7 +4064,9 @@ mole_item_size_continues() {
         _mole_record_clean_cancellation "$rc"
         return "$rc"
     fi
-    MOLE_CLEAN_SIZING_TIMEOUTS=$((${MOLE_CLEAN_SIZING_TIMEOUTS:-0} + 1))
+    if mole_rc_timeout "$rc"; then
+        MOLE_CLEAN_SIZING_TIMEOUTS=$((${MOLE_CLEAN_SIZING_TIMEOUTS:-0} + 1))
+    fi
     return 0
 }
 

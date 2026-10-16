@@ -151,7 +151,7 @@ clean_xcode_derived_data() {
                 break
             fi
             local size_rc=0 stop_rc=0
-            dir_size_kb=$(get_path_size_kb "$dir" 2> /dev/null) || size_rc=$?
+            dir_size_kb=$(get_path_size_kb "$dir" "" readable 2> /dev/null) || size_rc=$?
             mole_item_size_continues "$size_rc" || stop_rc=$?
             if [[ $stop_rc -ne 0 ]]; then
                 stop_section_spinner
@@ -215,7 +215,7 @@ clean_xcode_derived_data() {
 
         local dir_size_kb=0
         local size_rc=0 stop_rc=0
-        dir_size_kb=$(get_path_size_kb "$dir" 2> /dev/null) || size_rc=$?
+        dir_size_kb=$(get_path_size_kb "$dir" "" readable 2> /dev/null) || size_rc=$?
         mole_item_size_continues "$size_rc" || stop_rc=$?
         if [[ $stop_rc -ne 0 ]]; then
             stop_section_spinner
@@ -1731,7 +1731,7 @@ clean_neatdm_stale_segments() {
     for seg_dir in "${stale_dirs[@]}"; do
         local size_kb=""
         local size_rc=0
-        size_kb=$(get_path_size_kb "$seg_dir") || size_rc=$?
+        size_kb=$(get_path_size_kb "$seg_dir" "" readable) || size_rc=$?
         mole_item_size_continues "$size_rc" || return $?
         [[ $size_rc -eq 0 && "$size_kb" =~ ^[0-9]+$ ]] || size_kb=0
 

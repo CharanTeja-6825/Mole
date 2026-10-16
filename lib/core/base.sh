@@ -1087,9 +1087,11 @@ mole_name_has_bundle_id_boundary() {
 # Colorize an already-formatted human size string by unit.
 colorize_human_size() {
     local size_human="$1"
+    # A lower-bound total ("3.27GB+") takes its unit's color.
+    local size_unit="${size_human%+}"
 
     local size_color=""
-    case "$size_human" in
+    case "$size_unit" in
         *GB) size_color="$RED" ;;
         *MB) size_color="$YELLOW" ;;
         *KB) size_color="$GREEN" ;;

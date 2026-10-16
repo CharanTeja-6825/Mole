@@ -632,6 +632,8 @@ colorize_human_size "180KB"
 printf '\n'
 colorize_human_size "0B"
 printf '\n'
+colorize_human_size "3.27GB+"
+printf '\n'
 EOF
     )"
 
@@ -643,7 +645,9 @@ EOF
     [ "${color_lines[0]}" = $'\033[0;31m1.00GB\033[0m' ]
     [ "${color_lines[1]}" = $'\033[0;33m5.0MB\033[0m' ]
     [ "${color_lines[2]}" = $'\033[0;32m180KB\033[0m' ]
-    [ "${color_lines[3]}" = $'\033[0;38;5;244m0B\033[0m' ]
+    [ "${color_lines[3]}" = $'\033[0;38;5;244m0B\033[0m' ] || return 1
+    # A lower-bound total keeps its unit's color.
+    [ "${color_lines[4]}" = $'\033[0;31m3.27GB+\033[0m' ]
 }
 
 @test "muted text avoids theme-defined ANSI bright black" {

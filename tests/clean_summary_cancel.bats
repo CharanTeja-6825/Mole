@@ -383,7 +383,7 @@ EOF
     local plain_output
     plain_output=$(printf '%s' "$output" | sed -E $'s/\033\\[[0-9;]*m//g')
     [[ "$output" == *"Cleanup complete"* ]] || return 1
-    [[ "$plain_output" == *"Tracked cleanup: At least 10.74GB | Items cleaned: 42"* ]] || return 1
+    [[ "$plain_output" == *"Tracked cleanup: 10.74GB+ | Items cleaned: 42"* ]] || return 1
     [[ "$output" == *"RECORDED=1/2"* ]] || return 1
     [[ "$output" == *"Free space:"* ]] || return 1
     [[ "$output" != *"size-check budget"* && "$output" != *"removal budget"* ]] || return 1

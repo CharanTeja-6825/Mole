@@ -300,7 +300,7 @@ record_dry_run_cleanup_target() {
 # reach them in. The row stays in the preview, because a whitelist entry for
 # the child is how a user protects it, but the renderer counts it under the
 # ancestor. An ancestor with unknown size covers nothing: its children's
-# measured bytes are the only figure the "At least" total has for that tree.
+# measured bytes are the only figure the "N+" lower-bound total has for that tree.
 # Identity duplicates are dropped before coverage is decided, so a stale
 # unknown-size duplicate of an ancestor cannot hide a measured child.
 # Perl keeps the normal path linear for large clean previews; the Bash
@@ -765,7 +765,8 @@ get_cleanup_path_size_kb() {
         fi
     fi
 
-    get_path_size_kb "$path"
+    # Cleanup totals count what can be freed: readable bytes (see get_path_size_kb).
+    get_path_size_kb "$path" "" readable
 }
 
 # Classification helper for cleanup risk levels
@@ -1923,7 +1924,7 @@ perform_cleanup() {
         if [[ "$DRY_RUN" == "true" ]]; then
             local potential_label
             if [[ "$DRY_RUN_TOTAL_PARTIAL" == "true" ]]; then
-                potential_label="At least $freed_size_human"
+                potential_label="${freed_size_human}+"
             else
                 potential_label="$freed_size_human"
             fi
@@ -1945,7 +1946,7 @@ perform_cleanup() {
         else
             if [[ ${MOLE_CLEAN_SIZING_TIMEOUTS:-0} -gt 0 ]]; then
                 if [[ $total_size_cleaned -gt 0 ]]; then
-                    freed_size_human="At least $freed_size_human"
+                    freed_size_human="${freed_size_human}+"
                 else
                     freed_size_human="Partially measured"
                 fi

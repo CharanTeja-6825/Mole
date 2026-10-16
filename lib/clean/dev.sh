@@ -1954,7 +1954,7 @@ clean_xcode_system_coresimulator_caches() {
             fi
             local entry_size_kb=""
             local size_rc=0
-            entry_size_kb=$(get_path_size_kb "$entry" 2> /dev/null) || size_rc=$?
+            entry_size_kb=$(get_path_size_kb "$entry" "" readable 2> /dev/null) || size_rc=$?
             mole_item_size_continues "$size_rc" || return $?
             local size_known=true
             [[ $size_rc -eq 0 && "$entry_size_kb" =~ ^[0-9]+$ ]] || {
@@ -2022,7 +2022,7 @@ clean_xcode_system_coresimulator_caches() {
         fi
         local entry_size_kb=""
         local size_rc=0
-        entry_size_kb=$(get_path_size_kb "$entry" 2> /dev/null) || size_rc=$?
+        entry_size_kb=$(get_path_size_kb "$entry" "" readable 2> /dev/null) || size_rc=$?
         mole_item_size_continues "$size_rc" || return $?
         [[ $size_rc -eq 0 && "$entry_size_kb" =~ ^[0-9]+$ ]] || entry_size_kb=0
 
@@ -2236,7 +2236,7 @@ clean_xcode_device_support() {
                         continue
                     fi
                     local size_rc=0
-                    entry_size_kb=$(get_path_size_kb "$stale_entry" 2> /dev/null) || size_rc=$?
+                    entry_size_kb=$(get_path_size_kb "$stale_entry" "" readable 2> /dev/null) || size_rc=$?
                     mole_item_size_continues "$size_rc" || return $?
                     local size_known=true
                     [[ $size_rc -eq 0 && "$entry_size_kb" =~ ^[0-9]+$ ]] || {
@@ -2289,7 +2289,7 @@ clean_xcode_device_support() {
                         continue
                     fi
                     local size_rc=0
-                    entry_size_kb=$(get_path_size_kb "$stale_entry" 2> /dev/null) || size_rc=$?
+                    entry_size_kb=$(get_path_size_kb "$stale_entry" "" readable 2> /dev/null) || size_rc=$?
                     mole_item_size_continues "$size_rc" || return $?
                     [[ $size_rc -eq 0 && "$entry_size_kb" =~ ^[0-9]+$ ]] || entry_size_kb=0
 
@@ -2821,7 +2821,7 @@ clean_dev_mobile() {
                         if [[ -d "$simulator_device_path" ]]; then
                             local simulator_size_kb=""
                             local size_rc=0
-                            simulator_size_kb=$(get_path_size_kb "$simulator_device_path") || size_rc=$?
+                            simulator_size_kb=$(get_path_size_kb "$simulator_device_path" "" readable) || size_rc=$?
                             mole_item_size_continues "$size_rc" || return $?
                             [[ $size_rc -eq 0 && "$simulator_size_kb" =~ ^[0-9]+$ ]] || simulator_size_kb=0
                             unavailable_size_kb=$((unavailable_size_kb + simulator_size_kb))
@@ -2837,7 +2837,7 @@ clean_dev_mobile() {
                             [[ -d "$unavailable_path" ]] || continue
                             local unavailable_path_size_kb
                             size_rc=0
-                            unavailable_path_size_kb=$(get_path_size_kb "$unavailable_path" 2> /dev/null) || size_rc=$?
+                            unavailable_path_size_kb=$(get_path_size_kb "$unavailable_path" "" readable 2> /dev/null) || size_rc=$?
                             mole_item_size_continues "$size_rc" || return $?
                             local unavailable_size_known=true
                             [[ $size_rc -eq 0 && "$unavailable_path_size_kb" =~ ^[0-9]+$ ]] || {
