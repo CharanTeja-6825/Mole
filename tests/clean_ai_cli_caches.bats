@@ -1602,6 +1602,71 @@ EOF
     assert_output_not_contains "REMOVED:"
 }
 
+@test "clean_agent_browser_old_chrome keeps builds pinned through a symlink" {
+    run env HOME="$HOME/agent-browser-symlink-pin" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+root="$HOME/.agent-browser/browsers"
+app="Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+for name in chrome-99.0.4844.51 chrome-152.0.7977.64 chrome-151.0.7922.47 chrome-150.0.7900.10; do
+    mkdir -p "$root/$name/chrome-mac-arm64/${app%/*}"
+    touch "$root/$name/chrome-mac-arm64/$app"
+    touch -t 202601010000 "$root/$name"
+done
+# Neither pin names its build in text: one is an env var symlink, the other a
+# config path through a symlinked folder.
+mkdir -p "$HOME/bin"
+ln -s "$root/chrome-152.0.7977.64/chrome-mac-arm64/$app" "$HOME/bin/chrome"
+ln -s "$root/chrome-150.0.7900.10" "$HOME/pinned-build"
+printf '{"executablePath": "%s"}\n' "$HOME/pinned-build/chrome-mac-arm64/$app" > "$HOME/.agent-browser/config.json"
+export AGENT_BROWSER_EXECUTABLE_PATH="$HOME/bin/chrome"
+
+source "$PROJECT_ROOT/bin/clean.sh"
+pgrep() { return 1; }
+DRY_RUN=false
+MOLE_DRY_RUN=0
+clean_agent_browser_old_chrome
+
+[[ ! -e "$root/chrome-151.0.7922.47" ]] || { echo "STILL_PRESENT:chrome-151.0.7922.47"; exit 1; }
+for kept in chrome-99.0.4844.51 chrome-152.0.7977.64 chrome-150.0.7900.10; do
+    [[ -d "$root/$kept" ]] || { echo "REMOVED:$kept"; exit 1; }
+done
+echo "SYMLINK_PINS_HELD"
+EOF
+
+    assert_run_success
+    assert_output_contains "SYMLINK_PINS_HELD"
+    assert_output_not_contains "STILL_PRESENT:"
+    assert_output_not_contains "REMOVED:"
+}
+
+@test "clean_agent_browser_old_chrome names a changed plan instead of deferring as active" {
+    run env HOME="$HOME/agent-browser-plan-changed" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+root="$HOME/.agent-browser/browsers"
+mkdir -p "$root/chrome-151.0.7922.47"
+source "$PROJECT_ROOT/bin/clean.sh"
+pgrep() { return 1; }
+DRY_RUN=false
+MOLE_DRY_RUN=0
+plan_calls=0
+# The recheck at the delete boundary sees a different retention set.
+_plan_agent_browser_chrome_targets() {
+    plan_calls=$((plan_calls + 1))
+    _MOLE_AGENT_BROWSER_TARGETS=()
+    [[ $plan_calls -gt 1 ]] || _MOLE_AGENT_BROWSER_TARGETS=("$root/chrome-151.0.7922.47")
+    return 0
+}
+mole_defer_cleanup_family() { echo "DEFERRED_AS_ACTIVE:$1"; }
+clean_agent_browser_old_chrome
+[[ -d "$root/chrome-151.0.7922.47" ]] || { echo "REMOVED"; exit 1; }
+EOF
+
+    assert_run_success
+    assert_output_contains "agent-browser old Chrome · stopped (retention changed)"
+    assert_output_not_contains "DEFERRED_AS_ACTIVE"
+    assert_output_not_contains "REMOVED"
+}
+
 @test "clean_agent_browser_old_chrome keeps every build while its Chrome runs" {
     run env HOME="$HOME/agent-browser-running" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail

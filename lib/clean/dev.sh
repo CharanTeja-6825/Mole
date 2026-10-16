@@ -5591,6 +5591,23 @@ _agent_browser_has_chrome() {
     [[ -e "$dir/$app" || -e "$dir/chrome-mac-arm64/$app" || -e "$dir/chrome-mac-x64/$app" ]]
 }
 
+# Physical path of a pinned Chrome executable: follow every symlink hop with
+# plain readlink (readlink -f needs macOS 12.3) and resolve the directory with
+# cd -P, so a pin like ~/bin/chrome that leads into browsers/chrome-120.x still
+# names that build. Fails for a dangling or looping link.
+_agent_browser_physical_path() {
+    local path="$1" target="" dir="" hops=0
+    while [[ -L "$path" ]]; do
+        [[ $hops -lt 32 ]] || return 1
+        target=$(/usr/bin/readlink "$path" 2> /dev/null) || return 1
+        [[ "$target" == /* ]] || target="${path%/*}/$target"
+        path="$target"
+        hops=$((hops + 1))
+    done
+    dir=$(cd -P "${path%/*}" 2> /dev/null && pwd -P) || return 1
+    printf '%s/%s\n' "$dir" "${path##*/}"
+}
+
 _plan_agent_browser_chrome_targets() {
     local root="$1"
     _MOLE_AGENT_BROWSER_TARGETS=()
@@ -5634,8 +5651,21 @@ _plan_agent_browser_chrome_targets() {
         [[ $read_rc -eq 0 ]] || return "$read_rc"
     fi
     local pinned="${AGENT_BROWSER_EXECUTABLE_PATH:-}"
+    # Text naming a build is not the only way to pin one: the env var or a
+    # config path may reach it through a symlink. Resolve every absolute path
+    # the pin sources hold and keep any build one of them lands in.
+    local -a pinned_physical=()
+    local pin_source pin_resolved
+    while IFS= read -r pin_source; do
+        [[ "$pin_source" == /* ]] || continue
+        pin_resolved=$(_agent_browser_physical_path "$pin_source") || continue
+        pinned_physical+=("$pin_resolved")
+    done < <(
+        printf '%s\n' "$pinned"
+        printf '%s' "$config_text" | LC_ALL=C grep -oE '"/[^"]+"' | LC_ALL=C tr -d '"' || true
+    )
 
-    local dir recent
+    local dir recent pin_hit
     for name in "${names[@]}"; do
         [[ "$name" != "$selected" ]] || continue
         [[ "$name" =~ ^chrome-[0-9]+(\.[0-9]+)+$ ]] || continue
@@ -5644,6 +5674,11 @@ _plan_agent_browser_chrome_targets() {
         _agent_browser_has_chrome "$dir" || continue
         [[ "$config_text" != *"$name"* ]] || continue
         [[ -z "$pinned" || "$pinned" != *"/$name/"* ]] || continue
+        pin_hit=false
+        for pin_resolved in ${pinned_physical[@]+"${pinned_physical[@]}"}; do
+            [[ "$pin_resolved/" != *"/$name/"* ]] || pin_hit=true
+        done
+        [[ "$pin_hit" == false ]] || continue
         recent=""
         local age_rc=0
         recent=$(run_with_timeout "$MOLE_TIMEOUT_DISK_VERIFY_SEC" find "$dir" -maxdepth 0 -mtime -1 -print < /dev/null 2> /dev/null) || age_rc=$?
@@ -5695,7 +5730,17 @@ clean_agent_browser_old_chrome() {
         "${targets[@]}" "$label" || guarded_rc=$?
 
     if [[ $guarded_rc -eq 75 ]]; then
-        mole_report_guard_stop "$label" mole_defer_cleanup_family "agent-browser"
+        # Only a running or unknown process is a "skipped while active" family;
+        # a plan that changed or could not be re-read says so on its own row.
+        case "$_MOLE_CLEAN_GUARD_REASON" in
+            "agent-browser started" | "process state unknown")
+                mole_report_guard_stop "$label" mole_defer_cleanup_family "agent-browser"
+                ;;
+            *)
+                echo -e "  ${GRAY}${ICON_WARNING}${NC} ${label} · stopped (${_MOLE_CLEAN_GUARD_REASON})"
+                note_activity
+                ;;
+        esac
         return 0
     fi
     return "$guarded_rc"
