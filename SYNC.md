@@ -36,8 +36,10 @@ This is the synchronization entry point for **Mole CLI (macOS)**, branch `main` 
 | Symlinked `/Applications` entries, per-user pkg receipt payloads | Intentional difference | Both need a new sink (a pinned real bundle behind the link; `pkgutil --volume $HOME` leaves the CLI protects today) for one app each. Parked until a CLI report asks. |
 | Cask zap-declared home folders, signature-backed rows | Intentional difference | The CLI runs `brew uninstall` without zap and removes only exact bundle-id or app-name evidence. |
 | PlayCover apps, config-line leftovers, kept-reason accounting, unreadable-means-retain | Implemented | Already in the CLI (`mole_playcover_alias_target`, `lib/uninstall/config_refs.sh`, family retention causes). |
+| Steam library on uninstall | Implemented (source) | `6c777967`: uninstall never offers `~/Library/Application Support/Steam` or anything in it, routed from Mole CLI (Windows) `3c8a6fee` (CLI-SYNC-14 on `windows`). `mo clean` keeps its exact cache leaves. |
+| Dry-run operation log rows | Intentional difference | `b4e27dae` records macOS dry runs as `<command>-dry-run` sessions; Mole CLI (Windows) writes nothing in dry runs (CLI-SYNC-12 on `windows`). |
 | GUI-only capabilities | Not applicable | Menu/tray, app bulk updates and private leftover catalogs are not CLI parity requirements. |
 
-Delivery: GitHub's latest macOS stable checked on 2026-10-14 is `V1.59.1`; source after that tag must not be called released. Consult the live release and exact commit ancestry before replying to users.
+Delivery: GitHub's latest macOS stable checked on 2026-10-16 is `V1.60.0` (tag source `de843094`); source after that tag must not be called released. Consult the live release and exact commit ancestry before replying to users.
 
-Verification for the 2026-10-15 review fixes: `make build`, `go test ./...`, `./scripts/check.sh --no-format` and the full `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 ./scripts/test.sh` passed. The full suite was repeated in an isolated checkout based on `81c12fd3` with the exact owned patch. These source changes have not been released.
+Verification for the 2026-10-15 review fixes: `make build`, `go test ./...`, `./scripts/check.sh --no-format` and the full `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 ./scripts/test.sh` passed. The full suite was repeated in an isolated checkout based on `81c12fd3` with the exact owned patch. These source changes shipped in V1.60.0.

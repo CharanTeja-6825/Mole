@@ -108,9 +108,13 @@ candidate.
 
 ## Phase 4: Land what the maintainer approves
 
-- One branch per fix family in a scratchpad worktree (`git worktree add
-  <scratchpad>/wt-<n> -b fix/audit-<n> origin/main`, or `origin/windows`), no two
-  agents on the same file, local commits only.
+- One branch per fix family in a worktree (`git worktree add <dir>/wt-<n> -b
+  fix/audit-<n> origin/main`, or `origin/windows`), no two agents on the same
+  file, local commits only. Do not put a worktree you run Bats in under
+  `/private/tmp`: `validate_path_for_deletion` allows that tree before
+  `should_protect_path`, so sink tests there fail on clean code (the first run's
+  agents each reported three such false reds). Stack and run the full suite in
+  the main checkout.
 - Every behavior fix carries a test that fails on the old code (red-run by
   restoring the old source in the worktree) and, when it states a new invariant,
   the AGENTS.md line on that branch.
