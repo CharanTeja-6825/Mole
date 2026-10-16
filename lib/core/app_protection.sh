@@ -356,6 +356,23 @@ _mole_is_shared_home_state_root() {
     return 1
 }
 
+# Steam keeps the user's whole game library (steamapps/common) and per-account
+# userdata under this one root, so an uninstall must never offer the root or
+# anything inside it, whichever app is being removed. Exact root only: the
+# character classes cover the case-insensitive spellings of the same directory,
+# not similarly named siblings. mo clean still reaches the rebuildable caches
+# inside it, so callers apply this in uninstall mode only.
+_mole_is_steam_library_path() {
+    local path="${1%/}"
+    case "$path" in
+        "$HOME"/[Ll][Ii][Bb][Rr][Aa][Rr][Yy]/[Aa][Pp][Pp][Ll][Ii][Cc][Aa][Tt][Ii][Oo][Nn]\ [Ss][Uu][Pp][Pp][Oo][Rr][Tt]/[Ss][Tt][Ee][Aa][Mm] | \
+            "$HOME"/[Ll][Ii][Bb][Rr][Aa][Rr][Yy]/[Aa][Pp][Pp][Ll][Ii][Cc][Aa][Tt][Ii][Oo][Nn]\ [Ss][Uu][Pp][Pp][Oo][Rr][Tt]/[Ss][Tt][Ee][Aa][Mm]/*)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
 # Check if a path is protected from deletion
 # Centralized logic to protect system settings, control center, and critical apps
 #
@@ -382,6 +399,10 @@ should_protect_path() {
     fi
 
     if _mole_is_shared_home_state_root "$path"; then
+        return 0
+    fi
+
+    if [[ "${MOLE_UNINSTALL_MODE:-0}" == "1" ]] && _mole_is_steam_library_path "$path"; then
         return 0
     fi
 
@@ -1365,6 +1386,10 @@ find_app_files() {
         # with the GUI app being uninstalled (issue #993).
         if _mole_is_shared_home_state_root "$expanded_path"; then
             debug_log "Skipping shared home state root: $expanded_path"
+            continue
+        fi
+        if _mole_is_steam_library_path "$expanded_path"; then
+            debug_log "Skipping Steam library root: $expanded_path"
             continue
         fi
 

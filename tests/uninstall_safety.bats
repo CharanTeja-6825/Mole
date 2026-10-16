@@ -98,6 +98,43 @@ EOF
     [[ "$output" == *"$HOME/Library/Caches/com.unity3d.UnityEditor5.x"* ]] || return 1
 }
 
+@test "uninstall never offers the Steam library root or anything inside it" {
+    steam="$HOME/Library/Application Support/Steam"
+    mkdir -p "$steam/steamapps/common/Portal 2" "$steam/userdata/42"
+    touch "$steam/steamapps/common/Portal 2/game.bin"
+    mkdir -p "$HOME/Library/Caches/com.valvesoftware.steam"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+steam="$HOME/Library/Application Support/Steam"
+for p in "$steam" "$steam/" "$steam/steamapps/common/Portal 2" "$steam/userdata/42" \
+    "$HOME/Library/Application Support/steam"; do
+    MOLE_UNINSTALL_MODE=1 should_protect_path "$p" || { echo "unprotected: $p"; exit 1; }
+done
+# Exact root only: a similarly named sibling and Steam's own cache stay eligible.
+if MOLE_UNINSTALL_MODE=1 should_protect_path "$HOME/Library/Application Support/SteamCompanion"; then
+    echo "too broad"
+    exit 1
+fi
+if MOLE_UNINSTALL_MODE=1 should_protect_path "$HOME/Library/Caches/com.valvesoftware.steam"; then
+    echo "cache protected"
+    exit 1
+fi
+# mo clean still reaches the rebuildable caches inside the root.
+if should_protect_path "$steam/htmlcache/entry"; then
+    echo "clean cache blocked"
+    exit 1
+fi
+echo "---"
+find_app_files "com.valvesoftware.steam" "Steam"
+# A Steam-managed game bundle that resolves to the same name must not reach it either.
+find_app_files "com.example.SteamGame" "Steam"
+EOF
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" != *"$HOME/Library/Application Support/Steam"* ]] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"$HOME/Library/Caches/com.valvesoftware.steam"* ]] || return 1
+}
+
 @test "versioned IDE leftovers exclude similarly named products and backups" {
     for leaf in PyCharm2026.2 PyCharmTools PyCharm2026.2-backup; do
         mkdir -p "$HOME/Library/Caches/JetBrains/$leaf"

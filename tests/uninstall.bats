@@ -667,6 +667,60 @@ EOF
     }
 }
 
+@test "batch uninstall of Steam keeps the game library even with every data row selected" {
+    local fixture_home
+    fixture_home=$(mktemp -d "$HOME/inventory-fixture.XXXXXX")
+    local steam="$fixture_home/Library/Application Support/Steam"
+    mkdir -p "$fixture_home/Applications/Steam.app" "$steam/steamapps/common/Game"
+    touch "$steam/steamapps/common/Game/game.bin"
+    mkdir -p "$fixture_home/Library/Caches/com.valvesoftware.steam"
+    # A second personal-data row keeps the D selector open after the fix.
+    mkdir -p "$fixture_home/Library/Application Support/com.valvesoftware.steam"
+
+    run env HOME="$fixture_home" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+source "$PROJECT_ROOT/tests/helpers/uninstall.bash"
+mole_test_isolate_uninstall_inventory
+brew() { :; }
+export MOLE_DELETE_MODE=trash
+export MOLE_TEST_TRASH_DIR="$HOME/test-trash"
+request_sudo_access() { return 0; }
+start_inline_spinner() { :; }
+stop_inline_spinner() { :; }
+enter_alt_screen() { :; }
+leave_alt_screen() { :; }
+hide_cursor() { :; }
+show_cursor() { :; }
+remove_apps_from_dock() { :; }
+pgrep() { return 1; }
+pkill() { return 0; }
+sudo() { return 0; }
+
+selected_apps=("0|$HOME/Applications/Steam.app|Steam|com.valvesoftware.steam|0|Never")
+files_cleaned=0
+total_items=0
+total_size_cleaned=0
+mole_test_select_all_uninstall_data
+printf 'd\n' | batch_uninstall_applications
+
+[[ ! -d "$HOME/Applications/Steam.app" ]] || { echo "app kept"; exit 1; }
+[[ ! -d "$HOME/Library/Caches/com.valvesoftware.steam" ]] || { echo "cache kept"; exit 1; }
+[[ ! -d "$HOME/Library/Application Support/com.valvesoftware.steam" ]] || { echo "selected data kept"; exit 1; }
+[[ -f "$HOME/Library/Application Support/Steam/steamapps/common/Game/game.bin" ]] || { echo "library removed"; exit 1; }
+EOF
+
+    [ "$status" -eq 0 ] || {
+        printf 'exit status: %s\n%s\n' "$status" "$output"
+        return 1
+    }
+    [[ "$output" != *"Application Support/Steam"$'\n'* && "$output" != *"Application Support/Steam"$'\e'* ]] || {
+        printf '%s\n' "$output"
+        return 1
+    }
+}
+
 @test "batch uninstall routes a root-owned app through unprivileged Trash when its parent is writable (#1331)" {
     local fixture_home
     fixture_home=$(mktemp -d "$HOME/inventory-fixture.XXXXXX")
