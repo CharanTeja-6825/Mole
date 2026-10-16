@@ -1039,7 +1039,8 @@ _mole_uninstall_embedded_bundle_ids() {
         bundle_root="${info%/Contents/Info.plist}"
         [[ "$bundle_root" != "$app_path" ]] || continue
         bundle_name="${bundle_root##*/}"
-        ext=$(printf '%s' "${bundle_name##*.}" | tr '[:upper:]' '[:lower:]')
+        # Extensions are ASCII; an unexpected byte only fails the match below.
+        mole_ascii_lowercase ext "${bundle_name##*.}"
 
         case "$ext" in
             xpc | appex) ;;
@@ -1947,8 +1948,8 @@ get_diagnostic_report_paths_for_app() {
     fi
     while IFS= read -r -d '' f; do
         [[ -z "$f" ]] && continue
-        local base
-        base=$(basename "$f" 2> /dev/null)
+        # find -print0 paths never end in a slash.
+        local base="${f##*/}"
         local matched_prefix=false
         local report_prefix
         for report_prefix in "${prefixes[@]}"; do

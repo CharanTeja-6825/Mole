@@ -175,6 +175,31 @@ EOF
     [ "$(printf '%s\n' "$result" | awk -v path="$container" '$0 == path { count++ } END { print count + 0 }')" -eq 1 ]
 }
 
+@test "embedded bundle discovery folds extension case without forking tr" {
+    local app="$HOME/Applications/Folding.app"
+    local id
+    for id in Widget.APPEX Service.Xpc Ignored.Bundle; do
+        mkdir -p "$app/Contents/PlugIns/$id/Contents"
+        printf '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.example.folding.%s</string></dict></plist>\n' \
+            "${id%%.*}" > "$app/Contents/PlugIns/$id/Contents/Info.plist"
+    done
+
+    run env HOME="$HOME" APP="$app" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+tr() { printf 'tr\n' >> "$HOME/embedded-tr.trace"; command tr "$@"; }
+rm -f "$HOME/embedded-tr.trace"
+_mole_uninstall_embedded_bundle_ids "$APP" "com.example.folding" | LC_ALL=C sort
+[[ ! -e "$HOME/embedded-tr.trace" ]] || echo "tr forked"
+EOF
+
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" == *"com.example.folding.Widget"* ]] || return 1
+    [[ "$output" == *"com.example.folding.Service"* ]] || return 1
+    [[ "$output" != *"com.example.folding.Ignored"* ]] || return 1
+    [[ "$output" != *"tr forked"* ]]
+}
+
 @test "find_app_files detects vendor-nested Application Support directories" {
     mkdir -p "$HOME/Library/Application Support/Avid/Sibelius"
     mkdir -p "$HOME/Library/Application Support/OtherVendor/Sibelius"

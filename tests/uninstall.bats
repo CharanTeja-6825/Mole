@@ -522,7 +522,12 @@ touch "$diag_dir/Foobar.diag"
 touch "$diag_dir/Foobar Helper.diag"
 touch "$diag_dir/Foobar_2026-01-01-120001_host.ips"
 
+basename() { printf 'basename\n' >> "$HOME/diag-basename.trace"; command basename "$@"; }
+rm -f "$HOME/diag-basename.trace"
 result=$(get_diagnostic_report_paths_for_app "$app_dir" "Foo" "$diag_dir")
+# Report names come from parameter expansion, not one basename per file.
+[[ ! -e "$HOME/diag-basename.trace" ]] || exit 1
+[[ "$(printf '%s\n' "$result" | wc -l | tr -d ' ')" -eq 4 ]] || exit 1
 [[ "$result" == *"Foo.crash"* ]] || exit 1
 [[ "$result" == *"Foo.diag"* ]] || exit 1
 [[ "$result" == *"Foo Helper.diag"* ]] || exit 1
