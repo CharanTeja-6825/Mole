@@ -135,11 +135,14 @@ _mole_normalize_deletion_policy_path() {
     [[ -n "$trimmed" ]] && printf '%s\n' "$trimmed" || printf '%s\n' "$path"
 }
 
-# This is a live Apple SQLite database. The main file and its WAL companions
-# must stay together while PerfPowerServices is running; unlinking or truncating
-# any member can split the active database state. Keep the exact path in one
-# place so deletion policy and the read-only System Data hint cannot drift.
+# PerfPowerServices keeps one live SQLite database per telemetry store, named
+# Current* (CurrentBackgroundProcessingDB.BGSQL, CurrentXcodeOrganizerDB.XCSQL
+# and so on), and rotates old data into Archived* files. The main file and its
+# WAL companions must stay together while the service runs; unlinking any member
+# can split the active database state, and mtime cannot prove it is closed. The
+# BackgroundProcessing path is also the one the read-only System Data hint sizes.
 readonly MOLE_ACTIVE_POWERLOG_DB_PATH="/private/var/db/powerlog/Library/PerfPowerTelemetry/BackgroundProcessing/CurrentBackgroundProcessingDB.BGSQL"
+readonly MOLE_POWERLOG_TELEMETRY_ROOT="/private/var/db/powerlog/Library/PerfPowerTelemetry"
 
 _mole_is_active_powerlog_database_path() {
     local restore_nocasematch=false
@@ -150,11 +153,15 @@ _mole_is_active_powerlog_database_path() {
         restore_nocasematch=true
     fi
 
+    # <root>/<store>/Current*, one level deep; the -wal and -shm companions
+    # share the Current prefix.
     case "$1" in
-        "$MOLE_ACTIVE_POWERLOG_DB_PATH" | \
-            "$MOLE_ACTIVE_POWERLOG_DB_PATH-wal" | \
-            "$MOLE_ACTIVE_POWERLOG_DB_PATH-shm")
-            result=0
+        "$MOLE_POWERLOG_TELEMETRY_ROOT"/*/Current*)
+            # Cut by length: the case match folds case, a prefix strip would not.
+            local store_and_file="${1:$((${#MOLE_POWERLOG_TELEMETRY_ROOT} + 1))}"
+            local store="${store_and_file%%/*}"
+            local file="${store_and_file#*/}"
+            [[ -n "$store" && "$file" != */* ]] && result=0
             ;;
     esac
 

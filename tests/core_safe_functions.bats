@@ -324,6 +324,27 @@ EOF
     [ "$status" -eq 0 ]
 }
 
+@test "validate_path_for_deletion rejects the live database of every power telemetry store" {
+    local root="/private/var/db/powerlog/Library/PerfPowerTelemetry"
+    local xcode_db="$root/XcodeOrganizer/CurrentXcodeOrganizerDB.XCSQL"
+    local path=""
+
+    # A user's operations.log showed the Xcode Organizer store removed as a
+    # 7-day-old file; mtime never proves PerfPowerServices closed it.
+    for path in "$xcode_db" "$xcode_db-wal" "$xcode_db-shm" \
+        "$root/ExtendedPersistence/CurrentExtendedPersistenceDB.EPSQL" \
+        "/private/var/db/powerlog/library/perfpowertelemetry/XcodeOrganizer/CurrentXcodeOrganizerDB.XCSQL"; do
+        run /bin/bash -c "source '$PROJECT_ROOT/lib/core/common.sh'; validate_path_for_deletion '$path'"
+        [ "$status" -eq 1 ] || {
+            echo "accepted: $path"
+            return 1
+        }
+    done
+
+    run /bin/bash -c "source '$PROJECT_ROOT/lib/core/common.sh'; validate_path_for_deletion '$root/XcodeOrganizer/ArchivedXcodeOrganizerDB.XCSQL'"
+    [ "$status" -eq 0 ]
+}
+
 @test "validate_path_for_deletion refuses a live SQLite database family (#1390)" {
     local db="$TEST_DIR/live-sqlite/Cache.db"
     mkdir -p "$(dirname "$db")"
@@ -2608,6 +2629,7 @@ active_db="/private/var/db/powerlog/Library/PerfPowerTelemetry/BackgroundProcess
 active_dot_alias="${active_db%/*}/./${active_db##*/}"
 active_case_alias="${active_db%/*}/currentbackgroundprocessingdb.bgsql"
 archived_db="/private/var/db/powerlog/Library/PerfPowerTelemetry/BackgroundProcessing/ArchivedBackgroundProcessingDB.BGSQL"
+xcode_db="/private/var/db/powerlog/Library/PerfPowerTelemetry/XcodeOrganizer/CurrentXcodeOrganizerDB.XCSQL"
 
 should_protect_path() { return 1; }
 is_path_whitelisted() { return 1; }
@@ -2626,7 +2648,7 @@ sudo() {
             [[ "${2:-}" == "-d" ]]
             ;;
         find)
-            printf '%s\0' "$active_db" "$active_db-wal" "$active_db-shm" "$active_dot_alias" "$active_case_alias" "$archived_db"
+            printf '%s\0' "$active_db" "$active_db-wal" "$active_db-shm" "$active_dot_alias" "$active_case_alias" "$archived_db" "$xcode_db"
             ;;
         */stat)
             printf '1:2:3\n'
@@ -2656,7 +2678,8 @@ SCRIPT
     [[ "$output" == *"REMOVED /private/var/db/powerlog/Library/PerfPowerTelemetry/BackgroundProcessing/ArchivedBackgroundProcessingDB.BGSQL (batch)"* ]] || return 1
     [[ "$output" != *"CurrentBackgroundProcessingDB.BGSQL"* ]] || return 1
     [[ "$output" != *"currentbackgroundprocessingdb.bgsql"* ]] || return 1
-    [[ "$output" != *"/./CurrentBackgroundProcessingDB.BGSQL"* ]]
+    [[ "$output" != *"/./CurrentBackgroundProcessingDB.BGSQL"* ]] || return 1
+    [[ "$output" != *"CurrentXcodeOrganizerDB.XCSQL"* ]]
 }
 
 @test "safe_sudo_find_delete batches file removals into one xargs rm" {
