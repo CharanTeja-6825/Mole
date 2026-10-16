@@ -732,11 +732,36 @@ clean_versioned_agent_root "$HOME/versions" "Agent old version" 1
 rc=$?
 set -e
 printf 'SCAN_RC:%s\n' "$rc"
-[[ $rc -eq 73 ]]
+[[ $rc -eq 0 ]]
 EOF
 
     assert_run_success
-    assert_output_contains "SCAN_RC:73"
+    # The family is kept and reported; the status stays local so later
+    # developer cleanup still runs.
+    assert_output_contains "SCAN_RC:0"
+    assert_output_not_contains "UNEXPECTED_DELETE"
+}
+
+@test "an unknown agent inventory keeps that family and lets later agent cleanup run" {
+    local isolated_home="$HOME/agent-unknown-continues"
+    mkdir -p "$isolated_home/.local/share/claude/versions/1.0" "$isolated_home/.local/share/claude/versions/2.0"
+
+    run env HOME="$isolated_home" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+note_activity() { :; }
+safe_clean() { echo "UNEXPECTED_DELETE:$1"; }
+_plan_versioned_agent_cleanup_targets() { return 1; }
+clean_claude_desktop_bundled_versions() { echo "LATER_STEP_RAN"; }
+rc=0
+clean_dev_ai_agents || rc=$?
+echo "AI_AGENTS_RC:$rc"
+EOF
+
+    assert_run_success
+    assert_output_contains "AI_AGENTS_RC:0"
+    assert_output_contains "LATER_STEP_RAN"
     assert_output_not_contains "UNEXPECTED_DELETE"
 }
 

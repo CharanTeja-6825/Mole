@@ -3514,8 +3514,11 @@ clean_versioned_agent_root() {
     if [[ $plan_rc -ne 0 ]]; then
         _MOLE_CLEAN_GUARD_REASON="inventory unknown"
         mole_rc_timeout_or_signal "$plan_rc" && return "$plan_rc"
+        # An unknown inventory keeps this family, like a guard stop below; its
+        # status must not reach the strict developer step and cancel every
+        # later developer cleanup.
         _report_versioned_agent_guard_stop "$label"
-        return "$plan_rc"
+        return 0
     fi
     [[ ${#_MOLE_VERSIONED_AGENT_RETENTION_TARGETS[@]} -gt 0 ]] || return 0
 
