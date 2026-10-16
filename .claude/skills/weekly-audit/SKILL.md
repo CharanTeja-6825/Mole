@@ -31,8 +31,9 @@ survive refutation. Run it once a week and keep the report short.
   is its own worktree (`git worktree list`), never checked out over `main`. Fetch
   the remote branch read-only (`git fetch origin windows`) and audit
   `origin/windows` when no clean worktree is at its head.
-- The base is the previous audit's head, in the last report or `git log
-  --grep='weekly audit'`; the first run uses the last 14 days. The codify
+- Read the newest entry of `docs/weekly-audit.md` on `main`: its "Next window
+  from" commits are this run's base per branch, its "Decided, do not re-report"
+  list goes to every agent, and its "Open" items are rechecked first. The codify
   dimension reads only that window; the others read the whole tree.
 - Exclude `tests/tmp-*`, `.git`, build output and other sessions' worktrees from
   every grep.
@@ -123,12 +124,25 @@ candidate.
   result before pushing `main`. Windows: `gofmt -l cmd`, `GOOS=windows go build
   ./cmd/...` locally, and the Windows CI result on a pushed branch or PR, because
   Pester cannot run here; never report a Windows fix as verified from macOS alone.
+  Red-run on CI: push the test-only commit to the draft PR first, wait for the
+  Pester job to fail on it under both `powershell` and `pwsh` (or name the shell
+  that stays green and why), then push the fix. The first run skipped this and
+  left the junction test unproven on old code.
+- Agent reports are leads. Before stacking, read each agent's deviations from its
+  brief and accept or undo each one, verify every "this does nothing" or "baseline
+  already fails" claim yourself, and close each agent's "not done / outside my
+  files" list in the integration commit. In the first run one agent called
+  `opt_diag_memory_pressure` a no-op (it prints a warning) and three reported
+  `/private/tmp` false reds as baseline failures.
 - Commit identity and push follow the global Git Safety rules; contributor PRs
   keep their own review path.
+- Prepend the run to `docs/weekly-audit.md` (audited and landed commits per
+  branch, next window, fixed / decided / open) in the last `main` commit of the
+  run.
 
 ## Output
 
 The report, then after landing: commits per branch, push status, worktree
 leftovers, each finding's state (fixed and verified / decided not to fix with
 reason / blocked and what is missing), and each branch's base commit for next
-week's window.
+week's window, all also written to `docs/weekly-audit.md`.
