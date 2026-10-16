@@ -4433,3 +4433,32 @@ EOF
     [ ! -s "$trace" ] || { cat "$trace"; return 1; }
     [[ "$output" == *"Nix store garbage · would clean"* ]]
 }
+
+@test "clean_dev_npm runs npm cache clean under the owner-command timeout" {
+    local trace="$HOME/npm-owner.trace"
+    rm -f "$trace"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TRACE="$trace" MOLE_TIMEOUT_PKG_CLEANUP_SEC=77 \
+        /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+DRY_RUN=false
+start_section_spinner() { :; }
+stop_section_spinner() { :; }
+safe_clean() { :; }
+note_activity() { :; }
+is_path_whitelisted() { return 1; }
+run_with_timeout() { printf 'TIMEOUT:%s:%s\n' "$1" "${*:2}" >> "$TRACE"; shift; "$@"; }
+npm() {
+    if [[ "$1" == "config" ]]; then
+        echo "$HOME/.npm"
+        return 0
+    fi
+    printf 'NPM:%s\n' "$*" >> "$TRACE"
+}
+clean_dev_npm
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    grep -qx 'TIMEOUT:77:npm cache clean --force' "$trace" || { cat "$trace"; return 1; }
+    grep -qx 'NPM:cache clean --force' "$trace"
+}

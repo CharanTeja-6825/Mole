@@ -461,7 +461,7 @@ clean_dev_npm() {
             npm_cache_path="$npm_default_cache"
         fi
 
-        clean_tool_cache "npm cache" "$npm_cache_path" npm cache clean --force || return $?
+        clean_tool_cache "npm cache" "$npm_cache_path" run_with_timeout "$MOLE_TIMEOUT_PKG_CLEANUP_SEC" npm cache clean --force || return $?
     fi
 
     # These residual directories are not removed by `npm cache clean --force`
