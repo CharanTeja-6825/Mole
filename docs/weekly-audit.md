@@ -31,7 +31,13 @@ One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole 
 - Mole CLI (Windows) writes no operation-log rows in dry runs; recorded as an intentional difference in SYNC.md.
 - Existing flags are never proposed for removal without the maintainer.
 
+### Closed after the run (same day)
+
+- windows: `Clear-TempFiles` had three callers but nothing ever registered a temp file, so it only emptied empty lists; removed with its exit event and the two finally blocks in `c6ce917e` (PR #1753).
+- windows: the junction test in `53b94f11` is now proven. Restoring the pre-fix `install.ps1` only failed the file at discovery, because the test extracts the new `Remove-MoleConfigEntry`; disabling just its reparse-point branch failed `Unlinks a junction in the config folder and keeps its target's files` on both `powershell` and `pwsh` (draft PR #1754, closed).
+- main: GNU coreutils or findutils first in `PATH` aborted `mo clean` (#1752) and silently misread mtimes elsewhere; every `stat` now goes through `$STAT_BSD`, BSD `date -r/-j` through `$_DATE_CMD`, purge's dataless probe and walks through `/usr/bin/find`, and Service Worker discovery uses `-mindepth/-maxdepth` (`c0705ac0`, `66bd98a3`). A source gate refuses new bare forms.
+- main: `firmware guard detects a real open file and permits it after close` failed about half the time under the parallel suite because real lsof outlived the 2 s probe budget; the case now runs with 30 s (`420cb224`).
+
 ### Open
 
-- windows: `Clear-TempFiles` (`lib/core/base.ps1`) has three callers but nothing ever registers a temp file with it, so it does nothing.
-- windows: the junction test in `53b94f11` was seen green on CI but never seen red on old code; it fails on old code only under Windows PowerShell 5.1.
+- None.

@@ -135,8 +135,12 @@ candidate.
   Pester cannot run here; never report a Windows fix as verified from macOS alone.
   Red-run on CI: push the test-only commit to the draft PR first, wait for the
   Pester job to fail on it under both `powershell` and `pwsh` (or name the shell
-  that stays green and why), then push the fix. The first run skipped this and
-  left the junction test unproven on old code.
+  that stays green and why), then push the fix. When the test reaches into a
+  helper the fix introduced (Pester extracting a function from the script),
+  restoring the old file fails the whole test file at discovery, which proves
+  nothing; break only the judged condition in the new code instead and check
+  that exactly that `It` fails. The first run's junction test was proven that
+  way after the fact (draft PR #1754).
 - Agent reports are leads. Before stacking, read each agent's deviations from its
   brief and accept or undo each one, verify every "this does nothing" or "baseline
   already fails" claim yourself, and close each agent's "not done / outside my
