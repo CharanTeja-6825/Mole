@@ -2,7 +2,7 @@
 # Application Data Cleanup Module
 set -euo pipefail
 
-readonly ORPHAN_AGE_THRESHOLD=${ORPHAN_AGE_THRESHOLD:-${MOLE_ORPHAN_AGE_DAYS:-30}}
+readonly ORPHAN_AGE_THRESHOLD=${MOLE_ORPHAN_AGE_DAYS:-30}
 readonly CLAUDE_VM_ORPHAN_AGE_THRESHOLD=7
 readonly INSTALLED_APPS_CACHE_COMPLETE_MARKER="# mole-installed-apps-cache:v3:complete"
 # Args: $1=target_dir, $2=label
@@ -139,7 +139,7 @@ publish_installed_apps_cache() {
     return 0
 }
 
-# Orphaned app data (30+ days inactive). Env: ORPHAN_AGE_THRESHOLD, DRY_RUN
+# Orphaned app data (30+ days inactive). Env: DRY_RUN
 # Usage: scan_installed_apps "output_file"
 scan_installed_apps() {
     local installed_bundles="$1"
@@ -493,7 +493,7 @@ is_bundle_orphaned() {
         local current_epoch
         current_epoch=$(get_epoch_seconds)
         local days_since_modified=$(((current_epoch - last_modified_epoch) / 86400))
-        if [[ $days_since_modified -lt ${ORPHAN_AGE_THRESHOLD:-30} ]]; then
+        if [[ $days_since_modified -lt $ORPHAN_AGE_THRESHOLD ]]; then
             return 1
         fi
     fi
