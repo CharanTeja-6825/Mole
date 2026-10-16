@@ -57,6 +57,8 @@ The curated-notes flow (bilingual format, `gh release edit` instead of `create`,
 
 After applying notes and the standard reactions through that skill, read back the published title, full body, and all six reactions. Report GitHub Stable and Homebrew availability separately; a successfully opened core PR still needs upstream tests and merge.
 
+- Issues whose reporter already verified the fix on nightly get no "now in stable" follow-up after the release, and none is proposed.
+
 ## Release-notes craft
 
 Format rules (impact ordering, command existence checks, icon semantics, no em dash, no inline PR refs) live in `.claude/skills/release-notes/SKILL.md` under "Format rules". Keep that skill as the single source of truth for notes formatting.
