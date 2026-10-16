@@ -4130,6 +4130,33 @@ EOF
         "$HOME/Library/Logs/mole/mole.log"
 }
 
+@test "clean_tool_cache logs owner cleanups and whitelist skips in operations.log" {
+    local oplog_home="$HOME/tool-cache-oplog"
+    mkdir -p "$oplog_home"
+    run env HOME="$oplog_home" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+unset MO_NO_OPLOG
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+note_activity() { :; }
+DRY_RUN=false
+MOLE_CURRENT_COMMAND=clean
+MOLE_CLEAN_CANCEL_STATUS=0
+clean_tool_cache "ok cache" "$HOME/.cache/ok" true
+clean_tool_cache "failing cache" "$HOME/.cache/failing" false
+clean_tool_cache "noop cache" "$HOME/.cache/noop" :
+is_path_whitelisted() { [[ "$1" == "$HOME/.cache/kept" ]]; }
+clean_tool_cache "kept cache" "$HOME/.cache/kept" true
+EOF
+
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    local oplog="$oplog_home/Library/Logs/mole/operations.log"
+    grep -Fq "[clean] REMOVED $oplog_home/.cache/ok (owner command: ok cache)" "$oplog" || { cat "$oplog"; return 1; }
+    grep -Fq "[clean] SKIPPED $oplog_home/.cache/kept (whitelist)" "$oplog" || { cat "$oplog"; return 1; }
+    ! grep -Fq ".cache/failing" "$oplog" || { cat "$oplog"; return 1; }
+    ! grep -Fq ".cache/noop" "$oplog" || { cat "$oplog"; return 1; }
+}
+
 @test "clean_tool_cache treats non-signal high owner statuses as failures (#1695)" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail

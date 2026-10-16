@@ -27,6 +27,7 @@ clean_tool_cache() {
             echo -e "  ${GREEN}${ICON_SUCCESS}${NC} $description · skipped (whitelist)"
             note_activity
         fi
+        log_operation "${MOLE_CURRENT_COMMAND:-clean}" "SKIPPED" "$cache_path" "whitelist"
         return 0
     fi
 
@@ -42,6 +43,11 @@ clean_tool_cache() {
         if [[ $command_rc -eq 0 ]]; then
             echo -e "  ${GREEN}${ICON_SUCCESS}${NC} $description"
             note_activity
+            # The owner command changed the Mac, so it gets an operations.log
+            # row like every other sink. A ":" placeholder changed nothing.
+            if [[ "${1:-}" != ":" ]]; then
+                log_operation "${MOLE_CURRENT_COMMAND:-clean}" "REMOVED" "${cache_path:-$description}" "owner command: $description"
+            fi
         elif ! mole_rc_signal "$command_rc"; then
             # Routine owner failures stay in diagnostics, without a success
             # row or activity marker. A timeout here skips this one tool, and
