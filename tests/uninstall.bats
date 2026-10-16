@@ -912,6 +912,37 @@ EOF
 	[[ "$output" == *"CLEAN_RC=0 CLEAN_UNREADABLE=[]"* ]] || { echo "$output"; return 1; }
 }
 
+@test "same-bundle scan names the unreadable path verbatim with GNU find first in PATH" {
+	local stub_bin="$HOME/gnu-find-1735"
+	mkdir -p "$stub_bin"
+	# GNU findutils quotes the path in its errors, which the BSD-format parser
+	# would carry into the preview as part of the name.
+	cat > "$stub_bin/find" << 'STUB'
+#!/bin/bash
+printf "find: \xe2\x80\x98%s/Backups of mole-test\xe2\x80\x99: Permission denied\n" "$1" >&2
+exit 1
+STUB
+	chmod +x "$stub_bin/find"
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" PATH="$stub_bin:$PATH" /bin/bash --noprofile --norc << 'EOF'
+set -uo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+root="$HOME/vols-gnu-1735"
+rm -rf "$root"; mkdir -p "$root/Readable/Good.app" "$root/Backups of mole-test"
+chmod 000 "$root/Backups of mole-test"
+_MOLE_UNINSTALL_SCAN_UNREADABLE=""
+rc=0
+_uninstall_materialize_complete_find0 "$HOME/scan-gnu-1735.out" "$((SECONDS + 30))" "$root" -mindepth 1 -maxdepth 2 -iname '*.app' || rc=$?
+chmod 755 "$root/Backups of mole-test"
+echo "UNREADABLE=[${_MOLE_UNINSTALL_SCAN_UNREADABLE}]"
+tr '\0' '\n' < "$HOME/scan-gnu-1735.out"
+EOF
+	rm -rf "$stub_bin"
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"UNREADABLE=[$HOME/vols-gnu-1735/Backups of mole-test]"* ]] || { echo "$output"; return 1; }
+	[[ "$output" == *"Good.app"* ]] || { echo "$output"; return 1; }
+}
+
 @test "batch uninstall shows a partial same-bundle scan in the preview, not on the scan spinner" {
     mkdir -p "$HOME/Applications/Managed.app" "$HOME/Library/Preferences"
     local pref="$HOME/Library/Preferences/com.example.Managed.plist"
@@ -1742,6 +1773,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+FIND_BSD=find  # route the scan through the stub
 pkg_receipt_nonstandard_app_paths() { :; }
 
 selected_apps=("0|$APP_ROOT/Selected.app|Selected|com.example.partial|0|Never")
@@ -2951,7 +2983,7 @@ osascript() {
     fi
     [[ "$2" == 'application id "com.example.workbuddy" is running' ]] || return 1
     answer=$(head -1 "$HOME/answers")
-    sed -i '' '1d' "$HOME/answers" 2> /dev/null || true
+    /usr/bin/sed -i '' '1d' "$HOME/answers" 2> /dev/null || true
     [[ "$answer" == signal ]] && return 130
     echo "$answer"
 }
@@ -4407,6 +4439,28 @@ EOF
     [ "$status" -eq 0 ] || return 1
     [[ "$output" == *"count=1"* ]] || { printf '%s\n' "$output"; return 1; }
     [[ "$output" == *"|Écrivain|"* ]]
+}
+
+@test "match_apps_by_name folds non-ASCII case with a byte-only tr first in PATH" {
+    local stub_bin="$HOME/gnu-tr-bin"
+    mkdir -p "$stub_bin"
+    # GNU tr maps case byte by byte, so É never became é and the search missed.
+    printf '#!/bin/bash\nLC_ALL=C exec /usr/bin/tr "$@"\n' > "$stub_bin/tr"
+    chmod +x "$stub_bin/tr"
+    run env LC_ALL=en_US.UTF-8 PATH="$stub_bin:$PATH" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+selected_apps=()
+apps_data=(
+	"1000|$HOME/Applications/Écrivain.app|Écrivain|com.example.ecrivain|1 MB|1000000|1024"
+	"1001|$HOME/Applications/Other.app|Other|com.example.other|1 MB|1000001|1024"
+)
+source "$PROJECT_ROOT/tests/test_match_apps_helper.sh"
+match_apps_by_name "écrivain"
+echo "count=${#selected_apps[@]}"
+EOF
+    rm -rf "$stub_bin"
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"count=1"* ]] || { printf '%s\n' "$output"; return 1; }
 }
 
 @test "main clears pending input before app selection after scan (#726)" {
@@ -6384,6 +6438,7 @@ EOF_ROOT
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+FIND_BSD=find  # route the scan through the stub
 mkdir -p "$HOME/bin" "$HOME/Volumes"
 cat > "$HOME/bin/find" <<'FIND'
 #!/bin/bash

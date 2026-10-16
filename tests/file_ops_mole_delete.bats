@@ -688,7 +688,7 @@ EOF
     [[ ! -e "$victim" ]] || return 1
     [[ -d "$existing" ]] || return 1
     [[ -n "$(find "$fake_home/.Trash" -mindepth 1 -maxdepth 1 -name 'com.microsoft.Word.*' -print -quit)" ]] || return 1
-    [ "$(stat -f '%Lp' "$fake_home/.Trash")" = "700" ]
+    [ "$(/usr/bin/stat -f '%Lp' "$fake_home/.Trash")" = "700" ]
     [[ "$(grep -c '^trash:' "$trace" 2> /dev/null || true)" -eq 0 ]] || return 1
     [[ "$(grep -c '^osascript:' "$trace" 2> /dev/null || true)" -eq 0 ]]
 }
@@ -1840,7 +1840,7 @@ mv() {
 }
 _mole_move_to_trash_batch "$SANDBOX/targets/item-1" "$SANDBOX/targets/item-2" || exit 1
 [[ ${#_MOLE_TRASH_BATCH_MOVED_PATHS[@]} -eq 2 ]] || exit 1
-[[ $(stat -f%Lp "$HOME/.Trash") == 700 ]] || exit 1
+[[ $(/usr/bin/stat -f%Lp "$HOME/.Trash") == 700 ]] || exit 1
 printf 'destination-rechecked\n'
 EOF
     [ "$status" -eq 0 ]

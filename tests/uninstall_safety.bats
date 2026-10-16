@@ -1631,7 +1631,7 @@ mdls() { return 1; }
 touch -t 202501010101 "$app/Info.plist"
 before=$(uninstall_print_app_paths_with_mtime "$root" true)
 IFS=$'\t' read -r app_mtime info_mtime app_path <<< "$before"
-[[ "$app_path" == "$app" && "$info_mtime" == "$(stat -f%m "$app/Info.plist")" ]] || exit 1
+[[ "$app_path" == "$app" && "$info_mtime" == "$(/usr/bin/stat -f%m "$app/Info.plist")" ]] || exit 1
 touch -t 202501010102 "$app/Info.plist"
 after=$(uninstall_print_app_paths_with_mtime "$root" true)
 [[ "$before" != "$after" ]] || exit 1

@@ -2374,7 +2374,7 @@ SCRIPT
     local target_file="$target_dir/old.log"
     mkdir -p "$target_dir"
     touch "$target_file"
-    touch -t "$(date -v-8d '+%Y%m%d%H%M.%S')" "$target_file"
+    touch -t "$(/bin/date -v-8d '+%Y%m%d%H%M.%S')" "$target_file"
 
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TARGET_DIR="$target_dir" TARGET_FILE="$target_file" \
         MOLE_TEST_MODE=0 MOLE_TEST_NO_AUTH=0 /bin/bash --noprofile --norc <<'SCRIPT'
@@ -3144,7 +3144,7 @@ SCRIPT
     touch "$old_file"
     touch "$new_file"
 
-    touch -t "$(date -v-8d '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '8 days ago' '+%Y%m%d%H%M.%S')" "$old_file" 2>/dev/null || true
+    touch -t "$(/bin/date -v-8d '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '8 days ago' '+%Y%m%d%H%M.%S')" "$old_file" 2>/dev/null || true
 
     run /bin/bash -c "source '$PROJECT_ROOT/lib/core/common.sh'; safe_find_delete '$TEST_DIR' '*.tmp' 7 'f'"
     [ "$status" -eq 0 ]
@@ -3197,7 +3197,7 @@ SCRIPT
 @test "safe_find_delete works when app protection is not loaded" {
     local old_file="$TEST_DIR/file-ops-only.tmp"
     touch "$old_file"
-    touch -t "$(date -v-8d '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '8 days ago' '+%Y%m%d%H%M.%S')" "$old_file" 2>/dev/null || true
+    touch -t "$(/bin/date -v-8d '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '8 days ago' '+%Y%m%d%H%M.%S')" "$old_file" 2>/dev/null || true
 
     run /bin/bash --noprofile --norc <<EOF
 set -euo pipefail
@@ -3688,4 +3688,26 @@ done
 EOF
     [ "$status" -eq 0 ] || return 1
     [[ -e "$cache_dir/payload" ]] || return 1
+}
+
+@test "_mole_regex_escape matches names literally without undefined ERE escapes" {
+    run env PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+name='com.foo-bar App (x)+[y]{1}^$|?*\z'
+escaped=$(_mole_regex_escape "$name")
+# A backslash may only precede an ERE metacharacter; `\-` or `\ ` is undefined
+# and GNU grep warns "stray \" on every match.
+stray=$(printf '%s' "$escaped" | LC_ALL=C sed 's/\\[][(){}.^$*+?|\\]//g' | LC_ALL=C grep -c '\\' || true)
+[[ "$stray" == 0 ]] || { echo "undefined escape left: $escaped"; exit 1; }
+for grep_bin in /usr/bin/grep /opt/homebrew/opt/grep/libexec/gnubin/grep; do
+    [[ -x "$grep_bin" ]] || continue
+    err=$(printf '%s\n' "$name" | LC_ALL=C "$grep_bin" -E -- "^${escaped}\$" 2>&1 > /dev/null) || { echo "$grep_bin missed the literal"; exit 1; }
+    [[ -z "$err" ]] || { echo "$grep_bin warned: $err"; exit 1; }
+    ! printf '%s\n' 'comXfoo-bar App (x)+[y]{1}^$|?*\z' | LC_ALL=C "$grep_bin" -qE -- "^${escaped}\$" 2> /dev/null ||
+        { echo "$grep_bin treated . as a wildcard"; exit 1; }
+done
+EOF
+
+    [[ "$status" -eq 0 ]] || { echo "$output"; return 1; }
 }

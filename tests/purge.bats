@@ -3495,7 +3495,7 @@ printf generated > "$root/repo/Svc/other/build/out.txt"
 git init -q "$root/repo"
 git -C "$root/repo" add Svc/app/build/source.txt
 # A plain mv leaves the index with the old spelling and git status clean.
-mv "$root/repo/Svc" "$root/repo/svc"
+/bin/mv "$root/repo/Svc" "$root/repo/svc"
 is_protected_purge_artifact "$root/repo/svc/app/build" || exit 11
 # An untracked sibling under the same folder is still disposable.
 if is_protected_purge_artifact "$root/repo/svc/other/build"; then exit 12; fi

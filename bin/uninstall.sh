@@ -1709,7 +1709,7 @@ match_apps_by_name() {
         done
         while IFS= read -r lower_line; do
             lower_output+=("$lower_line")
-        done < <(printf '%s\n' "${lower_input[@]}" | tr '[:upper:]' '[:lower:]')
+        done < <(printf '%s\n' "${lower_input[@]}" | /usr/bin/tr '[:upper:]' '[:lower:]')
         while [[ $lower_i -lt ${#apps_data[@]} ]]; do
             app_names_lower+=("${lower_output[$((lower_i * 2))]-}")
             app_dirs_lower+=("${lower_output[$((lower_i * 2 + 1))]-}")
@@ -1729,7 +1729,7 @@ match_apps_by_name() {
         local every_word_exact=true
         local word word_lower word_hit word_idx
         for word in "${search_terms[@]}"; do
-            word_lower=$(echo "$word" | tr '[:upper:]' '[:lower:]')
+            word_lower=$(echo "$word" | /usr/bin/tr '[:upper:]' '[:lower:]')
             word_hit=false
             word_idx=0
             while [[ $word_idx -lt ${#apps_data[@]} ]]; do
@@ -1746,7 +1746,7 @@ match_apps_by_name() {
         done
         if [[ "$every_word_exact" == "false" ]]; then
             local joined_lower joined_app joined_idx=0
-            joined_lower=$(echo "$*" | tr '[:upper:]' '[:lower:]')
+            joined_lower=$(echo "$*" | /usr/bin/tr '[:upper:]' '[:lower:]')
             for joined_app in "${apps_data[@]}"; do
                 if [[ "${app_names_lower[$joined_idx]}" == "$joined_lower" || "${app_dirs_lower[$joined_idx]}" == "$joined_lower" ]]; then
                     selected_apps=("$joined_app")
@@ -1759,7 +1759,7 @@ match_apps_by_name() {
 
     for search_term in "${search_terms[@]}"; do
         local search_lower
-        search_lower=$(echo "$search_term" | tr '[:upper:]' '[:lower:]')
+        search_lower=$(echo "$search_term" | /usr/bin/tr '[:upper:]' '[:lower:]')
         # Escape glob characters to prevent pattern injection
         search_lower=${search_lower//\\/\\\\}
         search_lower=${search_lower//\*/\\*}

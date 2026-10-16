@@ -1115,7 +1115,7 @@ touch "$repo/pyproject.toml" "$repo/Svc/p/__pycache__/m.pyc" "$repo/Svc/q/__pyca
 git init -q "$repo"
 git -C "$repo" add -f Svc/p/__pycache__/m.pyc
 # A plain mv leaves the index with the old spelling and git status clean.
-mv "$repo/Svc" "$repo/svc"
+/bin/mv "$repo/Svc" "$repo/svc"
 cache="$repo/svc/p/__pycache__"
 
 # Discovery: the listing prefix and the spelling on disk differ only in case.
@@ -1183,6 +1183,7 @@ set -euo pipefail
 printf '%s\n' "$HOME/CustomProjects" > "$HOME/.config/mole/purge_paths"
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/caches.sh"
+FIND_BSD=find  # route the scan through the stub
 run_with_timeout() { shift; "$@"; }
 safe_clean() { echo "$2|$1"; }
 safe_clean_guarded() { shift; safe_clean "$@"; }
@@ -1324,6 +1325,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/caches.sh"
+FIND_BSD=find  # route the scan through the stub
 roots=$(discover_project_cache_roots)
 printf '%s\n' "$roots"
 printf 'COUNT=%s\n' "$(printf '%s\n' "$roots" | sed '/^$/d' | wc -l | tr -d ' ')"
@@ -1364,6 +1366,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/caches.sh"
+FIND_BSD=find  # route the scan through the stub
 MO_TIMEOUT_BIN=""
 MO_TIMEOUT_PERL_BIN="${MO_TIMEOUT_PERL_BIN:-$(command -v perl)}"
 export MOLE_PROJECT_CACHE_DISCOVERY_TIMEOUT=0.5
@@ -1550,6 +1553,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/caches.sh"
+FIND_BSD=find  # route the scan through the stub
 SECONDS=0
 scan_rc=0
 scan_project_cache_root "$HOME/Projects" "$OUTPUT_FILE" || scan_rc=$?
@@ -1638,4 +1642,35 @@ EOF
     [ "$status" -eq 0 ]
 
     rm -rf "$HOME/Projects"
+}
+
+@test "project cache and hint scans ignore a failing find earlier in PATH" {
+    local stub_bin="$HOME/gnu-find-scan-bin"
+    local root="$HOME/gnu-scan-root"
+    mkdir -p "$stub_bin" "$root/app/.next" "$root/other"
+    # GNU find failed on a File Provider mount BSD find walks past, and the
+    # whole root was then counted as a failed scan.
+    printf '#!/bin/bash\necho "find: Operation timed out" >&2\nexit 1\n' > "$stub_bin/find"
+    chmod +x "$stub_bin/find"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" PATH="$stub_bin:$PATH" ROOT="$root" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/caches.sh"
+source "$PROJECT_ROOT/lib/clean/hints.sh"
+rc=0
+scan_project_cache_root "$ROOT" "$HOME/gnu-scan.out" || rc=$?
+echo "SCAN_RC=$rc"
+cat "$HOME/gnu-scan.out"
+rc=0
+hint_collect_child_dirs_with_timeout "$ROOT" "$HOME/gnu-children.out" 5 || rc=$?
+echo "HINT_RC=$rc"
+tr '\0' '\n' < "$HOME/gnu-children.out"
+EOF
+    rm -rf "$stub_bin" "$root"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"SCAN_RC=0"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"$root/app/.next"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"HINT_RC=0"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"$root/other"* ]] || { echo "$output"; return 1; }
 }

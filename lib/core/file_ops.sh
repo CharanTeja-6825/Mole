@@ -405,10 +405,11 @@ _mole_load_process_table() {
     return 0
 }
 
-# Escape every non-alphanumeric byte so a cache-dir component is matched as a
-# literal inside an ERE.
+# Escape the ERE metacharacters so a cache-dir component is matched as a
+# literal. Only these: a backslash before any other byte (`\-`, `\ `) is
+# undefined in POSIX ERE, and GNU grep prints "stray \" warnings for it.
 _mole_regex_escape() {
-    printf '%s' "$1" | sed 's/[^A-Za-z0-9_]/\\&/g'
+    printf '%s' "$1" | LC_ALL=C sed 's/[][(){}.^$*+?|\\]/\\&/g'
 }
 
 # Tri-state process probe for a reverse-DNS cache owner:
@@ -3985,7 +3986,7 @@ get_path_size_kb() {
             "$size_timeout" "$size_deadline") || stat_deadline_rc=$?
         [[ $stat_deadline_rc -eq 0 ]] || return "$stat_deadline_rc"
         local stat_rc=0
-        blocks=$(run_with_timeout "$stat_timeout" stat \
+        blocks=$(run_with_timeout "$stat_timeout" "$STAT_BSD" \
             -f%b "$path" < /dev/null 2> /dev/null) || stat_rc=$?
         mole_rc_timeout_or_signal "$stat_rc" && return "$stat_rc"
         if [[ "$blocks" =~ ^[0-9]+$ ]]; then

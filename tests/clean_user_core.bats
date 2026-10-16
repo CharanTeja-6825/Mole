@@ -1786,7 +1786,7 @@ renders="$HOME/Library/Containers/com.apple.wallpaper.agent/Data/Library/Caches/
 mkdir -p "$renders"
 hex=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 echo x > "$renders/${hex}-5120-2880-0-1.bmp"
-touch -t "$(date -v-30d +%Y%m%d%H%M)" "$renders/${hex}-5120-2880-0-1.bmp"
+touch -t "$(/bin/date -v-30d +%Y%m%d%H%M)" "$renders/${hex}-5120-2880-0-1.bmp"
 echo x > "$renders/${hex//0/f}-5120-2880-0-1.bmp"
 # clean_utm_caches only reaches its sinks when a UTM target exists.
 mkdir -p "$HOME/Library/Containers/com.utmapp.UTM/Data/Library/Caches"
@@ -4245,10 +4245,10 @@ caches="$HOME/Library/Containers/com.apple.wallpaper.agent/Data/Library/Caches"
 renders="$caches/com.apple.wallpaper.caches/extension-com.apple.wallpaper.extension.image"
 mkdir -p "$renders" "$caches/com.apple.wallpaper.caches/extension-com.apple.wallpaper.extension.bad..name"
 echo x > "$caches/com.apple.wallpaper.caches/extension-com.apple.wallpaper.extension.bad..name/$(printf "%064d" 0 | tr 0 a)-640-480-0-1.bmp"
-touch -t "$(date -v-30d +%Y%m%d%H%M)" "$caches/com.apple.wallpaper.caches/extension-com.apple.wallpaper.extension.bad..name/$(printf "%064d" 0 | tr 0 a)-640-480-0-1.bmp"
+touch -t "$(/bin/date -v-30d +%Y%m%d%H%M)" "$caches/com.apple.wallpaper.caches/extension-com.apple.wallpaper.extension.bad..name/$(printf "%064d" 0 | tr 0 a)-640-480-0-1.bmp"
 echo x > "$caches/com.apple.wallpaper.caches/extension-com.apple.wallpaper.extension.bad..name/$(printf "%064d" 0 | tr 0 f)-640-480-0-1.bmp"
 pic() { printf '%064d' 0 | tr 0 "$1"; }
-make() { echo x > "$renders/$1"; touch -t "$(date -v-"$2"d +%Y%m%d%H%M)" "$renders/$1"; }
+make() { echo x > "$renders/$1"; touch -t "$(/bin/date -v-"$2"d +%Y%m%d%H%M)" "$renders/$1"; }
 make "$(pic a)-5120-2880-0-1.bmp" 30   # old, other picture: offered
 make "$(pic a)-2560-1440-0-1.bmp" 30   # same old picture, other display: offered
 make "$(pic c)-5120-2880-0-1.bmp" 8    # newest 5K render: on screen
@@ -4334,7 +4334,7 @@ mkdir -p "$folder"
 for i in $(seq 1 60); do
     name="$(printf '%064x' "$i")-5120-2880-0-1.bmp"
     echo x > "$folder/$name"
-    touch -t "$(date -v-$((10 + i))d +%Y%m%d%H%M)" "$folder/$name"
+    touch -t "$(/bin/date -v-$((10 + i))d +%Y%m%d%H%M)" "$folder/$name"
 done
 newest="$(printf '%064x' 999)-5120-2880-0-1.bmp"
 echo x > "$folder/$newest"

@@ -1032,7 +1032,7 @@ EOF
             MOLE_SPINNER_PREFIX="  " start_inline_spinner "Phase one..."
             pid_before="$INLINE_SPINNER_PID"
             control_dir="$INLINE_SPINNER_CONTROL_DIR"
-            control_mode=$(stat -f%Lp "$control_dir")
+            control_mode=$(/usr/bin/stat -f%Lp "$control_dir")
             [[ "$INLINE_SPINNER_MSG_FILE" == "$control_dir/message" && "$control_mode" == "700" ]] && echo "CONTROL_PRIVATE"
             wait_for_frame "Phase one"
             update_inline_spinner_message "Phase two..." || echo "UPDATE_FAILED"
@@ -1351,22 +1351,42 @@ assert b'Cleaning fixture...' not in raw.split(b'Error:', 1)[1], raw
 PY
 }
 
-@test "BSD-only stat, date and find forms never resolve through PATH (#1196, #1752)" {
+@test "BSD-only stat, date, find and tr forms never resolve through PATH (#1196, #1752)" {
     # GNU coreutils earlier in PATH reads stat -f as file-system status and
     # date -r/-j differently, so these calls go through $STAT_BSD and
     # $_DATE_CMD; GNU find reads `-depth 2` as a path, so use -mindepth/-maxdepth. Match the command position, skip comment lines, and prove
     # the matcher fires on a known positive.
     run env PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
-pattern='(^|[[:space:];(|&`]|[$][(])(stat[[:space:]]+-|date[[:space:]]+-[A-Za-z]*[jrv])|find[^|;]*[[:space:]]-depth[[:space:]]+[0-9]'
+# A command word starts after a separator, an opening quote or $( ; an
+# absolute /usr/bin/find is the BSD binary and may use -depth N.
+start='(^|[[:space:];(|&`"'"'"']|[$][(])'
+pattern="${start}(stat[[:space:]]+-|date[[:space:]]+-[A-Za-z]*[jrv]|find[^|;]*[[:space:]]-depth[[:space:]]+[0-9])"
 for probe in '    age=$(( now - $(stat -f %m "$d") ))' '    -exec stat -f "%z" {} +' '    d=$(date -r "$n" +%F)' "    'find \"\$1\" -type d -depth 2'"; do
     printf '%s\n' "$probe" | grep -qE "$pattern" || { echo "matcher missed: $probe"; exit 1; }
 done
 printf '%s\n' '    x=$("$STAT_BSD" -f%m "$f")' | grep -qE "$pattern" && { echo "matcher flagged STAT_BSD"; exit 1; }
-matched=$(grep -rnE "$pattern" "$PROJECT_ROOT/lib" "$PROJECT_ROOT/bin" "$PROJECT_ROOT/mole" "$PROJECT_ROOT/install.sh" |
+printf '%s\n' '    /usr/bin/find /private/var/folders -type d \( -depth 3 ! -name C \) -prune' | grep -qE "$pattern" && { echo "matcher flagged the system find"; exit 1; }
+# Join backslash-continued lines first: `run_with_timeout 5 stat \` with the
+# flag on the next line slipped past a per-line match once.
+joined=$(find "$PROJECT_ROOT/lib" "$PROJECT_ROOT/bin" -name '*.sh' -print0 |
+    xargs -0 awk 'FNR == 1 { buf = "" } /\\$/ { if (buf == "") start = FNR; buf = buf substr($0, 1, length($0) - 1) " "; next } { if (buf != "") { print FILENAME ":" start ":" buf $0; buf = "" } else print FILENAME ":" FNR ":" $0 }' \
+        "$PROJECT_ROOT/mole" "$PROJECT_ROOT/install.sh")
+printf '%s\n' 'x.sh:1:    run_with_timeout 5 stat -f%m "$e"' | grep -qE ":.*$pattern" || { echo "matcher missed a joined line"; exit 1; }
+matched=$(printf '%s\n' "$joined" | grep -E "$pattern" |
     grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)
 if [[ -n "$matched" ]]; then
     echo "BSD-only flags resolved through PATH: $matched"
+    exit 1
+fi
+# GNU tr folds case byte by byte, so outside LC_ALL=C a locale-aware fold
+# (É to é in an app name) needs the system tr.
+tr_pattern="${start}tr[[:space:]]+'\[:(upper|lower):\]'"
+printf '%s\n' "    lower=\$(printf '%s' \"\$n\" | tr '[:upper:]' '[:lower:]')" | grep -qE "$tr_pattern" || { echo "tr matcher missed"; exit 1; }
+tr_matched=$(printf '%s\n' "$joined" | grep -E "$tr_pattern" | grep -v 'LC_ALL=C tr' |
+    grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)
+if [[ -n "$tr_matched" ]]; then
+    echo "locale case folding resolved through PATH tr: $tr_matched"
     exit 1
 fi
 EOF
