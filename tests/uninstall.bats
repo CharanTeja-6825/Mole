@@ -3783,12 +3783,14 @@ EOF
     [ -f "$iso/.local/bin/mole" ]
 }
 
-@test "remove_mole deletes manual binaries and caches" {
+@test "remove_mole deletes manual binaries and caches but keeps the operation logs" {
     mkdir -p "$HOME/.local/bin"
     cp "$PROJECT_ROOT/mole" "$HOME/.local/bin/mole"
     cp "$PROJECT_ROOT/mo" "$HOME/.local/bin/mo"
     mkdir -p "$HOME/.config/mole" "$HOME/.cache/mole" "$HOME/Library/Logs/mole"
     echo "protected-entry" > "$HOME/.config/mole/whitelist"
+    echo "[2026-10-16 09:00:00] [clean] REMOVED /tmp/x (1KB)" > "$HOME/Library/Logs/mole/operations.log"
+    printf '2026-10-16T09:00:00+0800\ttrash\t1\tok\t/tmp/x\n' > "$HOME/Library/Logs/mole/deletions.log"
 
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" PATH="/usr/bin:/bin" MOLE_TEST_MODE=1 /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
@@ -3830,7 +3832,11 @@ EOF
     [ ! -f "$HOME/.local/bin/mo" ] || return 1
     [ ! -d "$HOME/.config/mole" ] || return 1
     [ ! -d "$HOME/.cache/mole" ] || return 1
-    [ ! -d "$HOME/Library/Logs/mole" ] || return 1
+    # The audit logs are the only record of what Mole removed, and Mole Mac
+    # reads the same folder; removing the CLI must not erase them.
+    grep -Fq "REMOVED /tmp/x" "$HOME/Library/Logs/mole/operations.log" || return 1
+    grep -Fq "/tmp/x" "$HOME/Library/Logs/mole/deletions.log" || return 1
+    [[ "$output" == *"Library/Logs/mole (kept, operation history)"* ]] || return 1
     # Config is user-authored state and must survive in the Trash (#1346).
     [ -f "$HOME/.Trash/mole-config/whitelist" ] || return 1
 }
@@ -4062,6 +4068,8 @@ EOF
     [ -d "$HOME/.config/mole" ]
     [ -d "$HOME/.cache/mole" ]
     [ -d "$HOME/Library/Logs/mole" ]
+    [[ "$output" == *"Library/Logs/mole (kept, operation history)"* ]] || return 1
+    [[ "$output" != *"Would remove: $HOME/Library/Logs/mole"* ]] || return 1
 }
 
 @test "remove_mole test mode ignores PATH installs outside test HOME" {

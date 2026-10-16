@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mole self-removal: Homebrew formula, manual binaries, config/cache/logs.
+# Mole self-removal: Homebrew formula, manual binaries, config and cache.
 # Extracted from the `mole` dispatcher, which now only routes.
 
 set -euo pipefail
@@ -197,7 +197,7 @@ remove_mole() {
                 echo "  ${ICON_LIST} $remove_config_dir (kept for manual review)"
             fi
         fi
-        [[ -d "$HOME/Library/Logs/mole" ]] && echo -e "  ${GRAY}${ICON_LIST} Would remove: $HOME/Library/Logs/mole${NC}"
+        [[ -d "$HOME/Library/Logs/mole" ]] && echo "  ${ICON_LIST} $HOME/Library/Logs/mole (kept, operation history)"
 
         printf '\n%s\n\n' "${GREEN}${ICON_SUCCESS}${NC} Dry run complete, no changes made"
         exit 0
@@ -216,7 +216,7 @@ remove_mole() {
         echo "  ${ICON_LIST} $remove_config_dir (kept for manual review)"
     fi
     echo "  ${ICON_LIST} ~/.cache/mole"
-    echo "  ${ICON_LIST} ~/Library/Logs/mole"
+    [[ -d "$HOME/Library/Logs/mole" ]] && echo "  ${ICON_LIST} ~/Library/Logs/mole (kept, operation history)"
     echo -ne "${PURPLE}${ICON_ARROW}${NC} Press ${GREEN}Enter${NC} to confirm, ${GRAY}ESC${NC} to cancel: "
 
     IFS= read -r -s -n1 key || key=""
@@ -277,8 +277,8 @@ remove_mole() {
     if [[ "$remove_config_dir" == "${HOME%/}/.config/mole" && -d "$remove_config_dir" ]]; then
         # The config dir holds user-authored state (whitelist, purge config),
         # which is the one thing here a reinstall cannot rebuild. Move it to
-        # Trash so it stays recoverable (#1346); cache and logs around it are
-        # rebuildable and stay permanent removals. On failure leave it in
+        # Trash so it stays recoverable (#1346); the cache around it is
+        # rebuildable and stays a permanent removal. On failure leave it in
         # place rather than falling back to deletion.
         local config_trash="$HOME/.Trash/mole-config"
         local config_trash_n=1
@@ -292,9 +292,9 @@ remove_mole() {
             log_warning "Could not move $remove_config_dir to Trash; left in place"
         fi
     fi
-    if [[ -d "$HOME/Library/Logs/mole" ]]; then
-        rm -rf "$HOME/Library/Logs/mole" 2> /dev/null || true # SAFE: hardcoded Mole-owned dir, -d guarded
-    fi
+    # ~/Library/Logs/mole stays. operations.log and deletions.log are the
+    # only record of what Mole removed, support answers deletion reports from
+    # them, and Mole Mac reads the same folder for its own history.
 
     local final_message
     if [[ "$has_error" == "true" ]]; then
