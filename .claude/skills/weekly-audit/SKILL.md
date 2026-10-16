@@ -9,7 +9,7 @@ description: >-
   Not for one reported bug (/hunt), a safety-sensitive diff (bugs), or a PR
   review (/check).
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Weekly Audit (CLI)
@@ -37,18 +37,26 @@ survive refutation. Run it once a week and keep the report short.
   dimension reads only that window; the others read the whole tree.
 - Exclude `tests/tmp-*`, `.git`, build output and other sessions' worktrees from
   every grep.
+- Pick the scope. Both branches whole on the first run, after a release, or when the
+  window touched more than about 40 source files; otherwise incremental: the files
+  changed in each branch's window, their direct callers, and every Open item. Mole
+  for Windows' first whole-tree run cost about 1.15M sub-agent tokens for 18 findings,
+  most in code untouched for weeks.
 - Read-only until Phase 4. "看看 / 检查 / 跑一遍" never authorizes a write.
 
 ## Phase 2: Five read-only audits in parallel
 
-One sub-agent per dimension, each covering both branches and naming which branch
+One sub-agent per dimension, each started from the matching prompt in
+`references/prompts.md` (shared header plus dimension body) so coverage does not
+drift between runs, each covering both branches and naming which branch
 every finding belongs to. Read-only: no edit, commit, build, real cleanup or
 `sudo`. Tests may run only with `MOLE_TEST_NO_AUTH=1` against fixtures; PowerShell
 behavior cannot run on macOS, so Windows findings rest on reading the code and its
 Pester tests. Each agent must try to refute every candidate once (find the guard
 that already blocks it, the test that locks it, or the AGENTS.md / SYNC.md line
-recording the decision) and report only survivors, with `branch:file:line`, a
-concrete failure scenario and the smallest fix.
+recording the decision, which may sit on the other branch, so grep both before
+reporting) and report only survivors, with `branch:file:line`, a concrete failure
+scenario and the smallest fix.
 
 1. **Unsafe.** macOS: every removal goes through `mole_delete` / `safe_clean` /
    `safe_remove` or carries a same-line `# SAFE:` reason; matching stays on exact
@@ -109,9 +117,10 @@ candidate.
 
 ## Phase 4: Land what the maintainer approves
 
-- One branch per fix family in a worktree (`git worktree add <dir>/wt-<n> -b
-  fix/audit-<n> origin/main`, or `origin/windows`), no two agents on the same
-  file, local commits only. Do not put a worktree you run Bats in under
+- One detached worktree per fix family (`git worktree add --detach <dir>/wt-<n>
+  origin/main`, or `origin/windows`; no side branches, the maintainer works on main
+  and windows), no two agents on the same file, local commits only. Start each
+  agent from the fix header in `references/prompts.md`. Do not put a worktree you run Bats in under
   `/private/tmp`: `validate_path_for_deletion` allows that tree before
   `should_protect_path`, so sink tests there fail on clean code (the first run's
   agents each reported three such false reds). Stack and run the full suite in
@@ -134,6 +143,9 @@ candidate.
   files" list in the integration commit. In the first run one agent called
   `opt_diag_memory_pressure` a no-op (it prints a warning) and three reported
   `/private/tmp` false reds as baseline failures.
+- Items marked "needs maintainer: no" are fixed in the run that reports them once
+  the maintainer approves the batch; only items waiting on a decision carry over in
+  Open, each with the question it waits on.
 - Commit identity and push follow the global Git Safety rules; contributor PRs
   keep their own review path.
 - Prepend the run to `docs/weekly-audit.md` (audited and landed commits per
