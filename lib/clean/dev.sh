@@ -2652,6 +2652,8 @@ check_orphaned_simulator_runtimes() {
     [[ "$device_json" == *'"devices"'* ]] || return 0
 
     local id platform version build size_bytes size_note build_note
+    # Rows print below the caller's spinner line, so clear it first.
+    stop_section_spinner
     while IFS=$'\t' read -r id platform version build size_bytes; do
         [[ -n "$id" && -n "$platform" ]] || continue
         size_note=""
@@ -2712,6 +2714,9 @@ clean_dev_mobile() {
                 debug_log "Unable to create simctl probe stderr capture file"
             fi
 
+            # A cold CoreSimulatorService can take seconds per probe; without a
+            # spinner the last printed row looks like the run has stopped.
+            start_section_spinner "Checking Xcode simulators..."
             if unavailable_devices_output=$(_run_simctl \
                 "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" list devices unavailable \
                 2> "$simctl_probe_stderr_target"); then
@@ -2744,6 +2749,7 @@ clean_dev_mobile() {
                 rm -f -- "$simctl_probe_stderr_file" 2> /dev/null || true # SAFE: exact temporary file created by mktemp above
             fi
             if [[ "$simctl_probe_ok" != "true" ]]; then
+                stop_section_spinner
                 if mole_rc_timeout "$simctl_probe_first_status" && mole_rc_timeout "$simctl_probe_retry_status"; then
                     echo -e "  ${GRAY}${ICON_WARNING}${NC} Xcode unavailable simulators · simctl probe timed out"
                 else
@@ -2800,6 +2806,7 @@ clean_dev_mobile() {
                                 record_dry_run_cleanup_target "$unavailable_path" "$unavailable_path_size_kb" 1 "$unavailable_size_known" || true
                             fi
                         done
+                        stop_section_spinner
                         echo -e "  ${YELLOW}${ICON_DRY_RUN}${NC} Xcode unavailable simulators · would clean ${unavailable_before}, ${unavailable_size_human}"
                         note_activity
                     else
@@ -2818,9 +2825,9 @@ clean_dev_mobile() {
                         delete_output=$(_run_simctl "$MOLE_TIMEOUT_PKG_CLEANUP_SEC" delete unavailable 2>&1) || delete_exit_code=$?
 
                         if [[ $delete_exit_code -eq 0 ]]; then
-                            stop_section_spinner
                             local recount_exit_code=0
                             unavailable_devices_output=$(_run_simctl "$MOLE_TIMEOUT_PKG_LIST_SEC" list devices unavailable 2> /dev/null) || recount_exit_code=$?
+                            stop_section_spinner
                             if [[ $recount_exit_code -ne 0 ]]; then
                                 echo -e "  ${YELLOW}${ICON_WARNING}${NC} Xcode unavailable simulators · cleanup completed, unable to verify remaining devices"
                                 debug_log "simctl recount returned $recount_exit_code"
@@ -2883,7 +2890,11 @@ clean_dev_mobile() {
             # The review reads the same service the listing above just failed
             # to reach; two more bounded waits would not warm it any faster.
             if [[ "$simctl_available" == "true" ]]; then
-                check_orphaned_simulator_runtimes || return $?
+                start_section_spinner "Checking simulator runtimes..."
+                local orphan_review_status=0
+                check_orphaned_simulator_runtimes || orphan_review_status=$?
+                stop_section_spinner
+                ((orphan_review_status == 0)) || return "$orphan_review_status"
             else
                 debug_log "Orphaned runtime review skipped: unavailable-simulator probe failed"
             fi

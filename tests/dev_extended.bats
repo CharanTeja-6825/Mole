@@ -2059,6 +2059,66 @@ EOF
     }
 }
 
+@test "clean_dev_mobile keeps a spinner up through every simctl probe and clears it before rows" {
+    local event_log="$HOME/simctl-spinner-events.log"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" DRY_RUN=true \
+        EVENT_LOG="$event_log" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+check_android_ndk() { :; }
+clean_xcode_documentation_cache() { :; }
+clean_xcode_system_coresimulator_caches() { :; }
+clean_xcode_xctest_devices() { :; }
+clean_xcode_device_support() { :; }
+_xcode_safe_clean_guarded() { :; }
+safe_clean() { :; }
+note_activity() { :; }
+debug_log() { :; }
+xcrun() { :; }
+start_section_spinner() { printf 'spin:%s\n' "$1" >> "$EVENT_LOG"; }
+stop_section_spinner() { printf 'stop\n' >> "$EVENT_LOG"; }
+_resolve_simctl_developer_dir() {
+    _MOLE_SIMCTL_RESOLUTION_STATUS="ready"
+    _MOLE_SIMCTL_DEVELOPER_DIR="$HOME/Xcode.app/Contents/Developer"
+}
+_run_simctl() {
+    shift
+    printf 'simctl:%s\n' "$*" >> "$EVENT_LOG"
+    [[ "$*" == "list devices -j" ]] && printf '{"devices":{}}\n'
+    return 0
+}
+_simctl_orphan_runtime_rows() { printf 'R1\tiOS\t18.0\t22A1\t100\n'; }
+
+clean_dev_mobile >> "$EVENT_LOG"
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+    grep -q '^simctl:' "$event_log" || return 1
+    grep -q 'Orphaned simulator runtime' "$event_log" || {
+        cat "$event_log"
+        return 1
+    }
+    # A cold CoreSimulatorService takes seconds per probe; any probe outside a
+    # spinner leaves the previous row on screen as if the run had stopped.
+    run awk '
+        /^spin:/ { active = 1; next }
+        /^stop$/ { active = 0; next }
+        /^simctl:/ { if (!active) { print "probe without spinner: " $0; bad = 1 }; next }
+        /Orphaned simulator runtime/ { if (active) { print "row under spinner: " $0; bad = 1 }; next }
+        END { if (active) { print "spinner left running"; bad = 1 }; exit bad }
+    ' "$event_log"
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        cat "$event_log"
+        return 1
+    }
+}
+
 @test "clean_dev_mobile continues cleanup when simctl is unavailable" {
     local tmp_bin
     tmp_bin="$HOME/simctl-unavailable-bin"
