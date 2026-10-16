@@ -2368,6 +2368,78 @@ EOF
     [[ "$output" != *"$HOME/Library/Developer/private"* ]] || return 1
 }
 
+@test "simctl stays untouched while Xcode first-launch setup is unfinished" {
+    local tmp_bin developer_dir call_log
+    tmp_bin="$HOME/first-launch-bin"
+    developer_dir="$HOME/Applications/Xcode.app/Contents/Developer"
+    call_log="$HOME/first-launch-simctl.log"
+    mkdir -p "$tmp_bin" "$developer_dir/usr/bin"
+
+    # simctl on an unfinished Xcode asks macOS to install CoreSimulator behind
+    # an administrator prompt; a cleanup run must not be what triggers it.
+    cat > "$developer_dir/usr/bin/xcodebuild" << 'XEOF'
+#!/bin/bash
+[[ "$*" == "-checkFirstLaunchStatus" ]] || exit 2
+exit "$FIRST_LAUNCH_STATUS"
+XEOF
+    cat > "$tmp_bin/xcrun" << 'XEOF'
+#!/bin/bash
+[[ "$*" == "--find simctl" ]] && exit 0
+printf '%s\n' "$*" >> "$SIMCTL_CALL_LOG"
+[[ "$*" == "simctl list devices booted -j" ]] && printf '{"devices":{}}\n'
+exit 0
+XEOF
+    cat > "$tmp_bin/xcode-select" << XEOF
+#!/bin/bash
+printf '%s\n' "$developer_dir"
+XEOF
+    chmod +x "$developer_dir/usr/bin/xcodebuild" "$tmp_bin/xcrun" "$tmp_bin/xcode-select"
+
+    local first_launch_status
+    for first_launch_status in 1 0; do
+        rm -f "$call_log"
+        run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" PATH="$tmp_bin:$PATH" \
+            DRY_RUN=true FIRST_LAUNCH_STATUS="$first_launch_status" SIMCTL_CALL_LOG="$call_log" \
+            /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+unset DEVELOPER_DIR
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+check_android_ndk() { :; }
+clean_xcode_documentation_cache() { :; }
+clean_xcode_system_coresimulator_caches() { :; }
+clean_xcode_xctest_devices() { :; }
+clean_xcode_device_support() { :; }
+safe_clean() { :; }
+note_activity() { :; }
+debug_log() { :; }
+
+state=0
+_coresimulator_booted_device_state || state=$?
+echo "booted_state=$state"
+_MOLE_SIMCTL_RESOLUTION_STATUS=""
+clean_dev_mobile
+EOF
+        [ "$status" -eq 0 ] || {
+            echo "$output"
+            return 1
+        }
+        if [[ "$first_launch_status" == "1" ]]; then
+            [[ ! -e "$call_log" ]] || {
+                echo "simctl ran while setup was unfinished:"
+                cat "$call_log"
+                return 1
+            }
+            [[ "$output" == *"booted_state=2"* ]] || return 1
+            [[ "$output" != *"simctl could not be resolved"* ]] || return 1
+        else
+            grep -q '^simctl list devices booted -j$' "$call_log" || return 1
+            grep -q '^simctl list devices unavailable$' "$call_log" || return 1
+            [[ "$output" == *"booted_state=1"* ]] || return 1
+        fi
+    done
+}
+
 @test "clean_dev_mobile uses the sole Xcode Beta candidate when CLT is selected (#1261)" {
     local tmp_bin candidate developer_dir
     tmp_bin="$HOME/simctl-single-bin"

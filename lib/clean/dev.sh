@@ -2407,6 +2407,32 @@ _simctl_developer_dir_is_usable() {
         env "DEVELOPER_DIR=$developer_dir" xcrun --find simctl > /dev/null 2>&1
 }
 
+# simctl on an Xcode whose first-launch packages (CoreSimulator among them) are
+# not installed asks macOS to install them behind an administrator prompt. A
+# cleanup run must never be what installs Xcode components, least of all for
+# users pinned to a simulator version, so check with the owner's read-only
+# status query first and leave simctl alone until Xcode itself finishes setup.
+# A developer dir without its own xcodebuild cannot be checked and is used as
+# before; a timeout or any other status keeps simctl off.
+_simctl_first_launch_complete() {
+    local developer_dir="$1"
+    local xcodebuild_bin="$developer_dir/usr/bin/xcodebuild"
+    [[ -x "$xcodebuild_bin" ]] || return 0
+    run_with_timeout "$MOLE_TIMEOUT_QUICK_DETECT_SEC" \
+        env "DEVELOPER_DIR=$developer_dir" "$xcodebuild_bin" -checkFirstLaunchStatus > /dev/null 2>&1
+}
+
+_simctl_accept_developer_dir() {
+    local developer_dir="$1"
+    if ! _simctl_first_launch_complete "$developer_dir"; then
+        _MOLE_SIMCTL_RESOLUTION_STATUS="first-launch-pending"
+        debug_log "Xcode first-launch setup is unfinished; leaving simctl alone: $developer_dir"
+        return 1
+    fi
+    _MOLE_SIMCTL_DEVELOPER_DIR="$developer_dir"
+    _MOLE_SIMCTL_RESOLUTION_STATUS="ready"
+}
+
 # Resolve simctl without changing the machine-wide xcode-select setting.
 # An explicit DEVELOPER_DIR is authoritative: if it is invalid, do not
 # silently switch the caller to a different Xcode installation.
@@ -2416,9 +2442,8 @@ _resolve_simctl_developer_dir() {
 
     if [[ -n "${DEVELOPER_DIR:-}" ]]; then
         if _simctl_developer_dir_is_usable "$DEVELOPER_DIR"; then
-            _MOLE_SIMCTL_DEVELOPER_DIR="$DEVELOPER_DIR"
-            _MOLE_SIMCTL_RESOLUTION_STATUS="ready"
-            return 0
+            _simctl_accept_developer_dir "$DEVELOPER_DIR"
+            return
         fi
 
         _MOLE_SIMCTL_RESOLUTION_STATUS="explicit-invalid"
@@ -2440,9 +2465,8 @@ _resolve_simctl_developer_dir() {
             ;;
         *)
             if _simctl_developer_dir_is_usable "$selected_developer_dir"; then
-                _MOLE_SIMCTL_DEVELOPER_DIR="$selected_developer_dir"
-                _MOLE_SIMCTL_RESOLUTION_STATUS="ready"
-                return 0
+                _simctl_accept_developer_dir "$selected_developer_dir"
+                return
             fi
             debug_log "Selected Xcode does not provide simctl: $selected_developer_dir"
             return 1
@@ -2477,8 +2501,7 @@ _resolve_simctl_developer_dir() {
     fi
 
     if [[ ${#candidates[@]} -eq 1 ]]; then
-        _MOLE_SIMCTL_DEVELOPER_DIR="${candidates[0]}"
-        _MOLE_SIMCTL_RESOLUTION_STATUS="ready"
+        _simctl_accept_developer_dir "${candidates[0]}" || return 1
         debug_log "Using detected Xcode for simctl: ${candidates[0]%/Contents/Developer}"
         return 0
     fi
@@ -2681,6 +2704,8 @@ clean_dev_mobile() {
             note_activity
         elif [[ "$_MOLE_SIMCTL_RESOLUTION_STATUS" == "clt-only" ]]; then
             debug_log "Skipping unavailable simulator cleanup without a full Xcode installation"
+        elif [[ "$_MOLE_SIMCTL_RESOLUTION_STATUS" == "first-launch-pending" ]]; then
+            debug_log "Skipping simulator cleanup until Xcode finishes its first-launch setup"
         elif [[ "$_MOLE_SIMCTL_RESOLUTION_STATUS" == "ready" ]]; then
             debug_log "Checking for unavailable Xcode simulators"
             debug_log "Resolved simctl DEVELOPER_DIR: $_MOLE_SIMCTL_DEVELOPER_DIR"
