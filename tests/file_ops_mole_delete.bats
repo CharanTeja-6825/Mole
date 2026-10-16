@@ -999,6 +999,17 @@ EOF
     [ "$status_col" = "rejected" ]
 }
 
+@test "a test without its own HOME never runs against the account home" {
+    local account account_home=""
+    account="$(id -un)"
+    eval "account_home=~$account"
+    [[ -n "$account_home" && "$HOME" != "$account_home" ]] || {
+        echo "HOME is the account home: $HOME"
+        return 1
+    }
+    [[ "$HOME" == "$BATS_FILE_TMPDIR/"* ]] || return 1
+}
+
 @test "mole_delete dry-run does not touch the filesystem but still logs" {
     local victim="$SANDBOX/dry"
     : > "$victim"

@@ -12,7 +12,9 @@ setup_file() {
 	# Without this, go build would use $HOME/Library/Caches/go-build inside the
 	# temp dir (empty), causing a full cold rebuild on every test run (~6s).
 	ORIGINAL_GOCACHE="$(go env GOCACHE 2>/dev/null || true)"
-	export ORIGINAL_GOCACHE
+	ORIGINAL_GOPATH="$(go env GOPATH 2>/dev/null || true)"
+	ORIGINAL_GOMODCACHE="$(go env GOMODCACHE 2>/dev/null || true)"
+	export ORIGINAL_GOCACHE ORIGINAL_GOPATH ORIGINAL_GOMODCACHE
 
 	HOME="$(mktemp -d "${BATS_TEST_DIRNAME}/tmp-cli-home.XXXXXX")"
 	export HOME
@@ -28,14 +30,15 @@ setup_file() {
 		export ANALYZE_BIN STATUS_BIN
 	elif command -v go > /dev/null 2>&1; then
 		# Build Go binaries from current source for JSON tests.
-		# Point GOPATH/GOMODCACHE/GOCACHE at the real home so local focused runs
-		# can reuse caches when the full runner did not prebuild helpers.
+		# Reuse the Go caches resolved before HOME moved (the shared harness may
+		# already have moved it off the account home) so local focused runs
+		# reuse caches when the full runner did not prebuild helpers.
 		ANALYZE_BIN="$(mktemp "${TMPDIR:-/tmp}/analyze-go.XXXXXX")"
 		STATUS_BIN="$(mktemp "${TMPDIR:-/tmp}/status-go.XXXXXX")"
-		GOPATH="${ORIGINAL_HOME}/go" GOMODCACHE="${ORIGINAL_HOME}/go/pkg/mod" \
+		GOPATH="${ORIGINAL_GOPATH}" GOMODCACHE="${ORIGINAL_GOMODCACHE}" \
 			GOCACHE="${ORIGINAL_GOCACHE}" \
 			go build -o "$ANALYZE_BIN" "$PROJECT_ROOT/cmd/analyze" 2>/dev/null
-		GOPATH="${ORIGINAL_HOME}/go" GOMODCACHE="${ORIGINAL_HOME}/go/pkg/mod" \
+		GOPATH="${ORIGINAL_GOPATH}" GOMODCACHE="${ORIGINAL_GOMODCACHE}" \
 			GOCACHE="${ORIGINAL_GOCACHE}" \
 			go build -o "$STATUS_BIN" "$PROJECT_ROOT/cmd/status" 2>/dev/null
 		CLI_OWNS_GO_HELPERS=1
