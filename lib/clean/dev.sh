@@ -4122,48 +4122,6 @@ codex_runtime_process_state() {
     return 2
 }
 
-codex_desktop_cache_physical_path() {
-    local candidate="$1"
-    local cache_root="$HOME/Library/Caches/Codex"
-    local home_prefix="${HOME%/}/"
-
-    case "$candidate" in
-        "$cache_root" | "$cache_root"/*) ;;
-        *) return 1 ;;
-    esac
-    [[ -d "$candidate" ]] || return 1
-
-    # Reject every symlink component below HOME before resolving paths. This is
-    # deliberately local to Codex: global deletion validation still permits
-    # legitimate platform aliases such as /tmp -> /private/tmp.
-    local relative="${candidate#"$home_prefix"}"
-    local old_ifs="$IFS"
-    local -a components=()
-    IFS='/' read -r -a components <<< "$relative"
-    IFS="$old_ifs"
-    [[ ${#components[@]} -gt 0 ]] || return 1
-
-    local probe="$HOME"
-    local component
-    for component in "${components[@]}"; do
-        [[ -n "$component" ]] || return 1
-        probe="$probe/$component"
-        [[ -L "$probe" ]] && return 1
-    done
-
-    local physical_root=""
-    local physical_candidate=""
-    physical_root=$(cd -P "$cache_root" 2> /dev/null && pwd -P) || return 1
-    physical_candidate=$(cd -P "$candidate" 2> /dev/null && pwd -P) || return 1
-    case "$physical_candidate" in
-        "$physical_root" | "$physical_root"/*)
-            printf '%s\n' "$physical_candidate"
-            return 0
-            ;;
-    esac
-    return 1
-}
-
 _codex_desktop_cache_delete_guard_allows() {
     mole_clean_process_guard codex_desktop_process_state "Codex started"
 }
@@ -4195,7 +4153,7 @@ clean_codex_desktop_caches() {
     local cache_root="$HOME/Library/Caches/Codex"
     [[ -d "$cache_root" ]] || return 0
 
-    if ! codex_desktop_cache_physical_path "$cache_root" > /dev/null; then
+    if ! codex_staging_physical_path "$cache_root" "$cache_root" any > /dev/null; then
         debug_log "Codex Desktop caches skipped: unsafe cache root"
         return 0
     fi
@@ -4216,7 +4174,7 @@ clean_codex_desktop_caches() {
     for profile in "${profiles[@]}"; do
         for leaf in "${leaves[@]}"; do
             physical_leaf=""
-            if physical_leaf=$(codex_desktop_cache_physical_path "$profile/$leaf"); then
+            if physical_leaf=$(codex_staging_physical_path "$profile/$leaf" "$cache_root" any); then
                 if mole_cleanup_targets_exist "$physical_leaf"/*; then
                     cleanable_physical_leaves+=("$physical_leaf")
                     cleanable_leaf_labels+=("$leaf")
@@ -4296,23 +4254,28 @@ codex_sparkle_staging_has_open_files() {
     return 2
 }
 
-# Physical-path gate for a staging directory that must sit exactly one level
-# under a fixed, app-owned root below HOME. Prints the resolved physical path,
-# or fails when the candidate is outside the root, is not a directory, sits too
-# deep, or reaches the root through a symlink. No component below HOME may be a
-# link: these are fixed app-owned paths, and accepting one would let a lexical
-# staging root be redirected into ordinary user data.
+# Physical-path gate for a directory under a fixed, app-owned root below HOME.
+# Depth "1" (the default) requires the candidate to be the root or sit exactly
+# one level under it; depth "any" accepts any descendant. Prints the resolved
+# physical path, or fails when the candidate is outside the root, is not a
+# directory, sits too deep, or reaches the root through a symlink. No component
+# below HOME may be a link: these are fixed app-owned paths, and accepting one
+# would let a lexical root be redirected into ordinary user data. This is
+# deliberately local to Codex: global deletion validation still permits
+# legitimate platform aliases such as /tmp -> /private/tmp.
 codex_staging_physical_path() {
     local candidate="$1"
     local staging_root="$2"
+    local depth="${3:-1}"
     local home_prefix="${HOME%/}/"
 
+    [[ "$depth" == "1" || "$depth" == "any" ]] || return 1
     case "$candidate" in
         "$staging_root" | "$staging_root"/*) ;;
         *) return 1 ;;
     esac
     [[ -d "$candidate" ]] || return 1
-    if [[ "$candidate" != "$staging_root" && "${candidate%/*}" != "$staging_root" ]]; then
+    if [[ "$depth" == "1" && "$candidate" != "$staging_root" && "${candidate%/*}" != "$staging_root" ]]; then
         return 1
     fi
 
@@ -4337,8 +4300,10 @@ codex_staging_physical_path() {
     physical_candidate=$(cd -P "$candidate" 2> /dev/null && pwd -P) || return 1
     if [[ "$candidate" == "$staging_root" ]]; then
         [[ "$physical_candidate" == "$physical_root" ]] || return 1
-    else
+    elif [[ "$depth" == "1" ]]; then
         [[ "${physical_candidate%/*}" == "$physical_root" ]] || return 1
+    else
+        [[ "$physical_candidate" == "$physical_root"/* ]] || return 1
     fi
 
     printf '%s\n' "$physical_candidate"
