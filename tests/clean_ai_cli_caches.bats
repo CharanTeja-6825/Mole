@@ -1529,3 +1529,97 @@ INNER
     [[ -d "$releases/0.160.1-aarch64-apple-darwin" ]] || return 1
     [[ -d "$releases/.unpack-tmp" ]]
 }
+
+@test "clean_agent_browser_old_chrome removes superseded builds and keeps the one agent-browser launches (#1748)" {
+    run env HOME="$HOME/agent-browser-positive" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+root="$HOME/.agent-browser/browsers"
+app="Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+build() {
+    mkdir -p "$root/$1/chrome-mac-arm64"
+    if [[ "$2" == binary ]]; then
+        mkdir -p "$root/$1/chrome-mac-arm64/${app%/*}"
+        touch "$root/$1/chrome-mac-arm64/$app"
+    fi
+    [[ "$3" == today ]] || touch -t 202601010000 "$root/$1"
+}
+# agent-browser walks names in byte order, so it launches 99, not 152.
+build chrome-99.0.4844.51 binary old
+build chrome-152.0.7977.64 binary old
+build chrome-151.0.7922.47 binary old
+build chrome-149.0.7827.54 binary old
+build chrome-146.0.7680.165 none old
+build chrome-146.0.7680.153 binary today
+mkdir -p "$HOME/.agent-browser/sessions"
+touch "$HOME/.agent-browser/sessions/state.json"
+printf '{"executablePath": "%s"}\n' "$root/chrome-149.0.7827.54/chrome-mac-arm64/$app" > "$HOME/.agent-browser/config.json"
+
+source "$PROJECT_ROOT/bin/clean.sh"
+pgrep() { return 1; }
+DRY_RUN=false
+MOLE_DRY_RUN=0
+clean_agent_browser_old_chrome
+
+for gone in chrome-152.0.7977.64 chrome-151.0.7922.47; do
+    [[ ! -e "$root/$gone" ]] || { echo "STILL_PRESENT:$gone"; exit 1; }
+done
+for kept in chrome-99.0.4844.51 chrome-149.0.7827.54 chrome-146.0.7680.165 chrome-146.0.7680.153; do
+    [[ -d "$root/$kept" ]] || { echo "REMOVED:$kept"; exit 1; }
+done
+[[ -f "$HOME/.agent-browser/sessions/state.json" && -f "$HOME/.agent-browser/config.json" ]] || exit 1
+echo "AGENT_BROWSER_PLAN_HELD"
+EOF
+
+    assert_run_success
+    assert_output_contains "AGENT_BROWSER_PLAN_HELD"
+    assert_output_not_contains "STILL_PRESENT:"
+    assert_output_not_contains "REMOVED:"
+}
+
+@test "clean_agent_browser_old_chrome keeps every build while its Chrome runs" {
+    run env HOME="$HOME/agent-browser-running" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+root="$HOME/.agent-browser/browsers"
+app="Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+for name in chrome-152.0.7977.64 chrome-151.0.7922.47; do
+    mkdir -p "$root/$name/chrome-mac-arm64/${app%/*}"
+    touch "$root/$name/chrome-mac-arm64/$app"
+    touch -t 202601010000 "$root/$name"
+done
+source "$PROJECT_ROOT/bin/clean.sh"
+pgrep() { [[ "$1" == "-f" && "$2" == "/.agent-browser/browsers/" ]]; }
+DRY_RUN=false
+MOLE_DRY_RUN=0
+clean_agent_browser_old_chrome
+[[ -d "$root/chrome-151.0.7922.47" ]] || { echo "REMOVED_WHILE_RUNNING"; exit 1; }
+echo "AGENT_BROWSER_RUNNING_KEPT"
+EOF
+
+    assert_run_success
+    assert_output_contains "AGENT_BROWSER_RUNNING_KEPT"
+    assert_output_not_contains "agent-browser old Chrome · stopped"
+}
+
+@test "clean_agent_browser_old_chrome keeps every build when its process probe fails" {
+    run env HOME="$HOME/agent-browser-unknown" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+root="$HOME/.agent-browser/browsers"
+app="Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+for name in chrome-152.0.7977.64 chrome-151.0.7922.47; do
+    mkdir -p "$root/$name/chrome-mac-arm64/${app%/*}"
+    touch "$root/$name/chrome-mac-arm64/$app"
+    touch -t 202601010000 "$root/$name"
+done
+source "$PROJECT_ROOT/bin/clean.sh"
+pgrep() { return 2; }
+DRY_RUN=false
+MOLE_DRY_RUN=0
+clean_agent_browser_old_chrome
+[[ -d "$root/chrome-151.0.7922.47" ]] || { echo "REMOVED_WITH_UNKNOWN_STATE"; exit 1; }
+echo "AGENT_BROWSER_UNKNOWN_KEPT"
+EOF
+
+    assert_run_success
+    assert_output_contains "AGENT_BROWSER_UNKNOWN_KEPT"
+    assert_output_contains "agent-browser old Chrome · stopped (process state unknown)"
+}

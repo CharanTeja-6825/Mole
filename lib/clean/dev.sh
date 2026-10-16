@@ -5541,6 +5541,140 @@ clean_chrome_devtools_mcp_caches() {
     fi
 }
 
+# agent-browser (vercel-labs/agent-browser) downloads a full Chrome for Testing
+# build on each `agent-browser install` into ~/.agent-browser/browsers and never
+# removes the previous ones, about 360 MB each (#1748). It launches the chrome-*
+# folder that sorts last by name among those holding a Chrome binary
+# (`find_installed_chrome`), byte order rather than version order, so that
+# folder stays. So does any folder without a binary (an install still
+# extracting), one written within a day, and one named in
+# ~/.agent-browser/config.json or AGENT_BROWSER_EXECUTABLE_PATH. A project-level
+# agent-browser.json is not visible here; a build it pins downloads again from
+# Chrome for Testing. Config, sessions and profiles under ~/.agent-browser are
+# never targets, and nothing moves while a Chrome from this folder runs.
+_MOLE_AGENT_BROWSER_TARGETS=()
+_MOLE_AGENT_BROWSER_GUARD_ROOT=""
+
+agent_browser_chrome_process_state() {
+    mole_pgrep_any -f "/.agent-browser/browsers/"
+}
+
+_agent_browser_has_chrome() {
+    local dir="$1"
+    local app="Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+    [[ -e "$dir/$app" || -e "$dir/chrome-mac-arm64/$app" || -e "$dir/chrome-mac-x64/$app" ]]
+}
+
+_plan_agent_browser_chrome_targets() {
+    local root="$1"
+    _MOLE_AGENT_BROWSER_TARGETS=()
+    [[ -d "$root" && ! -L "$root" && ! -L "${root%/*}" ]] || return 0
+
+    local scan_file=""
+    scan_file=$(create_temp_file) || return 1
+    local scan_rc=0
+    run_with_timeout "$MOLE_TIMEOUT_DISK_VERIFY_SEC" find "$root" -mindepth 1 -maxdepth 1 \
+        -name 'chrome-*' -print0 < /dev/null > "$scan_file" 2> /dev/null || scan_rc=$?
+    local -a names=()
+    local entry name
+    if [[ $scan_rc -eq 0 ]]; then
+        while IFS= read -r -d '' entry; do
+            name="${entry##*/}"
+            if [[ "$name" == *$'\n'* ]]; then
+                scan_rc=1
+                break
+            fi
+            names+=("$name")
+        done < "$scan_file"
+    fi
+    rm -f -- "$scan_file" 2> /dev/null || true # SAFE: exact tracked temp file created above
+    [[ $scan_rc -eq 0 ]] || return "$scan_rc"
+    [[ ${#names[@]} -gt 1 ]] || return 0
+
+    local selected=""
+    while IFS= read -r name; do
+        if _agent_browser_has_chrome "$root/$name"; then
+            selected="$name"
+            break
+        fi
+    done < <(printf '%s\n' "${names[@]}" | LC_ALL=C sort -r)
+    [[ -n "$selected" ]] || return 0
+
+    local config="${root%/*}/config.json"
+    local config_text=""
+    if [[ -e "$config" || -L "$config" ]]; then
+        local read_rc=0
+        config_text=$(run_with_timeout "$MOLE_TIMEOUT_DISK_VERIFY_SEC" cat -- "$config" < /dev/null 2> /dev/null) || read_rc=$?
+        [[ $read_rc -eq 0 ]] || return "$read_rc"
+    fi
+    local pinned="${AGENT_BROWSER_EXECUTABLE_PATH:-}"
+
+    local dir recent
+    for name in "${names[@]}"; do
+        [[ "$name" != "$selected" ]] || continue
+        [[ "$name" =~ ^chrome-[0-9]+(\.[0-9]+)+$ ]] || continue
+        dir="$root/$name"
+        [[ -d "$dir" && ! -L "$dir" ]] || continue
+        _agent_browser_has_chrome "$dir" || continue
+        [[ "$config_text" != *"$name"* ]] || continue
+        [[ -z "$pinned" || "$pinned" != *"/$name/"* ]] || continue
+        recent=""
+        local age_rc=0
+        recent=$(run_with_timeout "$MOLE_TIMEOUT_DISK_VERIFY_SEC" find "$dir" -maxdepth 0 -mtime -1 -print < /dev/null 2> /dev/null) || age_rc=$?
+        [[ $age_rc -eq 0 ]] || return "$age_rc"
+        [[ -z "$recent" ]] || continue
+        _MOLE_AGENT_BROWSER_TARGETS+=("$dir")
+    done
+    return 0
+}
+
+_agent_browser_delete_guard_allows() {
+    local target="${1:-}"
+    mole_clean_process_guard agent_browser_chrome_process_state "agent-browser started" || return 1
+
+    local plan_rc=0
+    _plan_agent_browser_chrome_targets "$_MOLE_AGENT_BROWSER_GUARD_ROOT" || plan_rc=$?
+    if [[ $plan_rc -ne 0 ]]; then
+        _MOLE_CLEAN_GUARD_REASON="inventory unknown"
+        mole_rc_signal "$plan_rc" && return "$plan_rc"
+        return 1
+    fi
+    local planned
+    for planned in ${_MOLE_AGENT_BROWSER_TARGETS[@]+"${_MOLE_AGENT_BROWSER_TARGETS[@]}"}; do
+        [[ "$planned" != "$target" ]] || return 0
+    done
+    _MOLE_CLEAN_GUARD_REASON="retention changed"
+    return 1
+}
+
+clean_agent_browser_old_chrome() {
+    local root="$HOME/.agent-browser/browsers"
+    [[ -d "$root" ]] || return 0
+    local label="agent-browser old Chrome"
+
+    local plan_rc=0
+    _plan_agent_browser_chrome_targets "$root" || plan_rc=$?
+    if [[ $plan_rc -ne 0 ]]; then
+        mole_rc_signal "$plan_rc" && return "$plan_rc"
+        debug_log "$label kept: inventory unknown"
+        return 0
+    fi
+    [[ ${#_MOLE_AGENT_BROWSER_TARGETS[@]} -gt 0 ]] || return 0
+    local -a targets=("${_MOLE_AGENT_BROWSER_TARGETS[@]}")
+
+    _MOLE_AGENT_BROWSER_GUARD_ROOT="$root"
+    local _MOLE_CLEAN_GUARD_REASON="agent-browser started"
+    local guarded_rc=0
+    safe_clean_guarded _agent_browser_delete_guard_allows \
+        "${targets[@]}" "$label" || guarded_rc=$?
+
+    if [[ $guarded_rc -eq 75 ]]; then
+        mole_report_guard_stop "$label" mole_defer_cleanup_family "agent-browser"
+        return 0
+    fi
+    return "$guarded_rc"
+}
+
 # Misc dev tool caches.
 clean_dev_misc() {
     safe_clean ~/Library/Caches/com.unity3d.*/* "Unity cache"
@@ -5559,6 +5693,8 @@ clean_dev_misc() {
     fi
     # Antigravity browser profile caches (~/.gemini)
     clean_antigravity_caches
+    # agent-browser's superseded Chrome for Testing builds (#1748)
+    clean_agent_browser_old_chrome
     # Filo (Electron)
     if [[ -d ~/Library/Application\ Support/Filo ]]; then
         safe_clean ~/Library/Application\ Support/Filo/production/Cache/* "Filo cache"
