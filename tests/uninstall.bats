@@ -4340,6 +4340,66 @@ EOF
     [[ "$output" == *"count=1"* ]]
 }
 
+@test "match_apps_by_name runs tr a fixed number of times regardless of app count" {
+    local shim="$HOME/tr-shim"
+    mkdir -p "$shim"
+    cat > "$shim/tr" <<'SHIM'
+#!/bin/bash
+printf 'tr\n' >> "$TR_TRACE"
+exec /usr/bin/tr "$@"
+SHIM
+    cat > "$shim/basename" <<'SHIM'
+#!/bin/bash
+printf 'basename\n' >> "$TR_TRACE"
+exec /usr/bin/basename "$@"
+SHIM
+    chmod +x "$shim/tr" "$shim/basename"
+
+    run env PATH="$shim:$PATH" TR_TRACE="$HOME/tr.trace" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+selected_apps=()
+apps_data=()
+for i in $(seq 1 60); do
+    apps_data+=("1000|$HOME/Applications/App$i.app|App $i|com.example.app$i|1 MB|1000000|1024")
+done
+apps_data+=("1000|$HOME/Applications/Tor Browser.app|Tor Browser|org.torproject|1 MB|1000000|1024")
+source "$PROJECT_ROOT/tests/test_match_apps_helper.sh"
+match_apps_by_name "nothing-here"
+match_apps_by_name "Tor" "Browser"
+echo "count=${#selected_apps[@]}"
+echo "match=${selected_apps[0]}"
+EOF
+
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"count=1"* ]] || return 1
+    [[ "$output" == *"|Tor Browser|"* ]] || return 1
+    # One batch pass per call plus one per query term and joined query.
+    local tr_calls basename_calls
+    tr_calls=$(grep -c '^tr$' "$HOME/tr.trace" || true)
+    basename_calls=$(grep -c '^basename$' "$HOME/tr.trace" || true)
+    [[ "$tr_calls" -le 6 ]] || { echo "tr ran $tr_calls times"; return 1; }
+    [[ "$basename_calls" -eq 0 ]] || { echo "basename ran $basename_calls times"; return 1; }
+}
+
+@test "match_apps_by_name keeps locale case folding for non-ASCII names" {
+    run env LC_ALL=en_US.UTF-8 /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+selected_apps=()
+apps_data=(
+	"1000|$HOME/Applications/Écrivain.app|Écrivain|com.example.ecrivain|1 MB|1000000|1024"
+	"1001|$HOME/Applications/Other.app|Other|com.example.other|1 MB|1000001|1024"
+)
+source "$PROJECT_ROOT/tests/test_match_apps_helper.sh"
+match_apps_by_name "écrivain"
+echo "count=${#selected_apps[@]}"
+echo "match=${selected_apps[0]-}"
+EOF
+
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" == *"count=1"* ]] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"|Écrivain|"* ]]
+}
+
 @test "main clears pending input before app selection after scan (#726)" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'INNER'
 set -euo pipefail

@@ -1692,6 +1692,31 @@ match_apps_by_name() {
     selected_apps=()
     local -a matched_indices=()
 
+    # Lowercase every display name and bundle directory name in one tr pass,
+    # indexed like apps_data. Forking echo|tr and basename per app, per term,
+    # per round cost seconds with a few hundred apps. tr keeps the locale's
+    # case mapping (É to é under UTF-8), which mole_ascii_lowercase would not.
+    # Fields come from one `read` line each, so they hold no newline and the
+    # 2N output lines stay aligned with the input.
+    local -a app_names_lower=() app_dirs_lower=()
+    if [[ ${#apps_data[@]} -gt 0 ]]; then
+        local lower_app lower_dir lower_line lower_i=0
+        local -a lower_input=() lower_output=()
+        for lower_app in "${apps_data[@]}"; do
+            IFS='|' read -r epoch app_path app_name bundle_id size last_used size_kb <<< "$lower_app"
+            lower_dir="${app_path##*/}"
+            lower_input+=("$app_name" "${lower_dir%.[aA][pP][pP]}")
+        done
+        while IFS= read -r lower_line; do
+            lower_output+=("$lower_line")
+        done < <(printf '%s\n' "${lower_input[@]}" | tr '[:upper:]' '[:lower:]')
+        while [[ $lower_i -lt ${#apps_data[@]} ]]; do
+            app_names_lower+=("${lower_output[$((lower_i * 2))]-}")
+            app_dirs_lower+=("${lower_output[$((lower_i * 2 + 1))]-}")
+            lower_i=$((lower_i + 1))
+        done
+    fi
+
     # `mo uninstall Tor Browser` arrives as two words. Matching each word
     # alone sent "Tor" into a substring hit on WebSTORm while the app the
     # user actually named sat in the list (#1365). When the words joined
@@ -1702,21 +1727,17 @@ match_apps_by_name() {
     # rather than silently collapsing into the third.
     if [[ ${#search_terms[@]} -gt 1 ]]; then
         local every_word_exact=true
-        local word word_lower word_app word_hit
+        local word word_lower word_hit word_idx
         for word in "${search_terms[@]}"; do
             word_lower=$(echo "$word" | tr '[:upper:]' '[:lower:]')
             word_hit=false
-            for word_app in "${apps_data[@]}"; do
-                IFS='|' read -r epoch app_path app_name bundle_id size last_used size_kb <<< "$word_app"
-                local word_name_lower word_dir_lower
-                word_name_lower=$(echo "$app_name" | tr '[:upper:]' '[:lower:]')
-                word_dir_lower=$(basename "$app_path")
-                word_dir_lower="${word_dir_lower%.[aA][pP][pP]}"
-                word_dir_lower=$(printf '%s' "$word_dir_lower" | tr '[:upper:]' '[:lower:]')
-                if [[ "$word_name_lower" == "$word_lower" || "$word_dir_lower" == "$word_lower" ]]; then
+            word_idx=0
+            while [[ $word_idx -lt ${#apps_data[@]} ]]; do
+                if [[ "${app_names_lower[$word_idx]}" == "$word_lower" || "${app_dirs_lower[$word_idx]}" == "$word_lower" ]]; then
                     word_hit=true
                     break
                 fi
+                word_idx=$((word_idx + 1))
             done
             if [[ "$word_hit" == "false" ]]; then
                 every_word_exact=false
@@ -1724,20 +1745,14 @@ match_apps_by_name() {
             fi
         done
         if [[ "$every_word_exact" == "false" ]]; then
-            local joined_lower
+            local joined_lower joined_app joined_idx=0
             joined_lower=$(echo "$*" | tr '[:upper:]' '[:lower:]')
-            local joined_app
             for joined_app in "${apps_data[@]}"; do
-                IFS='|' read -r epoch app_path app_name bundle_id size last_used size_kb <<< "$joined_app"
-                local joined_name_lower joined_dir_lower
-                joined_name_lower=$(echo "$app_name" | tr '[:upper:]' '[:lower:]')
-                joined_dir_lower=$(basename "$app_path")
-                joined_dir_lower="${joined_dir_lower%.[aA][pP][pP]}"
-                joined_dir_lower=$(printf '%s' "$joined_dir_lower" | tr '[:upper:]' '[:lower:]')
-                if [[ "$joined_name_lower" == "$joined_lower" || "$joined_dir_lower" == "$joined_lower" ]]; then
+                if [[ "${app_names_lower[$joined_idx]}" == "$joined_lower" || "${app_dirs_lower[$joined_idx]}" == "$joined_lower" ]]; then
                     selected_apps=("$joined_app")
                     return 0
                 fi
+                joined_idx=$((joined_idx + 1))
             done
         fi
     fi
@@ -1753,15 +1768,9 @@ match_apps_by_name() {
         local found=false
         local idx=0
         for app_data in "${apps_data[@]}"; do
-            IFS='|' read -r epoch app_path app_name bundle_id size last_used size_kb <<< "$app_data"
-            local name_lower
-            name_lower=$(echo "$app_name" | tr '[:upper:]' '[:lower:]')
+            local name_lower="${app_names_lower[$idx]}"
             # Also try matching against the .app directory base name
-            local dir_name
-            dir_name=$(basename "$app_path")
-            dir_name="${dir_name%.[aA][pP][pP]}"
-            local dir_lower
-            dir_lower=$(echo "$dir_name" | tr '[:upper:]' '[:lower:]')
+            local dir_lower="${app_dirs_lower[$idx]}"
 
             if [[ "$name_lower" == "$search_lower" || "$dir_lower" == "$search_lower" ]]; then
                 # Exact match - prefer this
@@ -1785,14 +1794,8 @@ match_apps_by_name() {
         if [[ "$found" == "false" ]]; then
             idx=0
             for app_data in "${apps_data[@]}"; do
-                IFS='|' read -r epoch app_path app_name bundle_id size last_used size_kb <<< "$app_data"
-                local name_lower
-                name_lower=$(echo "$app_name" | tr '[:upper:]' '[:lower:]')
-                local dir_name
-                dir_name=$(basename "$app_path")
-                dir_name="${dir_name%.[aA][pP][pP]}"
-                local dir_lower
-                dir_lower=$(echo "$dir_name" | tr '[:upper:]' '[:lower:]')
+                local name_lower="${app_names_lower[$idx]}"
+                local dir_lower="${app_dirs_lower[$idx]}"
 
                 if [[ "$name_lower" == *"$search_lower"* || "$dir_lower" == *"$search_lower"* ]]; then
                     local already=false
