@@ -2936,7 +2936,9 @@ clean_dev_jvm() {
     # Excluded on purpose, all for the same reason: ~/.m2/repository and
     # ~/.ivy2/cache are the stores Maven, sbt and Ivy resolve dependencies
     # from, and ~/.sbt/boot with ~/.sbt/launchers hold the Scala compiler and
-    # sbt launcher jars themselves. clean_large_files reports them for review.
+    # sbt launcher jars themselves. check_large_file_candidates in
+    # lib/clean/user.sh reports the Maven and Ivy stores for review; the sbt
+    # payloads are simply left alone.
     # Maven used to be cleaned here and relied on DEFAULT_WHITELIST_PATTERNS to
     # stay safe, which stops applying as soon as a user saves any whitelist
     # entry of their own, so the delete path is gone rather than guarded.
@@ -4041,7 +4043,7 @@ clean_dev_other_langs() {
     # itself rather than an HTTP cache, so it is the .NET equivalent of
     # ~/.m2/repository: emptying it forces a full re-download on the next
     # build. Both stay off the delete path and are surfaced by
-    # `clean_large_files` for review instead.
+    # `check_large_file_candidates` (lib/clean/user.sh) for review instead.
     # safe_clean ~/.pub-cache/* "Dart Pub cache"
     safe_clean ~/.cache/bazel/* "Bazel cache"
     safe_clean ~/.cache/zig/* "Zig cache"

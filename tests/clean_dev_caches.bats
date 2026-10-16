@@ -3371,7 +3371,7 @@ EOF
 
 @test "clean_dev_other_langs keeps the NuGet global packages folder" {
     # ~/.nuget/packages is the restore target itself, the .NET counterpart of
-    # ~/.m2/repository, which clean_large_files only reports for review.
+    # ~/.m2/repository, which check_large_file_candidates only reports for review.
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
