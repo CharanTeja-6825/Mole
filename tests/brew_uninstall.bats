@@ -966,3 +966,101 @@ EOF
     [[ "$output" == *"partial-kept"* ]] || return 1
     [[ "$output" != *"unexpected-info"* ]]
 }
+
+# Runs `uninstall_list_apps` (JSON, since stdout is captured) over three
+# Homebrew-installed apps and one plain app. BREW_INFO_MODE picks how the
+# mocked `brew info --cask` answers a multi-token request.
+run_list_mode_brew_case() {
+    local mode="$1"
+    rm -f "$HOME/brew-calls"
+    mkdir -p "$HOME/Applications/Alpha.app" "$HOME/Applications/Beta.app" \
+        "$HOME/Applications/Gamma.app" "$HOME/Applications/Plain.app"
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" BREW_INFO_MODE="$mode" \
+        /bin/bash --noprofile --norc <<'INNER'
+set -euo pipefail
+source "$PROJECT_ROOT/bin/uninstall.sh"
+_mole_brew_caskroom_roots() { return 0; }
+brew() {
+    printf '%s\n' "$*" >> "$HOME/brew-calls"
+    local block_alpha block_beta block_gamma
+    # Alpha's block names Beta's path; Beta's own block does not.
+    block_alpha=$(printf '==> alpha: 1.0\n%s\n%s\n' "$HOME/Applications/Alpha.app" "$HOME/Applications/Beta.app")
+    block_beta=$(printf '==> beta (Beta): 2.0\nBeta.app (App)\n')
+    block_gamma=$(printf '==> gamma: 3.0\n%s\n' "$HOME/Applications/Gamma.app")
+    case "$*" in
+        "list --cask") printf '%s\n' alpha beta gamma unrelated ;;
+        "info --cask alpha") printf '%s\n' "$block_alpha" ;;
+        "info --cask beta") printf '%s\n' "$block_beta" ;;
+        "info --cask gamma") printf '%s\n' "$block_gamma" ;;
+        "info --cask "*)
+            case "$BREW_INFO_MODE" in
+                split) printf '%s\n\n%s\n\n%s\n' "$block_alpha" "$block_beta" "$block_gamma" ;;
+                unordered) printf '%s\n\n%s\n\n%s\n' "$block_beta" "$block_alpha" "$block_gamma" ;;
+                failed) printf '%s\n' "$block_alpha"; return 1 ;;
+                timeout) return 124 ;;
+                signal) return 130 ;;
+            esac
+            ;;
+        *) return 1 ;;
+    esac
+}
+export -f brew
+scan_applications() { printf '%s\n' "$HOME/fake-apps"; }
+load_applications() {
+    apps_data=(
+        "0|$HOME/Applications/Alpha.app|Alpha|com.example.alpha|1KB|Today|1"
+        "0|$HOME/Applications/Beta.app|Beta|com.example.beta|1KB|Today|1"
+        "0|$HOME/Applications/Gamma.app|Gamma|com.example.gamma|1KB|Today|1"
+        "0|$HOME/Applications/Plain.app|Plain|com.example.plain|1KB|Today|1"
+    )
+    return 0
+}
+touch "$HOME/fake-apps"
+rc=0
+uninstall_list_apps || rc=$?
+printf 'rc=%s\n' "$rc"
+INNER
+}
+
+list_mode_info_calls() {
+    grep -c '^info --cask' "$HOME/brew-calls" || true
+}
+
+@test "uninstall --list asks brew info once for every Homebrew candidate" {
+    run_list_mode_brew_case split
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"rc=0"* ]] || return 1
+    [[ "$(list_mode_info_calls)" -eq 1 ]] || { cat "$HOME/brew-calls"; return 1; }
+    grep -qx 'info --cask alpha beta gamma' "$HOME/brew-calls" || return 1
+    [[ "$output" == *'"name": "Alpha", "bundle_id": "com.example.alpha", "source": "Homebrew", "uninstall_name": "alpha"'* ]] || return 1
+    [[ "$output" == *'"name": "Gamma", "bundle_id": "com.example.gamma", "source": "Homebrew", "uninstall_name": "gamma"'* ]] || return 1
+    # Beta's path appears only in Alpha's block, which is not Beta's evidence.
+    [[ "$output" == *'"name": "Beta", "bundle_id": "com.example.beta", "source": "App"'* ]] || return 1
+    [[ "$output" == *'"name": "Plain", "bundle_id": "com.example.plain", "source": "App"'* ]]
+}
+
+@test "uninstall --list falls back to per-token brew info when the batch cannot be split" {
+    local mode
+    for mode in unordered failed; do
+        run_list_mode_brew_case "$mode"
+        [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+        [[ "$(list_mode_info_calls)" -eq 4 ]] || { echo "$mode"; cat "$HOME/brew-calls"; return 1; }
+        [[ "$output" == *'"name": "Alpha", "bundle_id": "com.example.alpha", "source": "Homebrew"'* ]] || return 1
+        [[ "$output" == *'"name": "Gamma", "bundle_id": "com.example.gamma", "source": "Homebrew"'* ]] || return 1
+        [[ "$output" == *'"name": "Beta", "bundle_id": "com.example.beta", "source": "App"'* ]] || return 1
+    done
+}
+
+@test "uninstall --list treats a timed-out batch as unknown and cancels on a signal" {
+    run_list_mode_brew_case timeout
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"rc=0"* ]] || return 1
+    [[ "$(list_mode_info_calls)" -eq 1 ]] || { cat "$HOME/brew-calls"; return 1; }
+    [[ "$output" != *'"source": "Homebrew"'* ]] || return 1
+
+    run_list_mode_brew_case signal
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    [[ "$output" == *"rc=130"* ]] || return 1
+    [[ "$output" != *'"name": "Alpha"'* ]] || return 1
+    [[ "$(list_mode_info_calls)" -eq 1 ]]
+}

@@ -1859,10 +1859,24 @@ uninstall_list_apps() {
     # instead of one probe per app. It is scoped to this listing pass only.
     local _MOLE_BREW_BATCH_LIST_READY=0 _MOLE_BREW_BATCH_LIST="" _MOLE_BREW_BATCH_LIST_RC=0
     local _MOLE_BREW_BATCH_ROOM_READY=0 _MOLE_BREW_BATCH_ROOM_FILE="" _MOLE_BREW_BATCH_ROOM_RC=0
+    local _MOLE_BREW_BATCH_INFO_READY=0 _MOLE_BREW_BATCH_INFO_DIR=""
     local brew_inventory_dir="" brew_prep_rc=0
     if is_homebrew_available && brew_inventory_dir=$(create_temp_dir); then
         _MOLE_BREW_BATCH_ROOM_FILE="$brew_inventory_dir/caskroom"
         _mole_brew_prepare_batch_inventory || brew_prep_rc=$?
+        if [[ $brew_prep_rc -lt 128 ]]; then
+            local -a brew_app_paths=()
+            local brew_app_row brew_app_path
+            for brew_app_row in "${apps_data[@]+"${apps_data[@]}"}"; do
+                IFS='|' read -r _ brew_app_path _ <<< "$brew_app_row"
+                [[ -n "$brew_app_path" ]] && brew_app_paths+=("$brew_app_path")
+            done
+            _MOLE_BREW_BATCH_INFO_DIR="$brew_inventory_dir/info"
+            mkdir -p "$_MOLE_BREW_BATCH_INFO_DIR" || _MOLE_BREW_BATCH_INFO_DIR=""
+            if [[ -n "$_MOLE_BREW_BATCH_INFO_DIR" && ${#brew_app_paths[@]} -gt 0 ]]; then
+                _mole_brew_prefetch_cask_info "${brew_app_paths[@]}" || brew_prep_rc=$?
+            fi
+        fi
         if [[ $brew_prep_rc -ge 128 ]]; then
             rm -rf -- "$brew_inventory_dir" # SAFE: private read-only Homebrew inventory directory created above
             return "$brew_prep_rc"
