@@ -2377,6 +2377,21 @@ receipt_payload_path_is_allowlisted() {
     return 1
 }
 
+# A CFBundleExecutable is attacker-controlled, and pgrep/pkill read their
+# argument as an extended regular expression: a crafted ".*" matches nearly
+# every process, turning a name-based probe or kill into a machine-wide one.
+# Escape the same ERE metacharacters as _mole_regex_escape (a backslash before
+# any other byte is undefined in POSIX ERE and GNU grep warns "stray \") and
+# reject the shapes a real executable name cannot have, so callers fail closed
+# instead of handing pgrep an empty pattern, which matches every process.
+_mole_process_pattern_literal() {
+    local value="${1:-}"
+
+    [[ -n "$value" ]] || return 1
+    [[ ! "$value" =~ [[:cntrl:]] ]] || return 1
+    printf '%s' "$value" | LC_ALL=C sed 's/[][(){}.^$*+?|\\]/\\&/g'
+}
+
 # Terminate a running application during uninstall.
 # The user has already confirmed removal, so after the graceful Quit Apple
 # Event we escalate through SIGTERM and SIGKILL (and one sudo retry when
@@ -2386,6 +2401,8 @@ receipt_payload_path_is_allowlisted() {
 # user has implicitly accepted by confirming.
 # Poll after a signal so an already-exited app does not consume the whole
 # grace period. Keep the original two-second sleep budget and signal statuses.
+# The pattern is a name already escaped by _mole_process_pattern_literal, so
+# pgrep matches it as a literal instead of an ERE.
 _mole_wait_for_app_exit() {
     local pattern="$1" ticks=20 probe_rc=0 sleep_rc=0
     while :; do
@@ -2470,9 +2487,20 @@ force_kill_app() {
         done
     fi
 
+    # match_pattern comes from the bundle, not from Mole: probe and signal its
+    # literal name only. A name that cannot be a real process name (empty or
+    # holding a control byte) is refused instead of reaching pgrep, whose
+    # empty pattern matches every process.
+    local escaped_pattern="" pattern_rc=0
+    escaped_pattern=$(_mole_process_pattern_literal "$match_pattern") || pattern_rc=$?
+    if [[ $pattern_rc -ne 0 ]]; then
+        debug_log "force_kill_app: refusing unsafe process pattern '$match_pattern'"
+        return 1
+    fi
+
     # Check if process is running using exact match only
     local process_probe_rc=0
-    pgrep -x "$match_pattern" > /dev/null 2>&1 || process_probe_rc=$?
+    pgrep -x "$escaped_pattern" > /dev/null 2>&1 || process_probe_rc=$?
     [[ $process_probe_rc -ge 128 ]] && return "$process_probe_rc"
     if [[ $process_probe_rc -ne 0 ]]; then
         return 0
@@ -2502,7 +2530,7 @@ force_kill_app() {
         local quit_wait=20
         while [[ $quit_wait -gt 0 ]]; do
             process_probe_rc=0
-            pgrep -x "$match_pattern" > /dev/null 2>&1 || process_probe_rc=$?
+            pgrep -x "$escaped_pattern" > /dev/null 2>&1 || process_probe_rc=$?
             [[ $process_probe_rc -ge 128 ]] && return "$process_probe_rc"
             [[ $process_probe_rc -eq 0 ]] || break
             local sleep_rc=0
@@ -2517,7 +2545,7 @@ force_kill_app() {
 
     # Graceful Quit landed: skip the kill ladder entirely.
     process_probe_rc=0
-    pgrep -x "$match_pattern" > /dev/null 2>&1 || process_probe_rc=$?
+    pgrep -x "$escaped_pattern" > /dev/null 2>&1 || process_probe_rc=$?
     [[ $process_probe_rc -ge 128 ]] && return "$process_probe_rc"
     if [[ $process_probe_rc -ne 0 ]]; then
         return 0
@@ -2528,26 +2556,26 @@ force_kill_app() {
     # confirmed uninstall, so a still-running process at this point is
     # blocking a clean result and we trade unsaved state for that.
     local kill_rc=0
-    pkill -x "$match_pattern" 2> /dev/null || kill_rc=$?
+    pkill -x "$escaped_pattern" 2> /dev/null || kill_rc=$?
     [[ $kill_rc -ge 128 ]] && return "$kill_rc"
     local sleep_rc=0
-    _mole_wait_for_app_exit "$match_pattern" || sleep_rc=$?
+    _mole_wait_for_app_exit "$escaped_pattern" || sleep_rc=$?
     [[ $sleep_rc -ge 128 ]] && return "$sleep_rc"
     process_probe_rc=0
-    pgrep -x "$match_pattern" > /dev/null 2>&1 || process_probe_rc=$?
+    pgrep -x "$escaped_pattern" > /dev/null 2>&1 || process_probe_rc=$?
     [[ $process_probe_rc -ge 128 ]] && return "$process_probe_rc"
     if [[ $process_probe_rc -ne 0 ]]; then
         return 0
     fi
 
     kill_rc=0
-    pkill -9 -x "$match_pattern" 2> /dev/null || kill_rc=$?
+    pkill -9 -x "$escaped_pattern" 2> /dev/null || kill_rc=$?
     [[ $kill_rc -ge 128 ]] && return "$kill_rc"
     sleep_rc=0
-    _mole_wait_for_app_exit "$match_pattern" || sleep_rc=$?
+    _mole_wait_for_app_exit "$escaped_pattern" || sleep_rc=$?
     [[ $sleep_rc -ge 128 ]] && return "$sleep_rc"
     process_probe_rc=0
-    pgrep -x "$match_pattern" > /dev/null 2>&1 || process_probe_rc=$?
+    pgrep -x "$escaped_pattern" > /dev/null 2>&1 || process_probe_rc=$?
     [[ $process_probe_rc -ge 128 ]] && return "$process_probe_rc"
     if [[ $process_probe_rc -ne 0 ]]; then
         return 0
@@ -2561,10 +2589,10 @@ force_kill_app() {
     fi
     if [[ $sudo_probe_rc -eq 0 ]]; then
         kill_rc=0
-        sudo pkill -9 -x "$match_pattern" 2> /dev/null || kill_rc=$?
+        sudo pkill -9 -x "$escaped_pattern" 2> /dev/null || kill_rc=$?
         [[ $kill_rc -ge 128 ]] && return "$kill_rc"
         sleep_rc=0
-        _mole_wait_for_app_exit "$match_pattern" || sleep_rc=$?
+        _mole_wait_for_app_exit "$escaped_pattern" || sleep_rc=$?
         [[ $sleep_rc -ge 128 ]] && return "$sleep_rc"
     fi
 
@@ -2573,7 +2601,7 @@ force_kill_app() {
     local retries=3
     while [[ $retries -gt 0 ]]; do
         process_probe_rc=0
-        pgrep -x "$match_pattern" > /dev/null 2>&1 || process_probe_rc=$?
+        pgrep -x "$escaped_pattern" > /dev/null 2>&1 || process_probe_rc=$?
         [[ $process_probe_rc -ge 128 ]] && return "$process_probe_rc"
         if [[ $process_probe_rc -ne 0 ]]; then
             return 0
@@ -2585,7 +2613,7 @@ force_kill_app() {
     done
 
     process_probe_rc=0
-    pgrep -x "$match_pattern" > /dev/null 2>&1 || process_probe_rc=$?
+    pgrep -x "$escaped_pattern" > /dev/null 2>&1 || process_probe_rc=$?
     [[ $process_probe_rc -ge 128 ]] && return "$process_probe_rc"
     [[ $process_probe_rc -eq 0 ]] && return 1
     return 0

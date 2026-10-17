@@ -1719,6 +1719,21 @@ _uninstall_strip_version_suffix_into() {
     printf -v "$1" '%s' "$_strip_value"
 }
 
+# The preview's "is this app running" probe. CFBundleExecutable comes from the
+# bundle, and pgrep reads it as an ERE, so escape it to a literal before the
+# probe: a crafted ".*" would otherwise report every process as this app. An
+# empty or control-byte name cannot be probed safely, so it reports nothing
+# here; force_kill_app has its own guard and refuses to signal that name.
+_uninstall_app_running_by_executable() {
+    local app_name="$1"
+    local exec_name="$2"
+    local escaped=""
+
+    mole_is_shared_runtime_executable "$exec_name" && return 1
+    escaped=$(_mole_process_pattern_literal "${exec_name:-$app_name}") || return 1
+    pgrep -qx "$escaped" 2> /dev/null
+}
+
 # Internal helpers for batch_uninstall_applications. They read and write
 # locals declared in the orchestrator's scope via bash dynamic scoping; do
 # not call them outside batch_uninstall_applications.
@@ -1996,8 +2011,7 @@ _batch_scan_app_details_impl() {
         fi
         # A shared runtime name such as Electron would report any other
         # unrenamed Electron app as this one.
-        if ! mole_is_shared_runtime_executable "$exec_name" &&
-            pgrep -qx "${exec_name:-$app_name}" 2> /dev/null; then
+        if _uninstall_app_running_by_executable "$app_name" "$exec_name"; then
             running_apps+=("$app_name")
         fi
 
