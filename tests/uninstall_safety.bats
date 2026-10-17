@@ -1141,6 +1141,8 @@ verdict should_protect_data "com.sogou.cloud"
 verdict should_protect_data "im.rime.squirrel"
 verdict should_protect_data "org.example.wireguard-ui"
 verdict should_protect_data "org.example.plain"
+verdict should_protect_data "com.utmapp.UTM"
+verdict should_protect_path "$HOME/Library/Containers/com.utmapp.UTM"
 verdict should_protect_path "$HOME/Library/Caches/org.example.wireguard-ui/data"
 verdict should_protect_path "$HOME/Library/Caches/org.example.plain/data"
 MOLE_UNINSTALL_MODE=1 verdict should_protect_path "com.apple.loginitems.agent"
@@ -1153,6 +1155,8 @@ EOF
 	[[ "$output" == *"should_protect_data im.rime.squirrel=protected"* ]] || return 1
 	[[ "$output" == *"should_protect_data org.example.wireguard-ui=protected"* ]] || return 1
 	[[ "$output" == *"should_protect_data org.example.plain=open"* ]] || return 1
+	[[ "$output" == *"should_protect_data com.utmapp.UTM=protected"* ]] || return 1
+	[[ "$output" == *"$HOME/Library/Containers/com.utmapp.UTM=protected"* ]] || return 1
 	[[ "$output" == *"org.example.wireguard-ui/data=protected"* ]] || return 1
 	[[ "$output" == *"should_protect_path com.apple.loginitems.agent=protected"* ]] || return 1
 	[[ "$output" == *"org.example.plain/data=open"*"org.example.plain/data=open"* ]] || return 1

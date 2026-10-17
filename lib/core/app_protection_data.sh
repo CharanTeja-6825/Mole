@@ -396,7 +396,7 @@ readonly DATA_PROTECTED_BUNDLES=(
     "dev.orbstack.OrbStack"
     "dev.orbstack.*"
     "dev.kdrag0n.MacVirt"
-    "com.getutm.UTM"
+    "com.utmapp.UTM"
     "com.vmware.fusion"
     "com.parallels.desktop.*"
     "org.virtualbox.app.VirtualBox"
