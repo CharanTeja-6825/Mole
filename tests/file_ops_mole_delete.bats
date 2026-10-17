@@ -1875,3 +1875,26 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"destination-swap-refused"* ]]
 }
+
+@test "MOLE_TEST_TRASH_DIR is honored only while a test mode flag is set" {
+	local sandbox="$SANDBOX/gated-trash"
+	local test_trash="$sandbox/test-trash"
+	local victim="$SANDBOX/gated_victim"
+	mkdir -p "$test_trash"
+	: > "$victim"
+
+	run /bin/bash --noprofile --norc <<EOF
+$(prelude)
+unset MOLE_TEST_NO_AUTH MOLE_TEST_MODE
+export MOLE_DELETE_MODE=trash
+export MOLE_TEST_TRASH_DIR="$test_trash"
+_mole_path_requires_direct_trash() { return 0; }
+_mole_move_path_to_user_trash() { printf 'REAL_TRASH_PATH\n'; return 0; }
+mole_delete "$victim"
+EOF
+
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"REAL_TRASH_PATH"* ]] || { echo "$output"; return 1; }
+	[[ -e "$victim" ]] || return 1
+	[[ -z "$(ls -A "$test_trash")" ]] || return 1
+}

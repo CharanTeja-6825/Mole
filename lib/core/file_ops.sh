@@ -2351,7 +2351,8 @@ _mole_report_unverified_delete() {
 # Environment:
 #   MOLE_DELETE_MODE      "permanent" (default) or "trash"; other values fail
 #   MOLE_DRY_RUN=1        Log intent, do not delete
-#   MOLE_TEST_TRASH_DIR   Test-only override; Trash moves go here via `mv`
+#   MOLE_TEST_TRASH_DIR   Test-only override, honored only with MOLE_TEST_MODE=1
+#                         or MOLE_TEST_NO_AUTH=1; Trash moves go here via `mv`
 #                         instead of Finder/trash CLI. Required for bats.
 #   MOLE_DELETE_LOG       Override the log file path (default:
 #                         ~/Library/Logs/mole/deletions.log)
@@ -2786,7 +2787,10 @@ _mole_move_to_trash() {
     local expected_file_sha256="${6:-}"
     local expected_absent_path="${7:-}"
 
-    if [[ -n "${MOLE_TEST_TRASH_DIR:-}" ]]; then
+    # The override is test-only: an exported MOLE_TEST_TRASH_DIR in a real
+    # run must not silently redirect a Trash move away from the user's Trash.
+    if [[ -n "${MOLE_TEST_TRASH_DIR:-}" ]] &&
+        [[ "${MOLE_TEST_MODE:-0}" == "1" || "${MOLE_TEST_NO_AUTH:-0}" == "1" ]]; then
         mkdir -p "$MOLE_TEST_TRASH_DIR" 2> /dev/null || return 1
         local dest="$MOLE_TEST_TRASH_DIR/$(basename "$path").$$.$(date +%s 2> /dev/null || echo 0)"
         _mole_trash_target_still_safe "$path" "$expected_parent" \
@@ -3283,7 +3287,8 @@ _mole_move_to_trash_batch() {
         fi
     done
 
-    if [[ -n "${MOLE_TEST_TRASH_DIR:-}" ]]; then
+    if [[ -n "${MOLE_TEST_TRASH_DIR:-}" ]] &&
+        [[ "${MOLE_TEST_MODE:-0}" == "1" || "${MOLE_TEST_NO_AUTH:-0}" == "1" ]]; then
         mkdir -p "$MOLE_TEST_TRASH_DIR" 2> /dev/null || return 1
         local ts
         ts=$(date +%s 2> /dev/null || echo 0)

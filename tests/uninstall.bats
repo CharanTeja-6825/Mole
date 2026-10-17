@@ -694,7 +694,7 @@ source "$PROJECT_ROOT/tests/helpers/uninstall.bash"
 mole_test_isolate_uninstall_inventory
 brew() { :; }
 export MOLE_DELETE_MODE=trash
-export MOLE_TEST_TRASH_DIR="$HOME/test-trash"
+export MOLE_TEST_TRASH_DIR="$HOME/test-trash" MOLE_TEST_NO_AUTH=1
 request_sudo_access() { return 0; }
 start_inline_spinner() { :; }
 stop_inline_spinner() { :; }
@@ -5997,7 +5997,7 @@ source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/uninstall/batch.sh"
 source "$PROJECT_ROOT/tests/helpers/uninstall.bash"
 mole_test_isolate_uninstall_inventory
-export MOLE_TEST_TRASH_DIR="$HOME/Trash"
+export MOLE_TEST_TRASH_DIR="$HOME/Trash" MOLE_TEST_NO_AUTH=1
 brew() { :; }
 request_sudo_access() { :; }
 start_inline_spinner() { :; }
@@ -6052,7 +6052,7 @@ mkdir -p "$HOME"
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/uninstall/batch.sh"
 export MOLE_UNINSTALL_MODE=1 MOLE_DELETE_MODE=trash
-export MOLE_TEST_TRASH_DIR="$HOME/Trash" MOLE_DELETE_LOG="$HOME/deletions.log"
+export MOLE_TEST_TRASH_DIR="$HOME/Trash" MOLE_DELETE_LOG="$HOME/deletions.log" MOLE_TEST_NO_AUTH=1
 app="$HOME/Applications/AgentOwned.app"
 changed="$HOME/Library/LaunchAgents/com.thirdparty.changed.plist"
 intact="$HOME/Library/LaunchAgents/com.thirdparty.intact.plist"
@@ -6108,7 +6108,7 @@ set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/uninstall/batch.sh"
 export MOLE_UNINSTALL_MODE=1 MOLE_DELETE_MODE=trash
-export MOLE_TEST_TRASH_DIR="$HOME/Trash"
+export MOLE_TEST_TRASH_DIR="$HOME/Trash" MOLE_TEST_NO_AUTH=1
 mkdir -p "$HOME/Applications/First.app" "$HOME/Applications/Second.app" "$HOME/Library/Caches/com.example.Shared"
 shared="$HOME/Library/Caches/com.example.Shared"
 stop_launch_services() { :; }
@@ -6157,7 +6157,7 @@ mkdir -p "$HOME"
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/uninstall/batch.sh"
 export MOLE_UNINSTALL_MODE=1 MOLE_DELETE_MODE=trash
-export MOLE_TEST_TRASH_DIR="$HOME/Trash"
+export MOLE_TEST_TRASH_DIR="$HOME/Trash" MOLE_TEST_NO_AUTH=1
 app="$HOME/Applications/Live.app"
 cache="$HOME/Library/Caches/com.example.Live"
 mkdir -p "$app" "$cache"
