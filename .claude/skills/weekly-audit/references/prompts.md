@@ -12,7 +12,7 @@ Read-only audit of Mole CLI: this checkout (macOS, main at <MAIN_HEAD>) and the 
 real cleanup or sudo; read, grep and git log only. Tests only with MOLE_TEST_NO_AUTH=1 against fixtures,
 never with a worktree under /private/tmp. Exclude tests/tmp-*, .git, build output and other sessions'
 worktrees from every grep. Scope: <SCOPE>. Read AGENTS.md on both branches first; before reporting a
-candidate, grep AGENTS.md, SYNC.md and docs/ on both branches for its symbol, since the decision may be
+candidate, grep AGENTS.md, .claude/rules/, SYNC.md and docs/ on both branches for its symbol, since the decision may be
 recorded on the other branch. Read docs/weekly-audit.md: never report an item under "Decided, do not
 re-report". For EACH candidate, try to refute it once (the guard that already blocks it, the test that
 locks it, or the line recording the decision) and report only survivors. Mark every number as measured

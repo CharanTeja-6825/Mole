@@ -53,7 +53,7 @@ every finding belongs to. Read-only: no edit, commit, build, real cleanup or
 `sudo`. Tests may run only with `MOLE_TEST_NO_AUTH=1` against fixtures; PowerShell
 behavior cannot run on macOS, so Windows findings rest on reading the code and its
 Pester tests. Each agent must try to refute every candidate once (find the guard
-that already blocks it, the test that locks it, or the AGENTS.md / SYNC.md line
+that already blocks it, the test that locks it, or the AGENTS.md / `.claude/rules/` / SYNC.md line
 recording the decision, which may sit on the other branch, so grep both before
 reporting) and report only survivors, with `branch:file:line`, a concrete failure
 scenario and the smallest fix.
@@ -83,7 +83,7 @@ scenario and the smallest fix.
    --list` misses because they are written differently; output lines that report
    routine skips. Existing flags are never proposed for removal without the
    maintainer.
-3. **Stale.** Current-state claims in AGENTS.md (both branches), SYNC.md,
+3. **Stale.** Current-state claims in AGENTS.md and `.claude/rules/` (both branches), SYNC.md,
    `.claude/skills/**`, docs and README copies against the code: every test named
    as a lock exists (`grep -rn '@test "<name>"' tests` on main, `It '<name>'` in
    Pester on windows), versions, paths, make targets and commands still exist,
@@ -127,7 +127,7 @@ candidate.
   the main checkout.
 - Every behavior fix carries a test that fails on the old code (red-run by
   restoring the old source in the worktree) and, when it states a new invariant,
-  the AGENTS.md line on that branch.
+  the AGENTS.md or `.claude/rules/` line on that branch.
 - macOS: `./scripts/check.sh --no-format`, shellcheck on changed tests, then the
   full `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 ./scripts/test.sh` on the stacked
   result before pushing `main`. Windows: `gofmt -l cmd`, `GOOS=windows go build
