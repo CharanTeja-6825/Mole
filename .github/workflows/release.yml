@@ -76,7 +76,35 @@ jobs:
       contents: write
       attestations: write
       id-token: write
+      actions: read
     steps:
+      # The runbook requires green Check/Validation/CodeQL/Nix on the tagged
+      # commit before tagging; enforce it here so a red or cancelled run can
+      # never publish. Missing and cancelled runs count as failures.
+      - name: Verify required workflows passed for this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          required=(Check Validation CodeQL Nix)
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --commit "$TARGET_SHA" --limit 100 \
+            --json name,status,conclusion)
+          missing=()
+          for workflow in "${required[@]}"; do
+            passed=$(printf '%s' "$runs" | jq -r --arg name "$workflow" \
+              '[ .[] | select(.name == $name and .status == "completed" and .conclusion == "success") ] | length')
+            if [[ "$passed" -eq 0 ]]; then
+              missing+=("$workflow")
+            fi
+          done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::Release blocked: no successful completed ${missing[*]} run for ${TARGET_SHA}."
+            echo "Next action: wait for ${missing[*]} to finish green on https://github.com/${GITHUB_REPOSITORY}/commit/${TARGET_SHA}/checks, or re-run that workflow for this exact commit, then re-run this release workflow. A cancelled, skipped or missing run is not release evidence."
+            exit 1
+          fi
+          echo "Required workflows all passed for ${TARGET_SHA}"
+
       - name: Download all artifacts
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -115,13 +143,18 @@ jobs:
           files: bin/*
           generate_release_notes: false
           draft: false
-          prerelease: false
+          # A tag carrying a pre-release segment stays a prerelease, so it can
+          # never become releases/latest and reach install.sh or `mo update`.
+          prerelease: ${{ contains(github.ref_name, '-') }}
 
   update-homebrew-core:
     name: Update Homebrew Core
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: release
+    # A prerelease must never move the stable Homebrew formula; only the
+    # release job runs for a tag carrying a pre-release segment.
+    if: ${{ !contains(github.ref_name, '-') }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
