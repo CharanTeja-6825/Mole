@@ -175,6 +175,13 @@ INSTALL_LOCK_UNSAFE_ANCESTOR=""
 # user to run something that changes nothing and retry into the same refusal.
 INSTALL_LOCK_UNSAFE_ANCESTOR_REASON=""
 INSTALL_SOURCE_TMP=""
+# Release checksums and their attestation verdict are cached per tag for the
+# life of one installer run: analyze and status are verified against the same
+# signed SHA256SUMS, so the file is fetched and attested once. Each asset still
+# gets its own sha256 comparison in verify_release_asset_checksum.
+INSTALL_CHECKSUMS_TAG=""
+INSTALL_CHECKSUMS_FILE=""
+INSTALL_CHECKSUMS_ATTESTATION=2
 
 ACTION="install"
 
@@ -643,6 +650,10 @@ release_install_lock() {
 cleanup_installer() {
     stop_line_spinner 2> /dev/null || true
     release_install_lock
+    if [[ -n "$INSTALL_CHECKSUMS_FILE" ]]; then
+        rm -f "$INSTALL_CHECKSUMS_FILE" || true # SAFE: exact mktemp-created checksums file
+        INSTALL_CHECKSUMS_FILE=""
+    fi
     if [[ -n "$INSTALL_SOURCE_TMP" ]]; then
         # Teardown never decides the exit status. This runs from the EXIT trap
         # under `set -e`, so a refusal here used to turn a finished, verified
@@ -933,13 +944,10 @@ verify_release_asset_checksum() {
     local tag="$1"
     local asset_name="$2"
     local file="$3"
-    local checksums_file
-    checksums_file="$(mktemp "${TMPDIR:-/tmp}/mole-checksums.XXXXXX")" || return 1
-
     local expected=""
     local actual=""
     local result=1
-    local attestation_status=2
+    local checksums_ready=false
 
     # The checksums fetch and the attestation check are separate network round
     # trips that can take several seconds each. With nothing on screen this is
@@ -947,29 +955,52 @@ verify_release_asset_checksum() {
     # spinner up until the first real line prints.
     start_line_spinner "Verifying ${asset_name}..."
 
-    if download_release_checksums "$tag" "$checksums_file" > /dev/null 2>&1; then
-        # Anchor the SHA256SUMS file to its GitHub Actions build-provenance
-        # attestation before reading checksums from it. If gh is available,
-        # an attestation mismatch is fatal; without gh, fall through to
-        # checksum-only verification (matches prior behavior).
-        verify_release_attestation "$checksums_file"
-        attestation_status=$?
+    if [[ "$tag" == "$INSTALL_CHECKSUMS_TAG" && -n "$INSTALL_CHECKSUMS_FILE" &&
+        -f "$INSTALL_CHECKSUMS_FILE" ]]; then
+        checksums_ready=true
+    else
+        if [[ -n "$INSTALL_CHECKSUMS_FILE" && -f "$INSTALL_CHECKSUMS_FILE" ]]; then
+            rm -f "$INSTALL_CHECKSUMS_FILE" # SAFE: exact mktemp-created checksums file
+        fi
+        INSTALL_CHECKSUMS_TAG=""
+        INSTALL_CHECKSUMS_FILE=""
+        local checksums_file
+        checksums_file="$(mktemp "${TMPDIR:-/tmp}/mole-checksums.XXXXXX")" || {
+            stop_line_spinner
+            return 1
+        }
+        if download_release_checksums "$tag" "$checksums_file" > /dev/null 2>&1; then
+            # Anchor the SHA256SUMS file to its GitHub Actions build-provenance
+            # attestation before reading checksums from it. If gh is available,
+            # an attestation mismatch is fatal; without gh, fall through to
+            # checksum-only verification (matches prior behavior). The verdict
+            # belongs to the file, so it is reused for the run's other assets.
+            verify_release_attestation "$checksums_file"
+            INSTALL_CHECKSUMS_ATTESTATION=$?
+            INSTALL_CHECKSUMS_TAG="$tag"
+            INSTALL_CHECKSUMS_FILE="$checksums_file"
+            checksums_ready=true
+        else
+            rm -f "$checksums_file" # SAFE: exact mktemp-created checksums file
+        fi
+    fi
+
+    if [[ "$checksums_ready" == "true" ]]; then
+        local attestation_status="$INSTALL_CHECKSUMS_ATTESTATION"
 
         if [[ "$attestation_status" -eq 1 ]]; then
             stop_line_spinner
             log_error "Release attestation verification failed for ${asset_name}"
-            rm -f "$checksums_file"
             return 1
         fi
 
         if [[ "$attestation_status" -eq 2 && "${MOLE_REQUIRE_ATTESTATION:-0}" == "1" ]]; then
             stop_line_spinner
             log_error "MOLE_REQUIRE_ATTESTATION=1 set but gh CLI unavailable or unauthenticated"
-            rm -f "$checksums_file"
             return 1
         fi
 
-        expected=$(extract_release_checksum "$checksums_file" "$asset_name" 2> /dev/null || true)
+        expected=$(extract_release_checksum "$INSTALL_CHECKSUMS_FILE" "$asset_name" 2> /dev/null || true)
         actual=$(calculate_file_sha256 "$file" 2> /dev/null || true)
         if [[ -n "$expected" && -n "$actual" && "$expected" == "$actual" ]]; then
             result=0
@@ -981,7 +1012,6 @@ verify_release_asset_checksum() {
     fi
 
     stop_line_spinner
-    rm -f "$checksums_file"
     return "$result"
 }
 
@@ -1207,8 +1237,17 @@ check_requirements() {
             echo ""
             exit 1
         else
-            log_warning "Cleaning up stale Homebrew installation..."
-            brew uninstall --force mole > /dev/null 2>&1 || true
+            # The Cellar holds a Homebrew Mole, but the launcher this shell
+            # resolves is not its symlink: another copy comes first in PATH, or
+            # brew's link is missing. Uninstalling the keg here would delete an
+            # install the user never asked this run to touch, and `brew` resets
+            # sudo's cached ticket, which breaks the pre-authenticated
+            # `mo update` window. Report the conflict with the exact command and
+            # keep installing; a manual copy can coexist with the keg.
+            local active_launcher="${mole_path:-no mole command on PATH}"
+            log_warning "A Homebrew Mole is also installed, but the active launcher is ${active_launcher}"
+            log_warning "Leaving the Homebrew install untouched; this run installs the manual copy beside it"
+            log_warning "To remove the Homebrew copy instead: brew uninstall --force mole"
         fi
     fi
 

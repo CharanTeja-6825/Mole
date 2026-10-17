@@ -1223,6 +1223,8 @@ printf 'release-binary' > "$file"
 hash="$(printf 'release-binary' | shasum -a 256 | awk '{print $1}')"
 download_release_checksums() { printf '%s  %s\n' "$hash" "$asset" > "$2"; return 0; }
 
+# Each case uses a distinct tag: one run caches the fetched SHA256SUMS and its
+# attestation per tag, so the same tag would reuse the earlier verdict.
 # attestation verification failed (status 1) -> fatal, never installs
 verify_release_attestation() { return 1; }
 out="$(verify_release_asset_checksum V1.0.0 "$asset" "$file")" && rc=0 || rc=$?
@@ -1231,18 +1233,18 @@ out="$(verify_release_asset_checksum V1.0.0 "$asset" "$file")" && rc=0 || rc=$?
 
 # cannot verify (status 2) + MOLE_REQUIRE_ATTESTATION=1 -> fatal
 verify_release_attestation() { return 2; }
-out="$(MOLE_REQUIRE_ATTESTATION=1 verify_release_asset_checksum V1.0.0 "$asset" "$file")" && rc=0 || rc=$?
+out="$(MOLE_REQUIRE_ATTESTATION=1 verify_release_asset_checksum V1.0.1 "$asset" "$file")" && rc=0 || rc=$?
 [ "$rc" -eq 1 ] || { echo "WRONG: require-gate rc=$rc want 1"; exit 1; }
 [[ "$out" == *"ERROR:MOLE_REQUIRE_ATTESTATION=1 set but gh"* ]] || { echo "WRONG: require-gate error missing: $out"; exit 1; }
 
 # cannot verify (status 2) without the gate -> falls back to checksum-only
 verify_release_attestation() { return 2; }
-out="$(verify_release_asset_checksum V1.0.0 "$asset" "$file")" && rc=0 || rc=$?
+out="$(verify_release_asset_checksum V1.0.2 "$asset" "$file")" && rc=0 || rc=$?
 [ "$rc" -eq 0 ] || { echo "WRONG: checksum-only rc=$rc want 0"; exit 1; }
 
 # attestation verified (status 0) + checksum match -> success with combined label
 verify_release_attestation() { return 0; }
-out="$(verify_release_asset_checksum V1.0.0 "$asset" "$file")" && rc=0 || rc=$?
+out="$(verify_release_asset_checksum V1.0.3 "$asset" "$file")" && rc=0 || rc=$?
 [ "$rc" -eq 0 ] || { echo "WRONG: verified rc=$rc want 0"; exit 1; }
 [[ "$out" == *"SUCCESS:Verified ${asset} · sha256 + attestation"* ]] || { echo "WRONG: verified success missing: $out"; exit 1; }
 
@@ -1559,4 +1561,108 @@ EOF2
 	' "$PROJECT_ROOT/install.sh"
 
 	[ "$status" -eq 0 ]
+}
+
+@test "installer warns instead of uninstalling a Homebrew Mole it did not invoke" {
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+mole_source_installer
+
+log_error() { printf 'ERROR:%s\n' "$*"; }
+log_warning() { printf 'WARNING:%s\n' "$*"; }
+log_info() { :; }
+run_install_probe_with_timeout() {
+	[[ "$1" == 2 && "$2" == "/usr/bin/sw_vers" ]] || return 98
+	printf '14.0\n'
+}
+INSTALL_DIR="$HOME/manual/bin"
+mkdir -p "$INSTALL_DIR" "$HOME/fakebrew/Cellar/mole" "$HOME/fake-bin"
+cp "$PROJECT_ROOT/mole" "$INSTALL_DIR/mole"
+chmod +x "$INSTALL_DIR/mole"
+# The active mole is the manual copy above; brew's Cellar exists separately.
+cat > "$HOME/fake-bin/brew" << 'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >> "$BREW_TRACE"
+exit 0
+STUB
+chmod +x "$HOME/fake-bin/brew"
+export BREW_TRACE="$HOME/brew.calls"
+export PATH="$HOME/manual/bin:$HOME/fake-bin:/usr/bin:/bin"
+export HOMEBREW_PREFIX="$HOME/fakebrew"
+ACTION=install
+OSTYPE=darwin23
+check_requirements
+printf 'CONTINUED=yes\n'
+if [[ -s "$BREW_TRACE" ]]; then
+	printf 'BREW_CALLED:%s\n' "$(cat "$BREW_TRACE")"
+	exit 1
+fi
+EOF
+
+	[ "$status" -eq 0 ] || {
+		echo "$output"
+		return 1
+	}
+	[[ "$output" == *"CONTINUED=yes"* ]] || return 1
+	[[ "$output" == *"Homebrew"* ]] || return 1
+	[[ "$output" == *"brew uninstall --force mole"* ]] || return 1
+	[[ "$output" != *"BREW_CALLED"* ]]
+}
+
+@test "release verification fetches SHA256SUMS and its attestation once per tag" {
+	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+mole_source_installer
+
+log_success() { echo "SUCCESS:$*"; }
+log_error() { echo "ERROR:$*"; }
+start_line_spinner() { :; }
+stop_line_spinner() { :; }
+
+analyze_content='analyze-binary'
+status_content='status-binary'
+analyze_hash=$(printf '%s' "$analyze_content" | shasum -a 256 | awk '{print $1}')
+status_hash=$(printf '%s' "$status_content" | shasum -a 256 | awk '{print $1}')
+
+checksums_calls=0
+attestation_calls=0
+download_release_checksums() {
+	checksums_calls=$((checksums_calls + 1))
+	printf '%s  analyze-darwin-arm64\n%s  status-darwin-arm64\n' "$analyze_hash" "$status_hash" > "$2"
+}
+verify_release_attestation() {
+	attestation_calls=$((attestation_calls + 1))
+	return 0
+}
+calculate_file_sha256() { shasum -a 256 "$1" | awk '{print $1}'; }
+
+analyze_file="$HOME/analyze-darwin-arm64"
+status_file="$HOME/status-darwin-arm64"
+printf '%s' "$analyze_content" > "$analyze_file"
+printf '%s' "$status_content" > "$status_file"
+
+verify_release_asset_checksum V1.2.3 analyze-darwin-arm64 "$analyze_file"
+verify_release_asset_checksum V1.2.3 status-darwin-arm64 "$status_file"
+printf 'SAME_TAG_COUNTS=%s,%s\n' "$checksums_calls" "$attestation_calls"
+
+# A different tag is a different checksums file and attestation.
+verify_release_asset_checksum V1.2.2 analyze-darwin-arm64 "$analyze_file"
+printf 'NEW_TAG_COUNTS=%s,%s\n' "$checksums_calls" "$attestation_calls"
+
+# The cache must not weaken the per-asset checksum comparison.
+printf 'tampered' > "$status_file"
+if verify_release_asset_checksum V1.2.3 status-darwin-arm64 "$status_file"; then
+	printf 'TAMPERED_ACCEPTED\n'
+	exit 1
+fi
+printf 'TAMPER_REJECTED=yes\n'
+EOF
+
+	[ "$status" -eq 0 ] || {
+		echo "$output"
+		return 1
+	}
+	[[ "$output" == *"SAME_TAG_COUNTS=1,1"* ]] || return 1
+	[[ "$output" == *"NEW_TAG_COUNTS=2,2"* ]] || return 1
+	[[ "$output" == *"TAMPER_REJECTED=yes"* ]] || return 1
 }
