@@ -2,6 +2,12 @@
 
 One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole CLI (macOS) on `main` and Mole CLI (Windows) on `windows`. The next run reads the newest entry for its commit window (`Next window from`), for the items it must not report again (`Decided, do not re-report`), and rechecks `Open` first. Facts here are a run record; lasting invariants live in `AGENTS.md` on each branch.
 
+## 2026-10-17 (rule split, not a weekly run)
+
+- Next window from: unchanged, main `e78caf97` and windows `9bbebb89` from the 2026-10-16 entry below.
+- `cb32af9f` moved area sections of AGENTS.md (89.7 KB to 30.5 KB) into 12 path rules. A second-agent review found no lost sentence but six loading gaps, fixed in `d531a0c4`: `github.md` was read only at reply time, after a fix already existed, and three rules sat under globs that miss their code.
+- Rule volume after the split, the baseline for the 20% trigger in `.claude/skills/weekly-audit/references/rule-compression.md` (bytes): AGENTS.md 30,745, `clean.md` 15,486, `uninstall.md` 10,140, `install-update.md` 7,979; AGENTS.md plus `.claude/rules` 99,723.
+
 ## 2026-10-16 (first run)
 
 - Audited: main `eb531ba2`, windows `159657d5`.

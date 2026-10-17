@@ -9,7 +9,7 @@ description: >-
   Not for one reported bug (/hunt), a safety-sensitive diff (bugs), or a PR
   review (/check).
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Weekly Audit (CLI)
@@ -99,7 +99,8 @@ scenario and the smallest fix.
    test such as `tests/core_performance.bats`.
 5. **Not yet codified.** In the commit window: an area fixed twice, a behavior
    fix with no test touched, a lesson living only in memory, an issue reply or
-   one commit message, a rule repeated in several places or grown past use, and
+   one commit message, a rule repeated in several places or grown more than 20% past the size recorded after
+   its last compression (`references/rule-compression.md`), and
    fixes on one branch that SYNC.md should route to the other (a safety or
    correctness contract the other CLI shares) without a row there.
 
@@ -152,8 +153,10 @@ candidate.
   Open, each with the question it waits on.
 - Commit identity and push follow the global Git Safety rules; contributor PRs
   keep their own review path.
+- An approved rule compression or split follows `references/rule-compression.md`; its second-agent meaning
+  review is part of the fix, since the mechanical gates passed while 73 real losses remained (2026-10-17).
 - Prepend the run to `docs/weekly-audit.md` (audited and landed commits per
-  branch, next window, fixed / decided / open) in the last `main` commit of the
+  branch, next window, rule volume, fixed / decided / open) in the last `main` commit of the
   run.
 
 ## Output

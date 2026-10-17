@@ -71,7 +71,7 @@ whether it is already cached, pooled or gated (tests/core_performance.bats).
 ```
 Window: git log <WINDOW>..HEAD on each branch. An area fixed twice, a behavior fix with no test touched,
 a lesson living only in memory, an issue reply or one commit message, a rule repeated in several places
-or grown past use, and fixes on one branch that SYNC.md should route to the other without a row.
+or grown more than 20% past the size recorded after its last compression in docs/weekly-audit.md, and fixes on one branch that SYNC.md should route to the other without a row.
 Say where each lesson should live.
 ```
 
