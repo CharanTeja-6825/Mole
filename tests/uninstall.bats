@@ -6742,3 +6742,197 @@ SCRIPT
         [ ! -e "$HOME/auth-called" ] || return 1
     done
 }
+
+@test "by-name uninstall shows the batch preview once instead of a pre-scan prompt" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TERM="xterm-256color" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/bin/uninstall.sh"
+log_operation_session_start() { :; }
+hide_cursor() { :; }
+show_cursor() { :; }
+clear_screen() { :; }
+uninstall_abort() { printf 'ABORT:%s\n' "$*"; }
+scan_applications() { printf 'fixture\n' > "$HOME/apps.list"; printf '%s\n' "$HOME/apps.list"; }
+load_applications() { apps_data=(); return 0; }
+match_apps_by_name() { selected_apps=("1700000000|/Applications/Test.app|Test|com.example.Test|1MB|Today|1024"); }
+batch_uninstall_applications() { printf 'BATCH_CALLED\n'; }
+main TestApp < /dev/null
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+    [[ "$output" == *"Matched 1 app(s)"* ]] || return 1
+    [[ "$output" == *"BATCH_CALLED"* ]] || return 1
+    [[ "$output" != *"Proceed with uninstallation"* ]]
+}
+
+@test "by-name matched list renders control characters as placeholders" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TERM="xterm-256color" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/bin/uninstall.sh"
+log_operation_session_start() { :; }
+hide_cursor() { :; }
+show_cursor() { :; }
+clear_screen() { :; }
+uninstall_abort() { printf 'ABORT:%s\n' "$*"; }
+scan_applications() { printf 'fixture\n' > "$HOME/apps.list"; printf '%s\n' "$HOME/apps.list"; }
+load_applications() { apps_data=(); return 0; }
+evil_name=$(printf 'Evil\033[2JApp\007')
+match_apps_by_name() {
+    selected_apps=("1700000000|/Applications/Evil.app|$evil_name|com.example.evil|1MB|Today|1024")
+}
+batch_uninstall_applications() { printf 'BATCH_CALLED\n'; }
+main TestApp < /dev/null
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+    [[ "$output" == *"Evil"* ]] || return 1
+    [[ "$output" == *"BATCH_CALLED"* ]] || return 1
+    [[ "$output" != *$'\033'* ]] || {
+        printf 'raw escape reached the matched list: %s\n' "$output"
+        return 1
+    }
+    [[ "$output" != *$'\007'* ]]
+}
+
+@test "app selector renders control characters in display names inert" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TERM="xterm-256color" /bin/bash --noprofile --norc << 'INNER'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/ui/app_selector.sh"
+
+evil_name=$(printf 'Evil\033]2;owned\007App')
+apps_data=("1700000000|/Applications/Evil.app|$evil_name|com.example.evil|1MB|Today|1024")
+selected_apps=()
+drain_pending_input() { :; }
+captured=""
+paginated_multi_select() { captured="$2"; MOLE_SELECTION_RESULT=""; return 1; }
+tput() { echo 100; }
+
+select_apps_for_uninstall || true
+[[ "$captured" == *"Evil"* ]] || { printf 'missing name: %q\n' "$captured"; exit 1; }
+if [[ "$captured" == *$'\033'* || "$captured" == *$'\007'* ]]; then
+    printf 'raw control byte reached the selector: %q\n' "$captured"
+    exit 1
+fi
+INNER
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+}
+
+@test "remove_mole clears shell completion integration and follows rc symlinks" {
+    mkdir -p "$HOME/.local/bin" "$HOME/dotfiles" "$HOME/.config/fish/completions"
+    cp "$PROJECT_ROOT/mole" "$HOME/.local/bin/mole"
+    cp "$PROJECT_ROOT/mo" "$HOME/.local/bin/mo"
+    cat > "$HOME/.zshrc" << 'RC'
+# user zsh setting
+# Mole shell completion
+if output="$(mole completion zsh 2>/dev/null)"; then eval "$output"; fi
+export PATH="$HOME/.local/bin:$PATH"
+RC
+    cat > "$HOME/dotfiles/bashrc" << 'RC'
+# user bash setting
+# Mole shell completion
+if output="$(mole completion bash 2>/dev/null)"; then eval "$output"; fi
+RC
+    ln -s dotfiles/bashrc "$HOME/.bashrc"
+    cat > "$HOME/.config/fish/config.fish" << 'RC'
+# user fish setting
+# Mole shell completion
+if output=(mole completion fish 2>/dev/null); eval "$output"; end
+RC
+    printf '# generated\n# Mole completions for mole\n' > "$HOME/.config/fish/completions/mole.fish"
+    printf '# generated\nsource %s\n' "$HOME/.config/fish/completions/mole.fish" > "$HOME/.config/fish/completions/mo.fish"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_MODE=1 MOLE_TEST_NO_AUTH=1 \
+        /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/manage/remove.sh"
+drain_pending_input() { :; }
+remove_mole false < <(printf '\n')
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+    ! grep -Fq 'Mole shell completion' "$HOME/.zshrc" || return 1
+    grep -Fq '# user zsh setting' "$HOME/.zshrc" || return 1
+    grep -Fq 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.zshrc" || return 1
+    [ -L "$HOME/.bashrc" ] || return 1
+    ! grep -Fq 'Mole shell completion' "$HOME/dotfiles/bashrc" || return 1
+    grep -Fq '# user bash setting' "$HOME/dotfiles/bashrc" || return 1
+    ! grep -Fq 'Mole shell completion' "$HOME/.config/fish/config.fish" || return 1
+    grep -Fq '# user fish setting' "$HOME/.config/fish/config.fish" || return 1
+    [ ! -e "$HOME/.config/fish/completions/mole.fish" ] || return 1
+    [ ! -e "$HOME/.config/fish/completions/mo.fish" ] || return 1
+    [[ "$output" == *"Removed shell completion"* ]] || return 1
+}
+
+@test "remove_mole dry run lists shell completion without deleting it" {
+    mkdir -p "$HOME/.local/bin" "$HOME/.config/fish/completions"
+    cp "$PROJECT_ROOT/mole" "$HOME/.local/bin/mole"
+    cat > "$HOME/.zshrc" << 'RC'
+# Mole shell completion
+if output="$(mole completion zsh 2>/dev/null)"; then eval "$output"; fi
+RC
+    printf '# generated\n' > "$HOME/.config/fish/completions/mole.fish"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_MODE=1 MOLE_TEST_NO_AUTH=1 \
+        /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/manage/remove.sh"
+remove_mole true
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+    grep -Fq '# Mole shell completion' "$HOME/.zshrc" || return 1
+    [ -e "$HOME/.config/fish/completions/mole.fish" ] || return 1
+    [[ "$output" == *"shell completion"* ]] || return 1
+    [ -f "$HOME/.local/bin/mole" ] || return 1
+}
+
+@test "remove_mole names each shell completion file it cannot clean and exits nonzero" {
+    mkdir -p "$HOME/.local/bin"
+    cp "$PROJECT_ROOT/mole" "$HOME/.local/bin/mole"
+    cat > "$HOME/.zshrc" << 'RC'
+# Mole shell completion
+if output="$(mole completion zsh 2>/dev/null)"; then eval "$output"; fi
+RC
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_MODE=1 MOLE_TEST_NO_AUTH=1 \
+        /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/manage/remove.sh"
+drain_pending_input() { :; }
+mv() {
+    local target="${*: -1}"
+    if [[ "$target" == *".zshrc" ]]; then
+        return 1
+    fi
+    command mv "$@"
+}
+remove_mole false < <(printf '\n')
+EOF
+
+    [ "$status" -eq 1 ] || {
+        echo "$output"
+        return 1
+    }
+    [[ "$output" == *"Could not remove shell completion from $HOME/.zshrc"* ]] || return 1
+    grep -Fq '# Mole shell completion' "$HOME/.zshrc" || return 1
+}

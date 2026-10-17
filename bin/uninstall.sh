@@ -2089,23 +2089,20 @@ main() {
         local index=1
         for selected_app in "${selected_apps[@]}"; do
             IFS='|' read -r _ app_path app_name _ size last_used _ <<< "$selected_app"
+            local safe_name
+            safe_name=$(mole_terminal_safe_text "$app_name")
             local size_display
             size_display=$(uninstall_normalize_size_display "$size" "$app_path")
             local last_display
             last_display=$(uninstall_normalize_last_used_display "$last_used")
-            printf "%d. %s  %s  |  Last: %s\n" "$index" "$app_name" "$size_display" "$last_display"
+            printf "%d. %s  %s  |  Last: %s\n" "$index" "$safe_name" "$size_display" "$last_display"
             ((index++))
         done
 
         printf '\n'
-        printf "Proceed with uninstallation? [y/N] "
-        local confirm
-        read -r confirm
-        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-            echo "Aborted."
-            return 0
-        fi
-
+        # One confirmation, not two: batch_uninstall_applications renders the
+        # full preview and asks there, after sizing and leftover discovery. A
+        # y/N prompt here runs before that scan, so it cannot serve as review.
         batch_uninstall_applications
         return 0
     fi
