@@ -30,7 +30,7 @@ paginated_multi_select() {
     return 0
 }
 if [[ "$REVIEW_CHOICE" == default ]]; then input=$'\n'; else input=$'d\n'; fi
-MOLE_DRY_RUN=1 _batch_preview_and_confirm <<< "$input"
+MOLE_DRY_RUN=1 MOLE_TEST_MODE=1 _batch_preview_and_confirm <<< "$input"
 IFS='|' read -r _ _ _ _ result _ <<< "${app_details[0]}"
 files=$(decode_file_list "$result" Example)
 [[ "$files" == *"$cache"* ]] || exit 1
@@ -134,7 +134,7 @@ mole_delete() {
 }
 selected_apps=("0|$app|Example|com.example.app|0|Never")
 files_cleaned=0 total_items=0 total_size_cleaned=0
-batch_uninstall_applications <<< ''
+MOLE_TEST_MODE=1 batch_uninstall_applications <<< ''
 [[ ! -e "$app" && -f "$preferences" && -f "$byhost" ]] || exit 1
 [[ ! -e "$HOME/forbidden" ]] || { cat "$HOME/forbidden"; exit 1; }
 SH
@@ -265,7 +265,7 @@ selected_apps=("0|$app|Example|com.example.app|0|Never")
 running_apps=() sudo_apps=() brew_cask_apps=() blocked_apps=() manual_removal_apps=() app_details=() leftover_notes=()
 total_estimated_size=0
 _batch_scan_app_details
-MOLE_DRY_RUN=1 _batch_preview_and_confirm <<< ''
+MOLE_DRY_RUN=1 MOLE_TEST_MODE=1 _batch_preview_and_confirm <<< ''
 [[ $(grep -Fxc "$app" "$HOME/measured") -eq 1 ]] || exit 1
 if grep -Fxq "$data" "$HOME/measured"; then exit 1; fi
 grep -Fxq "$cache" "$HOME/measured" || exit 1
@@ -276,7 +276,7 @@ app_details=()
 total_estimated_size=0
 _batch_scan_app_details
 paginated_multi_select() { MOLE_SELECTION_RESULT=0; }
-MOLE_DRY_RUN=1 _batch_preview_and_confirm <<< $'d\n'
+MOLE_DRY_RUN=1 MOLE_TEST_MODE=1 _batch_preview_and_confirm <<< $'d\n'
 [[ $(grep -Fxc "$app" "$HOME/measured") -eq 1 ]] || exit 1
 grep -Fxq "$data" "$HOME/measured" || exit 1
 [[ $total_estimated_size -eq 30 ]] || exit 1
@@ -309,7 +309,7 @@ else
     printf 'n\n' | _batch_preview_and_confirm || rc=$?
 fi
 printf 'RC=%s\n' "$rc"
-[[ $rc -eq 2 ]] || exit 1
+[[ $rc -eq 3 ]] || exit 1
 [[ -d "$app" ]] || exit 1
 SH
     then

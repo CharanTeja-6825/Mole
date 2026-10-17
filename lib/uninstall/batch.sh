@@ -2339,10 +2339,11 @@ _batch_preview_and_confirm() {
         # which the case below treats as Enter: a script or agent could confirm
         # an uninstall nobody reviewed. Only a real terminal may answer; tests
         # opt in through the test flags and drive the prompt explicitly.
-        if [[ ! -t 0 && "${MOLE_TEST_MODE:-0}" != "1" && "${MOLE_TEST_NO_AUTH:-0}" != "1" ]]; then
+        if [[ ! -t 0 && "${MOLE_TEST_MODE:-0}" != "1" ]]; then
             echo ""
-            log_error "Uninstall confirmation needs an interactive terminal; no apps were removed"
-            return 2
+            log_error "Uninstall confirmation needs an interactive terminal; no apps were removed."
+            log_info "Run mo uninstall from an interactive terminal, or use mo uninstall --list to inspect apps"
+            return 3
         fi
 
         echo -ne "${PURPLE}${ICON_ARROW}${NC} ${removal_note}  ${GREEN}Enter${NC} confirm, ${GRAY}ESC${NC} cancel: "
@@ -2354,12 +2355,13 @@ _batch_preview_and_confirm() {
             # Test fixtures drive the prompt through a pipe and may have
             # already consumed it; production only reaches here on a real
             # terminal, where EOF is not consent.
-            if [[ "${MOLE_TEST_MODE:-0}" == "1" || "${MOLE_TEST_NO_AUTH:-0}" == "1" ]]; then
+            if [[ "${MOLE_TEST_MODE:-0}" == "1" ]]; then
                 key=""
             else
                 echo ""
-                log_error "Could not read the uninstall confirmation; no apps were removed"
-                return 2
+                log_error "Could not read the uninstall confirmation; no apps were removed."
+                log_info "Run mo uninstall from an interactive terminal; nothing was changed"
+                return 3
             fi
         fi
         drain_pending_input # Clean up any escape sequence remnants
@@ -3301,6 +3303,10 @@ batch_uninstall_applications() {
         2)
             _abort_uninstall_batch
             return 0
+            ;;
+        3)
+            _abort_uninstall_batch
+            return 1
             ;;
         *)
             _abort_uninstall_batch

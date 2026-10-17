@@ -253,7 +253,7 @@ total_items=0
 total_size_cleaned=0
 
 # Simulate 'Enter' for confirmation
-printf '\n' | batch_uninstall_applications
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 
 grep -q "ENSURE_SUDO:Admin required for Homebrew casks: BrewApp" "$HOME/brew_calls.log"
 grep -q "uninstall --cask brew-app-cask" "$HOME/brew_calls.log" || exit 1
@@ -319,7 +319,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications > "$HOME/brew_shared_output.log" 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > "$HOME/brew_shared_output.log" 2>&1
 
 grep -q "uninstall --cask brewshared-beta" "$HOME/brew_shared_calls.log" || {
     echo "WRONG: plain cask uninstall not invoked"
@@ -391,7 +391,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 
 grep -q "ENSURE_SUDO:Admin required for Homebrew casks: BrewPreAuth" "$HOME/order.log"
 grep -q "BREW_CALL:uninstall --cask brew-preauth-cask" "$HOME/order.log"
@@ -450,7 +450,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 
 sleep 0.2
 
@@ -522,7 +522,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1 || true
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1 || true
 
 [[ -d "$HOME/Applications/BrewBroken.app" ]] || exit 1
 [[ ! -f "$HOME/remove.log" ]]
@@ -587,7 +587,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1
 
 [[ ! -d "$HOME/Applications/BrewCleanup.app" ]] || exit 1
 grep -q "SAFE_REMOVE:$HOME/Applications/BrewCleanup.app" "$HOME/remove.log"
@@ -645,7 +645,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 EOF
 
     [[ -s "$fixture_home/inventory.trace" ]] || { echo "$output"; return 1; }
@@ -702,7 +702,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1
 
 ! grep -q "UNEXPECTED_ENSURE_SUDO:" "$HOME/dry_run.log" 2> /dev/null
 EOF

@@ -754,7 +754,7 @@ total_size_cleaned=0
 
 drain_pending_input() { :; }
 paginated_multi_select() { MOLE_SELECTION_RESULT=0; }
-printf 'd\n' | batch_uninstall_applications
+printf 'd\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 
 if grep -q "ByHost.*com.example.TestApp.*plist|true" "$trace"; then
 	echo "ByHost plist routed through sudo mole_delete"
@@ -820,7 +820,7 @@ for bad_id in "-g" "NSGlobalDomain" "com-example"; do
 	total_items=0
 	total_size_cleaned=0
 
-	batch_uninstall_applications </dev/null
+	MOLE_TEST_MODE=1 batch_uninstall_applications </dev/null
 
 	if grep -q '^defaults:' "$trace" || grep -q 'ByHost' "$trace"; then
 		echo "unexpected domain cleanup side effect for $bad_id"

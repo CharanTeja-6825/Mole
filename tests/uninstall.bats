@@ -660,7 +660,7 @@ total_items=0
 total_size_cleaned=0
 
 mole_test_select_all_uninstall_data
-printf 'd\n' | batch_uninstall_applications
+printf 'd\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 
 [[ ! -d "$app_bundle" ]] || exit 1
 [[ ! -d "$HOME/Library/Application Support/TestApp" ]] || exit 1
@@ -712,7 +712,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 mole_test_select_all_uninstall_data
-printf 'd\n' | batch_uninstall_applications
+printf 'd\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 
 [[ ! -d "$HOME/Applications/Steam.app" ]] || { echo "app kept"; exit 1; }
 [[ ! -d "$HOME/Library/Caches/com.valvesoftware.steam" ]] || { echo "cache kept"; exit 1; }
@@ -767,7 +767,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 EOF
 
     [[ -s "$fixture_home/inventory.trace" ]] || { echo "$output"; return 1; }
@@ -818,7 +818,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 EOF
 
     [[ -s "$fixture_home/inventory.trace" ]] || { echo "$output"; return 1; }
@@ -869,7 +869,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications 2>&1
 EOF
 
     [ "$status" -eq 0 ] || {
@@ -981,7 +981,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications 2>&1
 EOF
 
     [ "$status" -eq 0 ] || {
@@ -1040,7 +1040,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications 2>&1
 EOF
 
     [ "$status" -eq 0 ] || {
@@ -1099,7 +1099,7 @@ total_items=0
 total_size_cleaned=0
 
 batch_rc=0
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1 || batch_rc=$?
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1 || batch_rc=$?
 echo "BATCH_RC=$batch_rc"
 EOF
 
@@ -1173,7 +1173,7 @@ total_items=0
 total_size_cleaned=0
 
 batch_rc=0
-printf '\n' | batch_uninstall_applications 2>&1 || batch_rc=$?
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications 2>&1 || batch_rc=$?
 echo "BATCH_RC=$batch_rc"
 EOF
 
@@ -1222,7 +1222,7 @@ total_items=0
 total_size_cleaned=0
 
 rc=0
-batch_uninstall_applications || rc=$?
+MOLE_TEST_MODE=1 batch_uninstall_applications || rc=$?
 [[ $rc -eq 1 ]] || { echo "WRONG_RC:$rc"; exit 1; }
 [[ -d "$HOME/Applications/RootOwned.app" ]] || { echo "WRONG: bundle removed"; exit 1; }
 [[ -d "$HOME/Library/Application Support/RootOwned" ]] || { echo "WRONG: app data removed"; exit 1; }
@@ -1268,7 +1268,7 @@ total_items=0
 total_size_cleaned=0
 
 rc=0
-batch_uninstall_applications || rc=$?
+MOLE_TEST_MODE=1 batch_uninstall_applications || rc=$?
 [[ $rc -eq 1 ]] || { echo "WRONG_RC:$rc"; exit 1; }
 [[ -L "$HOME/Applications/Fake.app" ]] || { echo "WRONG: symlink removed"; exit 1; }
 [[ ! -e "$HOME/foreign-cask-side-effects.log" ]] || { echo "WRONG: discovery ran"; exit 1; }
@@ -2248,7 +2248,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 
 # The selected bundle and its name-keyed leftovers are gone.
 [[ ! -d "$HOME/Applications/Shared-beta.app" ]] || { echo "WRONG: beta bundle preserved"; exit 1; }
@@ -2340,7 +2340,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1
 
 [[ ! -d "$HOME/Applications/SharedName-beta.app" ]] || { echo "WRONG: beta bundle preserved"; exit 1; }
 [[ ! -d "$HOME/Library/Caches/SharedName-beta" ]] || { echo "WRONG: beta's own cache preserved"; exit 1; }
@@ -2361,7 +2361,7 @@ apps_data=(
 )
 selected_apps=("0|$HOME/Applications/SharedName.app|SharedName|com.example.sharedname|0|Never")
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1
 
 [[ ! -d "$HOME/Applications/SharedName.app" ]] || { echo "WRONG: selected bundle preserved"; exit 1; }
 [[ -d "$HOME/OtherApps/SharedName.app" ]] || { echo "WRONG: survivor removed (case 2)"; exit 1; }
@@ -2382,7 +2382,7 @@ apps_data=(
 )
 selected_apps=("0|$HOME/Applications/XcodeClone-beta.app|XcodeClone|com.example.xcodeclone|0|Never")
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1
 
 [[ ! -d "$HOME/Applications/XcodeClone-beta.app" ]] || { echo "WRONG: beta bundle preserved (case 3)"; exit 1; }
 [[ -d "$HOME/Applications/XcodeClone.app" ]] || { echo "WRONG: survivor removed (case 3)"; exit 1; }
@@ -2407,7 +2407,7 @@ apps_data=(
 )
 selected_apps=("0|$HOME/Applications/RevBase.app|RevBase|com.example.revbase|0|Never")
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1
 
 [[ ! -d "$HOME/Applications/RevBase.app" ]] || { echo "WRONG: selected base bundle preserved (case 4)"; exit 1; }
 [[ -d "$HOME/Applications/RevBase-beta.app" ]] || { echo "WRONG: suffixed survivor removed (case 4)"; exit 1; }
@@ -2429,7 +2429,7 @@ touch "$HOME/Library/Logs/DiagnosticReports/SoloApp-2026-07-03-101010.ips"
 apps_data=("0|$HOME/Applications/SoloApp.app|SoloApp|com.example.soloapp|0|Never|0")
 selected_apps=("0|$HOME/Applications/SoloApp.app|SoloApp|com.example.soloapp|0|Never")
 
-printf '\n' | batch_uninstall_applications > /dev/null 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > /dev/null 2>&1
 
 [[ ! -d "$HOME/Applications/SoloApp.app" ]] || { echo "WRONG: solo bundle preserved (case 5)"; exit 1; }
 grep -q "KILL:SoloApp" "$HOME/kill.log" 2> /dev/null || { echo "WRONG: termination skipped without sibling guard (case 5)"; exit 1; }
@@ -2461,7 +2461,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-if batch_uninstall_applications; then
+if MOLE_TEST_MODE=1 batch_uninstall_applications; then
 	exit 1
 fi
 EOF
@@ -2517,7 +2517,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\n' | batch_uninstall_applications > "$HOME/output.log" 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > "$HOME/output.log" 2>&1
 
 grep -q "Review only: ~/system/com.example.review.helper" "$HOME/output.log"
 # The summary states the count, not the paths: they were already listed above
@@ -2677,7 +2677,7 @@ total_items=0
 total_size_cleaned=0
 
 output_file="$HOME/dry_run_uninstall.log"
-printf '\n' | batch_uninstall_applications > "$output_file" 2>&1
+printf '\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > "$output_file" 2>&1
 output=$(cat "$output_file")
 
 [[ -d "$app_bundle" ]] || { echo "WRONG: dry-run removed app bundle"; cat "$output_file"; exit 1; }
@@ -3123,7 +3123,7 @@ total_size_cleaned=0
 # (which would silently corrupt the next bash command into 127).
 output_file="$HOME/batch_output.log"
 mole_test_select_all_uninstall_data
-printf 'd\n' | batch_uninstall_applications > "$output_file" 2>&1
+printf 'd\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > "$output_file" 2>&1
 output=$(cat "$output_file")
 
 # Bundle and leftovers must be gone even though kill failed.
@@ -3255,7 +3255,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 
-printf '\nq' | batch_uninstall_applications
+printf '\nq' | MOLE_TEST_MODE=1 batch_uninstall_applications
 EOF
 
     [[ -s "$fixture_home/inventory.trace" ]] || { echo "$output"; return 1; }
@@ -5232,7 +5232,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 rc=0
-batch_uninstall_applications || rc=$?
+MOLE_TEST_MODE=1 batch_uninstall_applications || rc=$?
 printf 'RC=%s\n' "$rc"
 [[ $rc -eq 124 ]]
 INNER
@@ -5905,7 +5905,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 rc=0
-batch_uninstall_applications || rc=$?
+MOLE_TEST_MODE=1 batch_uninstall_applications || rc=$?
 printf 'RC=%s\n' "$rc"
 [[ $rc -eq 1 ]]
 INNER
@@ -5970,7 +5970,7 @@ files_cleaned=0
 total_items=0
 total_size_cleaned=0
 mole_test_select_all_uninstall_data
-printf 'd\n' | batch_uninstall_applications > "$HOME/output.log" 2>&1
+printf 'd\n' | MOLE_TEST_MODE=1 batch_uninstall_applications > "$HOME/output.log" 2>&1
 [[ "$(cat "$HOME/sized-plan")" == "$HOME/eligible-leftover" ]] || exit 1
 [[ "$(cat "$HOME/executed-plan")" == "$HOME/eligible-leftover" ]] || exit 1
 [[ -d "$HOME/Library/Logs/com.openai.codex" ]] || exit 1
@@ -6018,7 +6018,7 @@ unregister_app_bundle() { :; }
 selected_apps=("0|$HOME/Applications/OwnedApp.app|OwnedApp|com.example.owned|0|Never")
 files_cleaned=0 total_items=0 total_size_cleaned=0
 mole_test_select_all_uninstall_data
-printf 'd\n' | batch_uninstall_applications
+printf 'd\n' | MOLE_TEST_MODE=1 batch_uninstall_applications
 if [[ "$MOLE_DRY_RUN" == 1 ]]; then
     [[ -d "$HOME/Applications/OwnedApp.app" ]] || exit 1
 else
@@ -6668,7 +6668,7 @@ selected_apps=(one two)
 ) &
 sender=$!
 rc=0
-batch_uninstall_applications || rc=$?
+MOLE_TEST_MODE=1 batch_uninstall_applications || rc=$?
 wait "$sender" || exit 1
 [[ $rc == 130 ]] || exit 1
 printf 'allocation-interrupted\n'
@@ -6915,6 +6915,8 @@ EOF
     grep -Fq "REMOVED $HOME/.zshrc (shell completion)" "$HOME/Library/Logs/mole/operations.log" || return 1
     grep -Fq "REMOVED $HOME/.config/fish/completions/mole.fish (fish completion)" "$HOME/Library/Logs/mole/operations.log" || return 1
     grep -Fq "REMOVED $HOME/.cache/mole (cache)" "$HOME/Library/Logs/mole/operations.log" || return 1
+    grep -Fq "REMOVED $HOME/.local/bin/mole (launcher)" "$HOME/Library/Logs/mole/operations.log" || return 1
+    grep -Fq "REMOVED $HOME/.local/bin/mo (launcher)" "$HOME/Library/Logs/mole/operations.log" || return 1
 }
 
 @test "remove_mole dry run lists shell completion without deleting it" {
@@ -7007,4 +7009,42 @@ EOF
     grep -Fq 'running_list+="$(_uninstall_display_text "${running_at_uninstall_apps[idx]}")"' "$PROJECT_ROOT/lib/uninstall/batch.sh" || return 1
     # shellcheck disable=SC2016
     grep -Fq 'bg_list+="$(_uninstall_display_text "${background_items_warning_apps[idx]}")"' "$PROJECT_ROOT/lib/uninstall/batch.sh"
+}
+
+@test "batch uninstall without a terminal exits nonzero and removes nothing" {
+    local fixture_home
+    fixture_home=$(mktemp -d "$HOME/no-tty-fixture.XXXXXX")
+    HOME="$fixture_home" create_app_artifacts
+
+    run env -u MOLE_TEST_MODE HOME="$fixture_home" PROJECT_ROOT="$PROJECT_ROOT" \
+        /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+source "$PROJECT_ROOT/tests/helpers/uninstall.bash"
+mole_test_isolate_uninstall_inventory
+brew() { :; }
+request_sudo_access() { return 0; }
+start_inline_spinner() { :; }
+stop_inline_spinner() { :; }
+enter_alt_screen() { :; }
+leave_alt_screen() { :; }
+hide_cursor() { :; }
+show_cursor() { :; }
+remove_apps_from_dock() { :; }
+pgrep() { return 1; }
+pkill() { return 0; }
+sudo() { return 0; }
+app_bundle="$HOME/Applications/TestApp.app"
+selected_apps=("0|$app_bundle|TestApp|com.example.TestApp|0|Never")
+rc=0
+MOLE_TEST_MODE=0 batch_uninstall_applications < /dev/null || rc=$?
+printf 'RC=%s\n' "$rc"
+exit "$rc"
+EOF
+
+    [ "$status" -ne 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"RC=1"* ]] || { echo "$output"; return 1; }
+    [ -d "$fixture_home/Applications/TestApp.app" ] || return 1
+    [ -d "$fixture_home/Library/Application Support/TestApp" ] || return 1
 }
