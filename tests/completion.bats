@@ -220,3 +220,12 @@ setup() {
 	grep -Fq '# user zsh setting' "$HOME/dotfiles/zshrc" || return 1
 	grep -Eq '(mole|mo)[[:space:]]+completion' "$HOME/dotfiles/zshrc"
 }
+
+@test "completion auto-install does not mistake another tool's completion line for Mole" {
+	printf 'gizmo completion zsh\n' >"$HOME/.zshrc"
+
+	run env SHELL=/bin/zsh "$PROJECT_ROOT/bin/completion.sh" --dry-run
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" != *"Would normalize completion entry"* ]] || return 1
+	[ "$(cat "$HOME/.zshrc")" = "gizmo completion zsh" ]
+}

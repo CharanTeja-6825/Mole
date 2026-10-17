@@ -550,6 +550,26 @@ STAT_BSD="/usr/bin/stat"
 # paths in its errors and fails on mounts BSD find walks past.
 FIND_BSD="/usr/bin/find"
 
+# The rc lines `mo completion` writes: its marker comment and the completion
+# command. The command boundary keeps an unrelated `gizmo completion zsh` line.
+MOLE_COMPLETION_LINE_PATTERN='(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)'
+
+# Print the final file a symlink chain points at. Renaming a rewritten rc file
+# over this target keeps every link in a dotfile chain; renaming over the first
+# link replaced it with a plain file. Fails on an unreadable link or a cycle.
+mole_resolve_link_chain() {
+    local target="$1"
+    local link hops=0
+    while [[ -L "$target" ]]; do
+        link=$(readlink "$target") || return 1
+        [[ "$link" == /* ]] || link="$(dirname "$target")/$link"
+        target="$link"
+        hops=$((hops + 1))
+        [[ $hops -le 40 ]] || return 1
+    done
+    printf '%s\n' "$target"
+}
+
 # Get file size in bytes
 get_file_size() {
     local file="$1"
