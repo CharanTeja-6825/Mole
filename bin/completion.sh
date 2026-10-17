@@ -64,7 +64,7 @@ remove_stale_completion_entries() {
     local config_file="$1"
     local success_message="$2"
 
-    if [[ ! -f "$config_file" ]] || ! grep -Eq "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" 2> /dev/null; then
+    if [[ ! -f "$config_file" ]] || ! grep -Eq "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" 2> /dev/null; then
         return 1
     fi
 
@@ -72,7 +72,7 @@ remove_stale_completion_entries() {
     local temp_file
     original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
     temp_file="$(mktemp)"
-    grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
+    grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
     mv "$temp_file" "$config_file"
     [[ -n "$original_mode" ]] && chmod "$original_mode" "$config_file" 2> /dev/null || true
     [[ -n "$success_message" ]] && echo -e "${GREEN}${ICON_SUCCESS}${NC} $success_message"
@@ -207,7 +207,7 @@ if [[ $# -eq 0 ]]; then
     esac
 
     if [[ -z "$completion_name" ]]; then
-        if [[ -f "$config_file" ]] && grep -Eq "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" 2> /dev/null; then
+        if [[ -f "$config_file" ]] && grep -Eq "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" 2> /dev/null; then
             if [[ "${MOLE_DRY_RUN:-0}" == "1" ]]; then
                 echo -e "${GRAY}${ICON_REVIEW} [DRY RUN] Would remove stale completion entries from $config_file${NC}"
                 echo ""
@@ -215,7 +215,7 @@ if [[ $# -eq 0 ]]; then
                 original_mode=""
                 original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
                 temp_file="$(mktemp)"
-                grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
+                grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
                 mv "$temp_file" "$config_file"
                 if [[ -n "$original_mode" ]]; then
                     chmod "$original_mode" "$config_file" 2> /dev/null || true
@@ -239,7 +239,7 @@ if [[ $# -eq 0 ]]; then
         original_mode=""
         original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
         temp_file="$(mktemp)"
-        grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
+        grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
         mv "$temp_file" "$config_file"
         if [[ -n "$original_mode" ]]; then
             chmod "$original_mode" "$config_file" 2> /dev/null || true
@@ -293,7 +293,7 @@ if [[ $# -eq 0 ]]; then
         original_mode=""
         original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
         temp_file="$(mktemp)"
-        grep -Ev "(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
+        grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
         mv "$temp_file" "$config_file"
         if [[ -n "$original_mode" ]]; then
             chmod "$original_mode" "$config_file" 2> /dev/null || true

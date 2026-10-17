@@ -28,19 +28,34 @@ _remove_is_mole_launcher() {
     ' "$1" 2> /dev/null
 }
 
+# Every removal performed by `mo remove` is a change to the Mac and has to
+# leave one operations.log row (the logs themselves are kept).
+_remove_log_removed() {
+    local path="$1"
+    local detail="${2:-}"
+    if declare -f log_operation > /dev/null 2>&1; then
+        log_operation "${MOLE_CURRENT_COMMAND:-remove}" "REMOVED" "$path" "$detail"
+    fi
+}
+
 # Shell integration written by `mo completion`: one marker line in a shell rc
 # file, and generated Fish completion files. Only these exact paths and this
 # exact marker pattern (the one bin/completion.sh writes) are touched; the rest
 # of an rc file stays byte for byte.
-_REMOVE_COMPLETION_PATTERN='(^# Mole shell completion$|(mole|mo)[[:space:]]+completion)'
+_REMOVE_COMPLETION_PATTERN='(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)'
 
 _remove_completion_rc_target() {
     local rc_file="$1"
     local target="$rc_file"
-    if [[ -L "$rc_file" ]]; then
-        target=$(readlink "$rc_file") || return 1
-        [[ "$target" == /* ]] || target="$(dirname "$rc_file")/$target"
-    fi
+    local hops=0
+    while [[ -L "$target" ]]; do
+        local link
+        link=$(readlink "$target") || return 1
+        [[ "$link" == /* ]] || link="$(dirname "$target")/$link"
+        target="$link"
+        hops=$((hops + 1))
+        [[ $hops -le 40 ]] || return 1
+    done
     printf '%s\n' "$target"
 }
 
@@ -96,6 +111,9 @@ _remove_completion_integration() {
             helper_rc=1
             continue
         fi
+        # The target is fully resolved, so renaming over it leaves every rc
+        # symlink in the chain pointing at the same file. Resolving only one
+        # link used to replace an intermediate link with a plain file.
         if ! mv -f "$temp_file" "$target"; then
             log_warning "Could not remove shell completion from $rc_file"
             rm -f "$temp_file" || true # SAFE: exact mktemp-created scratch file
@@ -105,6 +123,7 @@ _remove_completion_integration() {
         if [[ -n "$original_mode" ]]; then
             chmod "$original_mode" "$target" 2> /dev/null || true
         fi
+        _remove_log_removed "$rc_file" "shell completion"
         log_success "Removed shell completion from $rc_file"
     done < <(_remove_completion_rc_files)
 
@@ -112,6 +131,7 @@ _remove_completion_integration() {
     while IFS= read -r fish_file; do
         [[ -n "$fish_file" ]] || continue
         if rm -f "$fish_file"; then # SAFE: exact Fish completion files written by mo completion
+            _remove_log_removed "$fish_file" "fish completion"
             log_success "Removed Fish completions: $fish_file"
         else
             log_warning "Could not remove Fish completions: $fish_file"
@@ -396,6 +416,8 @@ remove_mole() {
         if ! rm -rf "$HOME/.cache/mole"; then # SAFE: hardcoded Mole-owned dir, -d guarded
             log_warning "Could not remove $HOME/.cache/mole"
             has_error=true
+        else
+            _remove_log_removed "$HOME/.cache/mole" "cache"
         fi
     fi
     # --config can merge into a shared tree such as ~/.local. Neither known

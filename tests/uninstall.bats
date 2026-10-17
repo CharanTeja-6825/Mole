@@ -6878,8 +6878,48 @@ EOF
     [[ "$output" == *"Removed shell completion"* ]] || return 1
 }
 
+@test "remove_mole preserves multi-level rc links and unrelated completion tools" {
+    mkdir -p "$HOME/.local/bin" "$HOME/dotfiles" "$HOME/.config/fish/completions" "$HOME/.cache/mole" "$HOME/Library/Logs/mole"
+    rm -f "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"
+    cp "$PROJECT_ROOT/mole" "$HOME/.local/bin/mole"
+    cp "$PROJECT_ROOT/mo" "$HOME/.local/bin/mo"
+    cat > "$HOME/dotfiles/real-zshrc" << 'RC'
+# user setting
+# Mole shell completion
+if output="$(mole completion zsh 2>/dev/null)"; then eval "$output"; fi
+gizmo completion zsh
+RC
+    ln -s "$HOME/dotfiles/real-zshrc" "$HOME/dotfiles/link-zshrc"
+    ln -s dotfiles/link-zshrc "$HOME/.zshrc"
+    printf '# Mole shell completion\n' > "$HOME/.config/fish/completions/mole.fish"
+
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_MODE=1 MOLE_TEST_NO_AUTH=1 \
+        /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/manage/remove.sh"
+drain_pending_input() { :; }
+remove_mole false < <(printf '\n')
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+    [ -L "$HOME/.zshrc" ] || return 1
+    [ -L "$HOME/dotfiles/link-zshrc" ] || return 1
+    ! grep -Fq 'Mole shell completion' "$HOME/dotfiles/real-zshrc" || return 1
+    grep -Fq 'gizmo completion zsh' "$HOME/dotfiles/real-zshrc" || return 1
+    ! grep -Fq 'Mole shell completion' "$HOME/.config/fish/completions/mole.fish" 2> /dev/null || return 1
+    [ ! -e "$HOME/.config/fish/completions/mole.fish" ] || return 1
+    grep -Fq "REMOVED $HOME/.zshrc (shell completion)" "$HOME/Library/Logs/mole/operations.log" || return 1
+    grep -Fq "REMOVED $HOME/.config/fish/completions/mole.fish (fish completion)" "$HOME/Library/Logs/mole/operations.log" || return 1
+    grep -Fq "REMOVED $HOME/.cache/mole (cache)" "$HOME/Library/Logs/mole/operations.log" || return 1
+}
+
 @test "remove_mole dry run lists shell completion without deleting it" {
     mkdir -p "$HOME/.local/bin" "$HOME/.config/fish/completions"
+    rm -f "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"
     cp "$PROJECT_ROOT/mole" "$HOME/.local/bin/mole"
     cat > "$HOME/.zshrc" << 'RC'
 # Mole shell completion
@@ -6907,6 +6947,7 @@ EOF
 
 @test "remove_mole names each shell completion file it cannot clean and exits nonzero" {
     mkdir -p "$HOME/.local/bin"
+    rm -f "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"
     cp "$PROJECT_ROOT/mole" "$HOME/.local/bin/mole"
     cat > "$HOME/.zshrc" << 'RC'
 # Mole shell completion
