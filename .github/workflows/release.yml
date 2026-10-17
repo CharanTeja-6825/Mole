@@ -112,10 +112,39 @@ jobs:
               ! printf '%s\n' "$changed_files" | grep -Ev '^(docs/|.*\.md$)' > /dev/null; then
               docs_only=true
             fi
+            # A docs-only commit inherits its CodeQL/Nix evidence from the
+            # nearest ancestor that changed code. Otherwise a failed Nix run on
+            # that ancestor could be hidden behind a later docs-only tag.
+            code_ancestor=""
+            if [[ "$docs_only" == "true" ]]; then
+              commits=$(gh api "repos/${GITHUB_REPOSITORY}/commits?sha=${TARGET_SHA}&per_page=100" \
+                --jq '.[].sha' 2> /dev/null || true)
+              for candidate in $commits; do
+                [[ "$candidate" == "$TARGET_SHA" ]] && continue
+                candidate_files=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${candidate}" \
+                  --jq '.files[].filename' 2> /dev/null || true)
+                [[ -n "$candidate_files" ]] || continue
+                if printf '%s\n' "$candidate_files" | grep -Ev '^(docs/|.*\.md$)' > /dev/null; then
+                  code_ancestor="$candidate"
+                  break
+                fi
+              done
+            fi
             remaining=()
             for workflow in "${missing[@]}"; do
               if [[ "$docs_only" == "true" && ( "$workflow" == "CodeQL" || "$workflow" == "Nix" ) ]]; then
-                echo "Docs-only commit: ${workflow} was skipped by paths-ignore; not required"
+                if [[ -z "$code_ancestor" ]]; then
+                  remaining+=("$workflow (no code ancestor found)")
+                  continue
+                fi
+                inherited=$(gh run list --repo "$GITHUB_REPOSITORY" --commit "$code_ancestor" --limit 100 \
+                  --json name,status,conclusion | jq -r --arg name "$workflow" \
+                  '[ .[] | select(.name == $name and .status == "completed" and .conclusion == "success") ] | length')
+                if [[ "$inherited" -eq 0 ]]; then
+                  remaining+=("$workflow on ${code_ancestor:0:12}")
+                else
+                  echo "Docs-only commit: ${workflow} inherits green from ${code_ancestor:0:12}"
+                fi
               else
                 remaining+=("$workflow")
               fi
