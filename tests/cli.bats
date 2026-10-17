@@ -611,8 +611,8 @@ EOF
 	real_root="$(mktemp -d "$HOME/ext-real.XXXXXX")"
 	link_root="$HOME/ext-link"
 	ln -s "$real_root" "$link_root"
-	mkdir -p "$link_root/USB/.Trashes"
-	touch "$link_root/USB/.Trashes/cache.tmp"
+	mkdir -p "$link_root/USB/.TemporaryItems"
+	touch "$link_root/USB/.TemporaryItems/staged"
 
 	mock_bin="$HOME/mock-bin"
 	mkdir -p "$mock_bin"

@@ -2345,7 +2345,7 @@ EOF
 	[[ "$output" == *"SKIPPED_LOGGED"* ]] || return 1
 	[[ -f "$test_home/removed.log" ]] || return 1
 	grep -Fq "com.example.broken.plist" "$test_home/removed.log"
-	run ! grep -Fq "com.example.licensing.plist" "$test_home/removed.log"
+	if grep -Fq "com.example.licensing.plist" "$test_home/removed.log"; then return 1; fi
 }
 
 @test "fix_broken_preferences keeps valid plists when a broken plutil shadows the system one" {
