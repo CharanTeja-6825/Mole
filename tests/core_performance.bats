@@ -180,9 +180,9 @@ EOF
 
     # Plain child shell for the same reason as the bytes_to_human case: Bats'
     # per-command DEBUG trap otherwise dominates the measurement. ~165ms for
-    # 50 calls (one stat fork each); 800ms keeps slow-CI headroom while still
-    # catching an added fork per call, which the previous 2000ms limit could not.
-    local limit_ms="${MOLE_PERF_GET_FILE_SIZE_LIMIT_MS:-800}"
+    # 50 calls (one stat fork each); 400ms is about 2.5x the measured 156ms, so one added fork per
+    # call (~+150ms for 50 calls) is caught while slow CI keeps a margin.
+    local limit_ms="${MOLE_PERF_GET_FILE_SIZE_LIMIT_MS:-400}"
     local elapsed
 
     elapsed=$(
