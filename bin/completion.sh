@@ -60,6 +60,23 @@ emit_fish_completions() {
     printf 'complete -f -c %s -n "not __fish_mole_no_subcommand" -a fish -d "generate fish completion" -n "__fish_see_subcommand_path completion"\n' "$cmd"
 }
 
+# Resolve the whole rc symlink chain. Renaming a temp file over one link used
+# to replace the user's dotfile link with a plain file; the final target keeps
+# the chain intact. A bounded loop refuses a cycle.
+_completion_rc_target() {
+    local target="$1"
+    local hops=0
+    while [[ -L "$target" ]]; do
+        local link
+        link=$(readlink "$target") || return 1
+        [[ "$link" == /* ]] || link="$(dirname "$target")/$link"
+        target="$link"
+        hops=$((hops + 1))
+        [[ $hops -le 40 ]] || return 1
+    done
+    printf '%s\n' "$target"
+}
+
 remove_stale_completion_entries() {
     local config_file="$1"
     local success_message="$2"
@@ -68,13 +85,13 @@ remove_stale_completion_entries() {
         return 1
     fi
 
-    local original_mode=""
-    local temp_file
-    original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+    local original_mode="" temp_file target
+    target="$(_completion_rc_target "$config_file")" || return 1
+    original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$target" 2> /dev/null || true)"
     temp_file="$(mktemp)"
-    grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
-    mv "$temp_file" "$config_file"
-    [[ -n "$original_mode" ]] && chmod "$original_mode" "$config_file" 2> /dev/null || true
+    grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$target" > "$temp_file" || true
+    mv "$temp_file" "$target"
+    [[ -n "$original_mode" ]] && chmod "$original_mode" "$target" 2> /dev/null || true
     [[ -n "$success_message" ]] && echo -e "${GREEN}${ICON_SUCCESS}${NC} $success_message"
     return 0
 }
@@ -213,12 +230,13 @@ if [[ $# -eq 0 ]]; then
                 echo ""
             else
                 original_mode=""
-                original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+                target="$(_completion_rc_target "$config_file")" || exit 1
+                original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$target" 2> /dev/null || true)"
                 temp_file="$(mktemp)"
-                grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
-                mv "$temp_file" "$config_file"
+                grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$target" > "$temp_file" || true
+                mv "$temp_file" "$target"
                 if [[ -n "$original_mode" ]]; then
-                    chmod "$original_mode" "$config_file" 2> /dev/null || true
+                    chmod "$original_mode" "$target" 2> /dev/null || true
                 fi
                 echo -e "${GREEN}${ICON_SUCCESS}${NC} Removed stale completion entries from $config_file"
                 echo ""
@@ -237,12 +255,13 @@ if [[ $# -eq 0 ]]; then
         fi
 
         original_mode=""
-        original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+        target="$(_completion_rc_target "$config_file")" || exit 1
+        original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$target" 2> /dev/null || true)"
         temp_file="$(mktemp)"
-        grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
-        mv "$temp_file" "$config_file"
+        grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$target" > "$temp_file" || true
+        mv "$temp_file" "$target"
         if [[ -n "$original_mode" ]]; then
-            chmod "$original_mode" "$config_file" 2> /dev/null || true
+            chmod "$original_mode" "$target" 2> /dev/null || true
         fi
         {
             echo ""
@@ -291,10 +310,11 @@ if [[ $# -eq 0 ]]; then
     # Remove previous Mole completion lines to avoid duplicates
     if [[ -f "$config_file" ]]; then
         original_mode=""
-        original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$config_file" 2> /dev/null || true)"
+        target="$(_completion_rc_target "$config_file")" || exit 1
+        original_mode="$("$STAT_BSD" -f '%Mp%Lp' "$target" 2> /dev/null || true)"
         temp_file="$(mktemp)"
-        grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$config_file" > "$temp_file" || true
-        mv "$temp_file" "$config_file"
+        grep -Ev "(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)" "$target" > "$temp_file" || true
+        mv "$temp_file" "$target"
         if [[ -n "$original_mode" ]]; then
             chmod "$original_mode" "$config_file" 2> /dev/null || true
         fi

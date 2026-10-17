@@ -207,3 +207,16 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *'__fish_seen_subcommand_from purge" -l yes -d "Confirm unattended cleanup of eligible artifacts"'* ]]
 }
+
+@test "completion auto-install preserves a symlinked zshrc" {
+	mkdir -p "$HOME/dotfiles"
+	printf '# user zsh setting\n' >"$HOME/dotfiles/zshrc"
+	ln -s "$HOME/dotfiles/zshrc" "$HOME/.zshrc"
+
+	run /bin/bash -c "echo 'y' | SHELL=/bin/zsh \"$PROJECT_ROOT/bin/completion.sh\""
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[ -L "$HOME/.zshrc" ] || return 1
+	[ "$(readlink "$HOME/.zshrc")" = "$HOME/dotfiles/zshrc" ] || return 1
+	grep -Fq '# user zsh setting' "$HOME/dotfiles/zshrc" || return 1
+	grep -Eq '(mole|mo)[[:space:]]+completion' "$HOME/dotfiles/zshrc"
+}

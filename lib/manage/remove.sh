@@ -401,10 +401,14 @@ remove_mole() {
             elif ! sudo rm -f "$install"; then
                 log_warning "Could not remove $install"
                 has_error=true
+            else
+                _remove_log_removed "$install" "launcher"
             fi
         elif ! rm -f "$install"; then
             log_warning "Could not remove $install"
             has_error=true
+        else
+            _remove_log_removed "$install" "launcher"
         fi
     done
     # Shell completion is installed outside the config folder, so removing the
