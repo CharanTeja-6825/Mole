@@ -6867,7 +6867,7 @@ EOF
     }
     ! grep -Fq 'Mole shell completion' "$HOME/.zshrc" || return 1
     grep -Fq '# user zsh setting' "$HOME/.zshrc" || return 1
-    grep -Fq 'export PATH="$HOME/.local/bin:$PATH"' "$HOME/.zshrc" || return 1
+    grep -Fq "export PATH=\"\$HOME/.local/bin:\$PATH\"" "$HOME/.zshrc" || return 1
     [ -L "$HOME/.bashrc" ] || return 1
     ! grep -Fq 'Mole shell completion' "$HOME/dotfiles/bashrc" || return 1
     grep -Fq '# user bash setting' "$HOME/dotfiles/bashrc" || return 1
