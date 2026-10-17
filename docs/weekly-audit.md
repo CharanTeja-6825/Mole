@@ -2,6 +2,14 @@
 
 One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole CLI (macOS) on `main` and Mole CLI (Windows) on `windows`. The next run reads the newest entry for its commit window (`Next window from`), for the items it must not report again (`Decided, do not re-report`), and rechecks `Open` first. Facts here are a run record; lasting invariants live in `AGENTS.md` on each branch.
 
+## 2026-10-17 (review remediation, not a weekly run)
+
+- Audited read-only: main `d7980364`, windows `78e537bb`. Landed through: main `798fefac`, windows `901ce2d4`.
+- Next window from: main `798fefac`, windows `901ce2d4`.
+- Fixed: executable-name probes now escape ERE metacharacters before every `pgrep`/`pkill` (`80a9889f`, `tests/uninstall_process_pattern.bats`); broken-preference repair lints through `/usr/bin/plutil` and retains unreadable plists instead of permanently deleting them (`9f05813c`); `mo clean --external` keeps a volume Trash and the Finder-metadata row now covers AppleDouble `._*` (`faa92ad8`); wrong UTM bundle id corrected (`1460b8a2`); `MOLE_TEST_TRASH_DIR` requires a test flag (`16f7cba6`); installer reports a conflicting Homebrew Mole instead of uninstalling it and caches release checksums/attestation per tag (`5db43032`); `mo remove` clears shell completion, names failed paths and exits nonzero, and by-name uninstall asks once (`872fc7f6`); `mo status` reads one diskutil plist per volume and CloudStorage roots are prechecked (`63ab0562`); READMEs and SECURITY_DESIGN now state the real Trash routing (`7de51a02`, `bcd877f8`); CI runs the fd installer suite, serializes the three flaky suites, tightens child-shell perf budgets, and macOS/Windows release gates preflight the tag and required runs (`583ec2bc`, `2352c729`, `f7d5368f`); Windows protected paths resolve existing 8.3/trailing-dot aliases, scans are bounded, and `mo remove` drops the cache (`901ce2d4`); Windows README/SYNC/TRADEMARK corrected (`8adda1f2`).
+- Deferred: regenerate the stale `docs/img/big-mole.png` terminal screenshot; sanitize batch-preview app names at their render site (by-name list and app selector are covered); Homebrew `info --cask` prefetch stays because the #1558 timeout/cancellation contract requires the batch probe; `install.ps1 -Uninstall` does not yet remove the cache that `mo remove` now does; rulesets protect branch deletion/force-push and `V*` tag update/deletion, but required status checks and a release environment remain a maintainer choice; Windows runtime behavior rests on the green Windows CI runs for `901ce2d4`, not a local Pester run.
+- Rule volume after this batch: AGENTS.md 31,054 bytes, AGENTS.md plus `.claude/rules` 103,829 bytes (+4,106 over the 2026-10-17 split baseline, below the 20% trigger).
+
 ## 2026-10-17 (rule split, not a weekly run)
 
 - Next window from: unchanged, main `e78caf97` and windows `9bbebb89` from the 2026-10-16 entry below.
