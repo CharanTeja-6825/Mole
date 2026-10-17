@@ -358,7 +358,7 @@ touch \
     "$prefs/com.example.two.plist" \
     "$prefs/com.example.three.plist"
 
-plutil() {
+_mole_plutil_lint() {
     echo "call" >> "$CALL_LOG"
     return 0
 }
@@ -2311,4 +2311,67 @@ EOF
 
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"probe=2"* ]]
+}
+
+
+@test "fix_broken_preferences keeps an unreadable plist and still removes a readable broken one" {
+	local test_home="$HOME/fixprefs-unreadable"
+	run env HOME="$test_home" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/optimize/maintenance.sh"
+
+prefs="$HOME/Library/Preferences"
+mkdir -p "$prefs"
+valid="$prefs/com.example.licensing.plist"
+broken="$prefs/com.example.broken.plist"
+cat > "$valid" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict><key>LicenseKey</key><string>AAAA-BBBB</string></dict></plist>
+PLIST
+printf 'not a plist\n' > "$broken"
+chmod 000 "$valid"
+
+safe_remove() { printf 'REMOVE:%s\n' "$1" >> "$HOME/removed.log"; }
+count=$(fix_broken_preferences)
+printf 'COUNT=%s\n' "$count"
+[[ -f "$valid" ]] && echo "VALID_PRESENT"
+grep -Fq "unreadable preference" "$HOME/Library/Logs/mole/operations.log" && echo "SKIPPED_LOGGED"
+EOF
+	chmod 600 "$test_home/Library/Preferences/com.example.licensing.plist"
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"COUNT=1"* ]] || { echo "$output"; return 1; }
+	[[ "$output" == *"VALID_PRESENT"* ]] || return 1
+	[[ "$output" == *"SKIPPED_LOGGED"* ]] || return 1
+	[[ -f "$test_home/removed.log" ]] || return 1
+	grep -Fq "com.example.broken.plist" "$test_home/removed.log"
+	! grep -Fq "com.example.licensing.plist" "$test_home/removed.log"
+}
+
+@test "fix_broken_preferences keeps valid plists when a broken plutil shadows the system one" {
+	local test_home="$HOME/fixprefs-shadowed-plutil"
+	run env HOME="$test_home" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/optimize/maintenance.sh"
+
+prefs="$HOME/Library/Preferences"
+mkdir -p "$prefs" "$HOME/mock-bin"
+valid="$prefs/com.example.valid.plist"
+cat > "$valid" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict><key>Setting</key><string>keep-me</string></dict></plist>
+PLIST
+printf '#!/bin/bash\nexit 1\n' > "$HOME/mock-bin/plutil"
+chmod +x "$HOME/mock-bin/plutil"
+PATH="$HOME/mock-bin:$PATH"
+safe_remove() { printf 'REMOVE:%s\n' "$1" >> "$HOME/removed.log"; }
+count=$(fix_broken_preferences)
+printf 'COUNT=%s\n' "$count"
+[[ -f "$valid" ]] && echo "VALID_PRESENT"
+EOF
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"COUNT=0"* ]] || { echo "$output"; return 1; }
+	[[ "$output" == *"VALID_PRESENT"* ]] || return 1
+	[[ ! -e "$test_home/removed.log" ]] || return 1
 }
