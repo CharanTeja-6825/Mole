@@ -2,7 +2,7 @@
 
 This file is the shared source of truth for any AI agent working on this repo (Claude Code, Codex, etc.). `CLAUDE.md` is a symlink to this file and must stay one, so Claude and Codex receive the same project contract. Put machine-specific or personal overrides in `AGENTS.local.md` / `CLAUDE.local.md`; both are gitignored.
 
-Layout: this file is always loaded and holds the cross-cutting contract. Area rules live in `.claude/rules/<area>.md`; each starts with `paths:` frontmatter, and Claude Code injects it only when a session touches matching files. **Codex and other runtimes that do not auto-load `.claude/rules` must open the matching file from the table below before editing that area.** Every agent reads `.claude/rules/github.md` before any issue, PR or Discussion reply or closeout, because no file edit triggers it. A rule keeps its invariant, scope and why, plus the failure mechanism, measured numbers, counterexamples, locked test names and rejected alternatives; incident stories live in `.claude/skills/bugs/references/` and `.claude/skills/release-flow/SKILL.md`. An area rule goes in its rule file; a rule that applies across areas goes here.
+Layout: this file is always loaded and holds the cross-cutting contract. Area rules live in `.claude/rules/<area>.md`; each starts with `paths:` frontmatter, and Claude Code injects it only when a session touches matching files. **Codex and other runtimes that do not auto-load `.claude/rules` must open the matching file from the table below before editing that area.** Every agent reads `.claude/rules/github.md` before triaging or fixing an issue, before reviewing, editing, merging or closing a PR, before any issue, PR or Discussion reply, and before writing an announcement, because no file edit triggers it. A rule keeps its invariant, scope and why, plus the failure mechanism, measured numbers, counterexamples, locked test names and rejected alternatives; incident stories live in `.claude/skills/bugs/references/` and `.claude/skills/release-flow/SKILL.md`. An area rule goes in its rule file; a rule that applies across areas goes here.
 
 | File | Scope |
 |---|---|
@@ -79,7 +79,7 @@ A magnitude answer needs a sample from real users, not the maintainer's disk. Wh
 
 - `.claude/skills/` is the canonical home for project skills. `.agents/skills/` contains relative symlinks for Codex discovery; do not maintain copied skill bodies. `.claude/rules/` holds the path-scoped area rules listed above.
 - `.claude/agents/` contains focused Claude review profiles. They must read the current contract from this file and the rule files instead of copying a frozen version of the safety or portability rules.
-- `mole` - the CLI entrypoint. It is a **router only**: it parses args, renders the menu, and dispatches. Business logic does not belong here. Self-update lives in `lib/manage/update.sh` and self-removal in `lib/manage/remove.sh`. Its `VERSION=` and `SCRIPT_DIR=` lines are pinned by the installer; read `.claude/rules/install-update.md` before touching them.
+- `mole` - the CLI entrypoint. It is a **router only**: it parses args, renders the menu, and dispatches. Business logic does not belong here. Self-update lives in `lib/manage/update.sh` and self-removal in `lib/manage/remove.sh`. Its `VERSION=` line is read by `install.sh` with `sed` and its `SCRIPT_DIR=` line is rewritten by it; read `.claude/rules/install-update.md` before touching either.
 - `lib/core/` - shared shell safety, UI, file operations, operation logs, app protection logic, and centralized timeout constants (`timeouts.sh`).
 - `lib/core/app_protection_data.sh` - readonly bundle ID and pattern arrays consumed by `app_protection.sh`. Data only, no logic.
 - `cmd/analyze/` and `cmd/status/` - Go TUIs (see `.claude/rules/go-tuis.md`).
@@ -143,6 +143,7 @@ Public docs and examples should prefer the installed `mo` command. Use `./mole` 
 ## Verification
 
 - Shell changes: run `./scripts/check.sh --format`, then the relevant Bats test or `MOLE_TEST_NO_AUTH=1 ./scripts/test.sh`. `--format` only formats; CI runs `./scripts/check.sh --no-format`, which is where golangci-lint, ShellCheck and the audit scripts run, so run that before pushing. A green `--format` run let a golangci-lint `modernize` failure reach `main` on 2026-10-10. Test code has its own shellcheck step (`.claude/rules/tests.md`).
+- `lib/core/sudo.sh` changes: run `MOLE_TEST_NO_AUTH=1 bats tests/manage_sudo.bats`.
 - Go changes: run `go test ./...`.
 - Area changes: run the test command listed for that hotspot in its `.claude/rules/` file; do not guess a narrower verifier.
 - Documentation-only changes: check links and commands.

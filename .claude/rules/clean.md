@@ -54,6 +54,7 @@ Developer and toolchain caches in `lib/clean/dev.sh` also follow `.claude/rules/
 
 ## Per-app caches (`lib/clean/app_caches.sh`)
 
+- VS Code extension cleanup (`clean_editor_obsolete_extensions`) accepts only boolean `true` entries in `.obsolete`, never false values or strings.
 - `lib/clean/app_caches.sh` owns per-app cache cleanup and the Autodesk Fusion old-bundle pruner. Run `MOLE_TEST_NO_AUTH=1 bats tests/clean_app_caches.bats`.
 - Fusion deletes whole bundles, so keep its complete evidence chain: 40-hex directory, exactly one `com.autodesk.fusion360` bundle, an older `CFBundleVersion`, owner rechecks around metadata work, and final identity binding through `safe_remove`. Real mode performs the candidate guard before sizing and again at the sink; dry-run rechecks after sizing because it has no sink. The Finder-alias branch is not exercised under test mode and needs a Fusion-installed Mac. Re-anchor the race tests before reducing any expensive alias resolution; the general lifecycle contract lives in `.claude/skills/bugs/references/deletion-evidence-and-final-sink.md`.
 
