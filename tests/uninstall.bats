@@ -6936,3 +6936,34 @@ EOF
     [[ "$output" == *"Could not remove shell completion from $HOME/.zshrc"* ]] || return 1
     grep -Fq '# Mole shell completion' "$HOME/.zshrc" || return 1
 }
+
+@test "batch preview display names are terminal-safe" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+evil_name=$(printf 'Evil\033]2;owned\007App')
+safe_name=$(_uninstall_display_text "$evil_name")
+[[ "$safe_name" == *"Evil"* && "$safe_name" == *"App"* ]] || exit 1
+if [[ "$safe_name" == *$'\033'* || "$safe_name" == *$'\007'* ]]; then
+    printf 'raw control byte reached the batch preview: %q\n' "$safe_name"
+    exit 1
+fi
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+}
+
+@test "batch preview and summaries render app names through the terminal-safe helper" {
+    # shellcheck disable=SC2016
+    grep -Fq 'display_app_name=$(_uninstall_display_text "$app_name")' "$PROJECT_ROOT/lib/uninstall/batch.sh" || return 1
+    # shellcheck disable=SC2016
+    grep -Fq 'Uninstalling $(_uninstall_display_text "$app_name")' "$PROJECT_ROOT/lib/uninstall/batch.sh" || return 1
+    # shellcheck disable=SC2016
+    grep -Fq 'running_list+="$(_uninstall_display_text "${running_at_uninstall_apps[idx]}")"' "$PROJECT_ROOT/lib/uninstall/batch.sh" || return 1
+    # shellcheck disable=SC2016
+    grep -Fq 'bg_list+="$(_uninstall_display_text "${background_items_warning_apps[idx]}")"' "$PROJECT_ROOT/lib/uninstall/batch.sh"
+}

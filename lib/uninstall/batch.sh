@@ -2,6 +2,13 @@
 
 set -euo pipefail
 
+# Bundle-supplied display names can carry terminal control bytes. These render
+# sites only sanitize the text they print; stored names and every matching or
+# removal decision keep the original bytes.
+_uninstall_display_text() {
+    mole_terminal_safe_text "${1:-}"
+}
+
 # Ensure common.sh is loaded.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 [[ -z "${MOLE_COMMON_LOADED:-}" ]] && source "$SCRIPT_DIR/lib/core/common.sh"
@@ -2220,14 +2227,14 @@ _batch_scan_app_details_impl() {
         local blocked_detail blocked_name blocked_vendor
         for blocked_detail in "${blocked_apps[@]}"; do
             IFS='|' read -r blocked_name blocked_vendor <<< "$blocked_detail"
-            log_warning "$blocked_name requires the official $blocked_vendor uninstaller"
+            log_warning "$(_uninstall_display_text "$blocked_name") requires the official $blocked_vendor uninstaller"
         done
     fi
 
     if [[ ${#manual_removal_apps[@]} -gt 0 ]]; then
         local manual_name
         for manual_name in "${manual_removal_apps[@]}"; do
-            log_warning "$manual_name cannot be removed safely by Mole from this location"
+            log_warning "$(_uninstall_display_text "$manual_name") cannot be removed safely by Mole from this location"
             log_info "Move it to Trash in Finder; Mole left protected containers and app data untouched"
         done
     fi
@@ -2263,7 +2270,9 @@ _batch_preview_and_confirm() {
                 steam_managed=true
                 app_size_display="N/A (Steam-managed)"
             fi
-            echo -e "${BLUE}${ICON_CONFIRM}${NC} ${app_name}${brew_tag} ${GRAY}, ${app_size_display}${NC}"
+            local display_app_name
+            display_app_name=$(_uninstall_display_text "$app_name")
+            echo -e "${BLUE}${ICON_CONFIRM}${NC} ${display_app_name}${brew_tag} ${GRAY}, ${app_size_display}${NC}"
 
             # Show detailed file list for ALL apps (brew casks leave user data behind)
             local related_files=$(decode_file_list "$encoded_files" "$app_name")
@@ -2420,9 +2429,9 @@ _batch_execute_removals() {
         [[ "$is_brew_cask" == "true" ]] && brew_tag=" ${CYAN}[Brew]${NC}"
         if [[ -t 1 ]]; then
             if [[ ${#app_details[@]} -gt 1 ]]; then
-                start_inline_spinner "[$current_index/${#app_details[@]}] Uninstalling ${app_name}${brew_tag}..."
+                start_inline_spinner "[$current_index/${#app_details[@]}] Uninstalling $(_uninstall_display_text "$app_name")${brew_tag}..."
             else
-                start_inline_spinner "Uninstalling ${app_name}${brew_tag}..."
+                start_inline_spinner "Uninstalling $(_uninstall_display_text "$app_name")${brew_tag}..."
             fi
         fi
 
@@ -3109,7 +3118,7 @@ _batch_render_summary() {
         local idx
         for ((idx = 0; idx < ${#background_items_warning_apps[@]}; idx++)); do
             [[ $idx -gt 0 ]] && bg_list+=", "
-            bg_list+="${background_items_warning_apps[idx]}"
+            bg_list+="$(_uninstall_display_text "${background_items_warning_apps[idx]}")"
         done
 
         summary_details+=("${ICON_REVIEW} Background item still running for ${YELLOW}${bg_list}${NC}, turn it off in ${GRAY}System Settings > Login Items & Extensions${NC}")
@@ -3120,7 +3129,7 @@ _batch_render_summary() {
         local idx
         for ((idx = 0; idx < ${#running_at_uninstall_apps[@]}; idx++)); do
             [[ $idx -gt 0 ]] && running_list+=", "
-            running_list+="${running_at_uninstall_apps[idx]}"
+            running_list+="$(_uninstall_display_text "${running_at_uninstall_apps[idx]}")"
         done
 
         summary_details+=("${ICON_REVIEW} Still running during uninstall, files removed but process kept alive: ${YELLOW}${running_list}${NC}")
