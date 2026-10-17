@@ -3997,7 +3997,7 @@ source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/user.sh"
 
 DRY_RUN=false
-PROTECT_FINDER_METADATA=true
+PROTECT_FINDER_METADATA=false
 MOLE_CURRENT_COMMAND=clean
 MOLE_CLEAN_CANCEL_STATUS=0
 files_cleaned=0
@@ -4076,8 +4076,8 @@ EOF
 @test "external volume cleanup refuses a replacement mounted during cleanup" {
     local test_home="$HOME/external-volume-swap"
     local volume="$test_home/External"
-    mkdir -p "$volume/.Trashes"
-    touch "$volume/.Trashes/cache.tmp"
+    mkdir -p "$volume/.TemporaryItems"
+    touch "$volume/.TemporaryItems/cache.tmp"
 
     run env HOME="$test_home" PROJECT_ROOT="$PROJECT_ROOT" VOLUME="$volume" \
         /bin/bash --noprofile --norc <<'EOF'
@@ -4152,7 +4152,7 @@ source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/user.sh"
 
 DRY_RUN=false
-PROTECT_FINDER_METADATA=true
+PROTECT_FINDER_METADATA=false
 MOLE_CURRENT_COMMAND=clean
 MOLE_CLEAN_CANCEL_STATUS=0
 files_cleaned=0

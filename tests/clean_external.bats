@@ -23,10 +23,12 @@ teardown_file() {
                     chmod 000 "$volume/$system_root/private"
                 fi
             done
-            mkdir -p "$volume/Photos/.AppInstallationStaging" "$test_home/Outside"
+            mkdir -p "$volume/Photos/.AppInstallationStaging" "$test_home/Outside" \
+                "$volume/.Trashes/501"
             touch "$volume/Photos/.DS_Store" "$volume/Photos/._photo" \
                 "$volume/Photos/.AppInstallationStaging/.DS_Store" \
                 "$volume/Photos/.AppInstallationStaging/._nested" \
+                "$volume/.Trashes/501/irreplaceable.mov" \
                 "$test_home/Outside/.DS_Store" "$test_home/Outside/._outside"
             ln -s "$test_home/Outside" "$volume/linked"
 
@@ -48,6 +50,9 @@ for candidate in Photos/.DS_Store Photos/._photo \
     Photos/.AppInstallationStaging/.DS_Store Photos/.AppInstallationStaging/._nested; do
     grep -Fxq "$VOLUME/$candidate" "$HOME/sinks" || exit 1
 done
+# A volume Trash is the user's recoverable data, never an OS-metadata target.
+! grep -Fxq "$VOLUME/.Trashes" "$HOME/sinks" || exit 1
+[[ -f "$VOLUME/.Trashes/501/irreplaceable.mov" ]] || exit 1
 EOF
             # Restore only fixture permissions so teardown can remove its HOME.
             for system_root in .AppInstallationStaging .Spotlight-V100 .fseventsd .DocumentRevisions-V100; do
@@ -98,15 +103,16 @@ exit "$rc"
 EOF
 }
 
-@test "external cleanup keeps unreadable trash and temporary roots and continues" {
+@test "external cleanup keeps a volume Trash, skips unreadable temporary roots, and protects Finder metadata" {
     for dry_run in true false; do
         for readable in true false; do
             local test_home="$HOME/access-$dry_run-$readable"
             local volume="$test_home/External"
-            mkdir -p "$volume/.TemporaryItems" "$volume/.Trashes"
-            touch "$volume/.TemporaryItems/keep" "$volume/.Trashes/keep" "$volume/._later"
+            mkdir -p "$volume/.TemporaryItems" "$volume/.Trashes/501"
+            touch "$volume/.TemporaryItems/keep" "$volume/.Trashes/501/keep" \
+                "$volume/._later" "$volume/.DS_Store"
             if [[ "$readable" == false ]]; then
-                chmod 311 "$volume/.TemporaryItems" "$volume/.Trashes"
+                chmod 311 "$volume/.TemporaryItems"
             fi
             run env HOME="$test_home" VOLUME="$volume" TEST_DRY_RUN="$dry_run" \
                 READABLE="$readable" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
@@ -122,17 +128,22 @@ safe_remove() { printf '%s\n' "$1" >> "$HOME/sinks"; }
 record_dry_run_cleanup_target() { printf '%s\n' "$1" >> "$HOME/sinks"; }
 get_path_size_kb() { printf '%s\n' "$1" >> "$HOME/sizes"; printf '1\n'; }
 clean_external_volume_target "$VOLUME"
-grep -Fxq "$VOLUME/._later" "$HOME/sinks" || exit 1
-expected_count=3
-if [[ "$READABLE" == false ]]; then
-    expected_count=1
+[[ -f "$VOLUME/.Trashes/501/keep" ]] || exit 1
+[[ -f "$VOLUME/._later" ]] || exit 1
+[[ -f "$VOLUME/.DS_Store" ]] || exit 1
+! grep -Fxq "$VOLUME/.Trashes" "$HOME/sinks" || exit 1
+! grep -Fxq "$VOLUME/._later" "$HOME/sinks" || exit 1
+! grep -Fxq "$VOLUME/.DS_Store" "$HOME/sinks" || exit 1
+if [[ "$READABLE" == true ]]; then
+    [[ $(wc -l < "$HOME/sinks" | tr -d ' ') -eq 1 ]] || exit 1
+    grep -Fxq "$VOLUME/.TemporaryItems" "$HOME/sinks" || exit 1
+else
+    [[ ! -e "$HOME/sinks" ]] || exit 1
     grep -Fq "kept unreadable directory: $VOLUME/.TemporaryItems" "$LOG_FILE" || exit 1
-    grep -Fq "kept unreadable directory: $VOLUME/.Trashes" "$LOG_FILE" || exit 1
-    [[ $(cat "$HOME/sizes") == "$VOLUME/._later" ]] || exit 1
+    ! grep -Fq "kept unreadable directory: $VOLUME/.Trashes" "$LOG_FILE" || exit 1
 fi
-[[ $(wc -l < "$HOME/sinks" | tr -d ' ') -eq $expected_count ]] || exit 1
 EOF
-            chmod 700 "$volume/.TemporaryItems" "$volume/.Trashes"
+            chmod 700 "$volume/.TemporaryItems"
             [ "$status" -eq 0 ] || {
                 echo "$output"
                 return 1

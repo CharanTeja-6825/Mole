@@ -1771,9 +1771,11 @@ clean_external_volume_target() {
     local _MOLE_EXTERNAL_VOLUME_PREVIOUS_FINAL_GUARD="${_MOLE_SAFE_REMOVE_FINAL_GUARD:-}"
     local _MOLE_SAFE_REMOVE_FINAL_GUARD="_mole_external_volume_final_guard"
 
+    # A volume Trash holds items the user can still restore from Finder, so
+    # it is never an OS-metadata target. Only temporary staging, .DS_Store and
+    # AppleDouble metadata are eligible here.
     local -a top_level_targets=(
         "$volume/.TemporaryItems"
-        "$volume/.Trashes"
     )
     local cleaned_count=0
     local total_size=0
@@ -1811,8 +1813,14 @@ clean_external_volume_target() {
         -o -path "$volume_pattern/.DocumentRevisions-V100"
         -o -path "$volume_pattern/.AppInstallationStaging" \) -prune -o
     )
-    run_with_timeout "$metadata_scan_timeout" find -P "$volume" "${metadata_exclusions[@]}" \
-        -type f -name "._*" -print0 > "$metadata_scan_file" 2> "$metadata_scan_errors" || metadata_scan_rc=$?
+    if [[ "$PROTECT_FINDER_METADATA" == "true" ]]; then
+        # The whitelist row protects Finder metadata as a whole, so no
+        # AppleDouble file is a candidate while it is active.
+        : > "$metadata_scan_file" || true
+    else
+        run_with_timeout "$metadata_scan_timeout" find -P "$volume" "${metadata_exclusions[@]}" \
+            -type f -name "._*" -print0 > "$metadata_scan_file" 2> "$metadata_scan_errors" || metadata_scan_rc=$?
+    fi
     if [[ $metadata_scan_rc -ne 0 ]]; then
         : > "$metadata_scan_file" || true
         stop_section_spinner
