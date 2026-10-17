@@ -268,12 +268,13 @@ EOF
     done
 }
 
-@test "protected Finder metadata skips its scan and preserves later cleanup" {
+@test "protected Finder metadata skips both external scans" {
     run_external_finder_scan_with 124 false true
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
-    [[ "$output" == *"RC=0 CANCEL=0 FILES=1"* ]] || return 1
-    [[ "$output" == *"REMOVE:"*"/External/._later"* ]] || return 1
+    [[ "$output" == *"RC=0 CANCEL=0 FILES=0"* ]] || return 1
+    [[ "$output" != *"REMOVE:"* && "$output" != *"PREVIEW:"* ]] || return 1
     [[ "$output" != *"/External/.DS_Store"* ]] || return 1
+    [[ "$output" != *"/External/._later"* ]] || return 1
 }
 
 @test "cloud safety cancellation crosses the timeout worker and stops later sections" {

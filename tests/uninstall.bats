@@ -6744,7 +6744,7 @@ SCRIPT
 }
 
 @test "by-name uninstall shows the batch preview once instead of a pre-scan prompt" {
-    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TERM="xterm-256color" /bin/bash --noprofile --norc << 'EOF'
+    run env NO_COLOR=1 HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TERM="xterm-256color" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/bin/uninstall.sh"
 log_operation_session_start() { :; }
@@ -6769,7 +6769,7 @@ EOF
 }
 
 @test "by-name matched list renders control characters as placeholders" {
-    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TERM="xterm-256color" /bin/bash --noprofile --norc << 'EOF'
+    run env NO_COLOR=1 HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" TERM="xterm-256color" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/bin/uninstall.sh"
 log_operation_session_start() { :; }
