@@ -133,7 +133,7 @@ Mole peut supprimer des fichiers ; il valide donc les chemins, protège les empl
 
 - `clean`, `uninstall`, `purge`, `installer` et `remove` suppriment des fichiers : prévisualisez toujours leurs actions avec `--dry-run`, complété au besoin de `--debug`
 - Exécutez Mole **sans `sudo`** : les privilèges administrateur ne sont demandés que pour les actions touchant au système
-- `mo analyze` place les éléments sélectionnés dans la Corbeille de macOS après confirmation
+- `mo uninstall` et `mo analyze` placent leurs suppressions dans la Corbeille par défaut après confirmation ; `clean`, `purge` et `installer` suppriment définitivement. `mo uninstall --permanent` évite la Corbeille
 - Les opérations de nettoyage sont consignées dans `~/Library/Logs/mole/operations.log` ; consultez-les avec `mo history` ou désactivez la journalisation avec `MO_NO_OPLOG=1`
 - Préservez des caches avec `mo clean --whitelist` ou excluez des opérations avec `mo optimize --whitelist`
 - Si le fichier de liste blanche est illisible, `clean`, `purge` et `optimize` s'arrêtent au lieu de s'exécuter sans lui
@@ -146,7 +146,7 @@ Les exemples suivants sont abrégés. Les éléments détectés, les tailles et 
 
 ### Nettoyage (Clean)
 
-`mo clean` analyse les caches sûrs, les journaux, les fichiers temporaires, les dossiers de développement et les résidus d'applications désinstallées. Il vide la corbeille par défaut ; pour la conserver, sélectionnez Trash dans `mo clean --whitelist`, le même menu qui préserve les caches à garder. La sélection est enregistrée dans `~/.config/mole/whitelist`. Avant d'ajouter des chemins personnalisés, ouvrez le menu et appuyez sur Entrée pour enregistrer la sélection, puis ajoutez un chemin par ligne. Un fichier existant remplace les règles par défaut optionnelles ; les protections de sécurité intégrées s'appliquent toujours.
+`mo clean` analyse les caches sûrs, les journaux, les fichiers temporaires, les dossiers de développement et les résidus d'applications désinstallées. Il vide `~/.Trash` par défaut ; pour le conserver, sélectionnez Trash dans `mo clean --whitelist`, le même menu qui préserve les caches à garder. Les corbeilles de volume telles que `/Volumes/*/.Trashes` ne sont pas vidées par cette opération. La sélection est enregistrée dans `~/.config/mole/whitelist`. Avant d'ajouter des chemins personnalisés, ouvrez le menu et appuyez sur Entrée pour enregistrer la sélection, puis ajoutez un chemin par ligne. Un fichier existant remplace les règles par défaut optionnelles ; les protections de sécurité intégrées s'appliquent toujours.
 
 ```text
 $ mo clean

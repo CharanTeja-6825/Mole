@@ -133,7 +133,7 @@ Mole 會刪除檔案，所以會先檢查路徑、保護共用和系統目錄，
 
 - `clean`、`uninstall`、`purge`、`installer` 與 `remove` 會刪除檔案，可先用 `--dry-run` 預覽，需要時加上 `--debug`
 - 日常執行 **無需 `sudo`**，僅在觸及系統級清理時按需請求管理員權限
-- `mo analyze` 中的刪除操作在確認後預設放入 macOS 垃圾桶
+- `mo uninstall` 與 `mo analyze` 在確認後預設將刪除項目放入垃圾桶；`clean`、`purge` 與 `installer` 為永久刪除，`mo uninstall --permanent` 可跳過垃圾桶
 - 清理操作記錄在 `~/Library/Logs/mole/operations.log` 中，可透過 `mo history` 查看，或設定 `MO_NO_OPLOG=1` 停用
 - 可透過 `mo clean --whitelist` 保護指定快取，或使用 `mo optimize --whitelist` 排除維護項目
 - 白名單檔案無法讀取時，`clean`、`purge` 和 `optimize` 會直接停止，不會在沒有白名單的情況下繼續執行
@@ -146,7 +146,7 @@ Mole 會刪除檔案，所以會先檢查路徑、保護共用和系統目錄，
 
 ### 深度清理（Clean）
 
-`mo clean` 掃描並清理已知可安全刪除的快取、日誌、暫存檔案、開發者工具快取以及已移除應用程式的殘留檔案，預設會清空垃圾桶，想保留就在 `mo clean --whitelist` 裡勾選 Trash，同一個選單也用來保護想留下的快取。選好的項目會寫進 `~/.config/mole/whitelist`，想加自訂路徑時先打開選單按 Enter 儲存一次，再往檔案裡每行追加一個路徑，檔案一旦存在就會取代可選的預設規則，內建安全保護仍然生效。
+`mo clean` 掃描並清理已知可安全刪除的快取、日誌、暫存檔案、開發者工具快取以及已移除應用程式的殘留檔案，預設會清空 `~/.Trash`，想保留就在 `mo clean --whitelist` 裡勾選 Trash，同一個選單也用來保護想留下的快取，各卷的垃圾桶（如 `/Volumes/*/.Trashes`）不會隨之清空。選好的項目會寫進 `~/.config/mole/whitelist`，想加自訂路徑時先打開選單按 Enter 儲存一次，再往檔案裡每行追加一個路徑，檔案一旦存在就會取代可選的預設規則，內建安全保護仍然生效。
 
 ```text
 $ mo clean

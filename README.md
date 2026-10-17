@@ -133,7 +133,7 @@ Mole can remove files, so it validates paths, protects shared and system-owned l
 
 - `clean`, `uninstall`, `purge`, `installer`, and `remove` can delete files, so review them with `--dry-run` first and add `--debug` when needed
 - Run Mole without `sudo`; it requests administrator access only when needed
-- `mo analyze` moves selected items to Trash after confirmation
+- `mo uninstall` and `mo analyze` route deletions to Trash by default after confirmation; `clean`, `purge`, and `installer` delete permanently. `mo uninstall --permanent` skips Trash
 - Cleanup activity is recorded in `~/Library/Logs/mole/operations.log`; review it with `mo history` or disable it with `MO_NO_OPLOG=1`
 - Protect caches with `mo clean --whitelist`, or maintenance items with `mo optimize --whitelist`
 - If the whitelist file cannot be read, `clean`, `purge`, and `optimize` stop instead of running without it
@@ -146,7 +146,7 @@ The examples below are shortened. Available items, sizes, and skip reasons depen
 
 ### Clean
 
-`mo clean` reviews known-safe caches, logs, temporary files, developer artifacts, and leftovers from apps that are no longer installed. It empties the Trash by default; to keep it, select Trash in `mo clean --whitelist`, the same menu that protects caches you want to keep. Selections persist in `~/.config/mole/whitelist`. Before adding custom paths, open the menu and press Enter to save the selections, then append one path per line. An existing file replaces the optional defaults; built-in safety protections still apply.
+`mo clean` reviews known-safe caches, logs, temporary files, developer artifacts, and leftovers from apps that are no longer installed. It empties `~/.Trash` by default; to keep it, select Trash in `mo clean --whitelist`, the same menu that protects caches you want to keep. Volume Trashes such as `/Volumes/*/.Trashes` are not emptied with it. Selections persist in `~/.config/mole/whitelist`. Before adding custom paths, open the menu and press Enter to save the selections, then append one path per line. An existing file replaces the optional defaults; built-in safety protections still apply.
 
 ```text
 $ mo clean

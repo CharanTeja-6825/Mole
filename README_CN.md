@@ -133,7 +133,7 @@ Mole 会删除文件，所以会先校验路径、保护共享和系统目录，
 
 - `clean`、`uninstall`、`purge`、`installer` 与 `remove` 会删除文件，可先用 `--dry-run` 预览，需要时加上 `--debug`
 - 日常运行 **无需 `sudo`**，仅在触及系统级清理时按需请求管理员权限
-- `mo analyze` 中的删除操作在确认后默认放入 macOS 废纸篓
+- `mo uninstall` 与 `mo analyze` 在确认后默认将删除项移入废纸篓；`clean`、`purge` 与 `installer` 为永久删除，`mo uninstall --permanent` 可跳过废纸篓
 - 清理操作记录在 `~/Library/Logs/mole/operations.log` 中，可通过 `mo history` 查看，或设置 `MO_NO_OPLOG=1` 禁用
 - 可通过 `mo clean --whitelist` 保护指定缓存，或使用 `mo optimize --whitelist` 排除维护项
 - 白名单文件无法读取时，`clean`、`purge` 和 `optimize` 会直接停止，不会在没有白名单的情况下继续执行
@@ -146,7 +146,7 @@ Mole 会删除文件，所以会先校验路径、保护共享和系统目录，
 
 ### 深度清理（Clean）
 
-`mo clean` 扫描并清理已知可安全删除的缓存、日志、临时文件、开发工具缓存以及已卸载应用的残留，默认会清空废纸篓，想保留就在 `mo clean --whitelist` 里勾选 Trash，同一个菜单也用来保护想留下的缓存。选好的项会写进 `~/.config/mole/whitelist`，想加自定义路径时先打开菜单按回车保存一次，再往文件里每行追加一个路径，文件一旦存在就会替换可选默认规则，内置安全保护仍然生效。
+`mo clean` 扫描并清理已知可安全删除的缓存、日志、临时文件、开发工具缓存以及已卸载应用的残留，默认会清空 `~/.Trash`，想保留就在 `mo clean --whitelist` 里勾选 Trash，同一个菜单也用来保护想留下的缓存，各卷的废纸篓（如 `/Volumes/*/.Trashes`）不会随之清空。选好的项会写进 `~/.config/mole/whitelist`，想加自定义路径时先打开菜单按回车保存一次，再往文件里每行追加一个路径，文件一旦存在就会替换可选默认规则，内置安全保护仍然生效。
 
 ```text
 $ mo clean

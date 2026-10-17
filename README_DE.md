@@ -133,7 +133,7 @@ Mole kann Dateien löschen. Deshalb prüft es Pfade, schützt gemeinsam genutzte
 
 - `clean`, `uninstall`, `purge`, `installer` und `remove` löschen Dateien, überprüfe sie also zuerst mit `--dry-run` und bei Bedarf mit `--debug`
 - Führe Mole **ohne `sudo`** aus; Administratorrechte werden nur bei Bedarf für Systembereinigungen angefordert
-- `mo analyze` verschiebt ausgewählte Objekte nach Bestätigung in den macOS-Papierkorb
+- `mo uninstall` und `mo analyze` verschieben Löschungen nach Bestätigung standardmäßig in den Papierkorb; `clean`, `purge` und `installer` löschen endgültig. `mo uninstall --permanent` überspringt den Papierkorb
 - Bereinigungsaktivitäten werden in `~/Library/Logs/mole/operations.log` protokolliert; überprüfe sie mit `mo history` oder deaktiviere das Logging mit `MO_NO_OPLOG=1`
 - Schütze Caches mit `mo clean --whitelist` oder Wartungsaufgaben mit `mo optimize --whitelist`
 - Lässt sich die Whitelist-Datei nicht lesen, brechen `clean`, `purge` und `optimize` ab, statt ohne sie weiterzulaufen
@@ -146,7 +146,7 @@ Die folgenden Beispiele sind gekürzt. Die genauen Einträge, Größen und Grün
 
 ### Bereinigung (Clean)
 
-`mo clean` scannt sichere Caches, Protokolle, temporäre Dateien, Entwickler-Artefakte und Reste entfernter Apps. Es leert standardmäßig den Papierkorb; um ihn zu behalten, wähle Trash in `mo clean --whitelist`, demselben Menü, mit dem du Caches schützt. Die Auswahl wird in `~/.config/mole/whitelist` gespeichert. Bevor du eigene Pfade hinzufügst, öffne das Menü und drücke Enter, um die Auswahl zu speichern, und ergänze dann einen Pfad pro Zeile. Eine vorhandene Datei ersetzt die optionalen Standardregeln; der integrierte Sicherheitsschutz gilt weiterhin.
+`mo clean` scannt sichere Caches, Protokolle, temporäre Dateien, Entwickler-Artefakte und Reste entfernter Apps. Es leert standardmäßig `~/.Trash`; um ihn zu behalten, wähle Trash in `mo clean --whitelist`, demselben Menü, mit dem du Caches schützt. Volume-Trashes wie `/Volumes/*/.Trashes` werden dabei nicht geleert. Die Auswahl wird in `~/.config/mole/whitelist` gespeichert. Bevor du eigene Pfade hinzufügst, öffne das Menü und drücke Enter, um die Auswahl zu speichern, und ergänze dann einen Pfad pro Zeile. Eine vorhandene Datei ersetzt die optionalen Standardregeln; der integrierte Sicherheitsschutz gilt weiterhin.
 
 ```text
 $ mo clean

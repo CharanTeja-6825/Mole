@@ -133,7 +133,7 @@ Mole은 파일을 삭제할 수 있으므로 경로를 검증하고, 공유 위�
 
 - `clean`, `uninstall`, `purge`, `installer`, `remove` 명령은 파일을 삭제하므로 먼저 `--dry-run`으로 확인하고 필요 시 `--debug`를 함께 사용하세요
 - 일상적인 Mole 실행에는 **`sudo`가 필요하지 않으며**, 시스템 수준의 정리 작업에만 관리자 권한을 요청합니다
-- `mo analyze`에서 선택한 항목은 확인 후 macOS 휴지통으로 이동됩니다
+- `mo uninstall`과 `mo analyze`는 확인 후 삭제 항목을 기본적으로 휴지통으로 이동합니다. `clean`, `purge`, `installer`는 영구 삭제하며, `mo uninstall --permanent`는 휴지통을 거치지 않습니다
 - 정리 내역은 `~/Library/Logs/mole/operations.log`에 기록되며, `mo history`로 확인하거나 `MO_NO_OPLOG=1`로 비활성화할 수 있습니다
 - `mo clean --whitelist`로 보존할 캐시를 지정하거나 `mo optimize --whitelist`로 제외할 유지보수 작업을 관리하세요
 - 화이트리스트 파일을 읽을 수 없으면 `clean`, `purge`, `optimize`는 이를 무시하고 실행하지 않고 중단합니다
@@ -146,7 +146,7 @@ Mole은 파일을 삭제할 수 있으므로 경로를 검증하고, 공유 위�
 
 ### 심층 정리 (Clean)
 
-`mo clean`은 안전한 캐시, 로그, 임시 파일, 개발 도구 캐시 및 이미 삭제된 앱의 잔여 파일을 검사하고 정리하며, 기본적으로 휴지통을 비웁니다. 휴지통을 유지하려면 `mo clean --whitelist`에서 Trash를 선택하세요. 같은 메뉴에서 보존할 캐시도 지정할 수 있고, 선택한 항목은 `~/.config/mole/whitelist`에 저장됩니다. 직접 경로를 추가하려면 먼저 메뉴를 열고 Enter를 눌러 선택 항목을 저장한 뒤, 한 줄에 하나씩 경로를 추가하세요. 이 파일이 있으면 선택적 기본 규칙을 대체하며, 내장 안전 보호는 계속 적용됩니다.
+`mo clean`은 안전한 캐시, 로그, 임시 파일, 개발 도구 캐시 및 이미 삭제된 앱의 잔여 파일을 검사하고 정리하며, 기본적으로 `~/.Trash`를 비웁니다. 휴지통을 유지하려면 `mo clean --whitelist`에서 Trash를 선택하세요. 같은 메뉴에서 보존할 캐시도 지정할 수 있고, `/Volumes/*/.Trashes` 같은 볼륨 휴지통은 함께 비워지지 않습니다. 선택한 항목은 `~/.config/mole/whitelist`에 저장됩니다. 직접 경로를 추가하려면 먼저 메뉴를 열고 Enter를 눌러 선택 항목을 저장한 뒤, 한 줄에 하나씩 경로를 추가하세요. 이 파일이 있으면 선택적 기본 규칙을 대체하며, 내장 안전 보호는 계속 적용됩니다.
 
 ```text
 $ mo clean
