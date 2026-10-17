@@ -2334,10 +2334,34 @@ _batch_preview_and_confirm() {
             removal_note+=" ${YELLOW}[Running]${NC}"
         fi
         [[ ${#_review_personal_paths[@]} -eq 0 ]] || echo -e "${GRAY}D${NC} choose personal data"
+
+        # A read from a non-terminal fails and used to become an empty key,
+        # which the case below treats as Enter: a script or agent could confirm
+        # an uninstall nobody reviewed. Only a real terminal may answer; tests
+        # opt in through the test flags and drive the prompt explicitly.
+        if [[ ! -t 0 && "${MOLE_TEST_MODE:-0}" != "1" && "${MOLE_TEST_NO_AUTH:-0}" != "1" ]]; then
+            echo ""
+            log_error "Uninstall confirmation needs an interactive terminal; no apps were removed"
+            return 2
+        fi
+
         echo -ne "${PURPLE}${ICON_ARROW}${NC} ${removal_note}  ${GREEN}Enter${NC} confirm, ${GRAY}ESC${NC} cancel: "
 
         drain_pending_input # Clean up any pending input before confirmation
-        IFS= read -r -s -n1 key || key=""
+        local key="" key_rc=0
+        IFS= read -r -s -n1 key || key_rc=$?
+        if [[ $key_rc -ne 0 ]]; then
+            # Test fixtures drive the prompt through a pipe and may have
+            # already consumed it; production only reaches here on a real
+            # terminal, where EOF is not consent.
+            if [[ "${MOLE_TEST_MODE:-0}" == "1" || "${MOLE_TEST_NO_AUTH:-0}" == "1" ]]; then
+                key=""
+            else
+                echo ""
+                log_error "Could not read the uninstall confirmation; no apps were removed"
+                return 2
+            fi
+        fi
         drain_pending_input # Clean up any escape sequence remnants
         case "$key" in
             $'\e' | q | Q)

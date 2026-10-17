@@ -283,3 +283,46 @@ grep -Fxq "$data" "$HOME/measured" || exit 1
 SH
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
+
+run_non_tty_confirmation() {
+    local input_mode="$1"
+    local out="$HOME/no-tty-$input_mode.out"
+    if ! env -u MOLE_TEST_NO_AUTH -u MOLE_TEST_MODE HOME="$HOME/no-tty-$input_mode" \
+        PROJECT_ROOT="$PROJECT_ROOT" INPUT_MODE="$input_mode" MOLE_DRY_RUN=1 \
+        /bin/bash --noprofile --norc > "$out" 2>&1 <<'SH'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/ui/menu_paginated.sh"
+source "$PROJECT_ROOT/lib/uninstall/batch.sh"
+app="$HOME/Applications/Example.app"
+mkdir -p "$app"
+app_details=("Example|$app|com.example.app|12|||false|false|false|||||none||||")
+running_apps=() sudo_apps=() brew_cask_apps=() leftover_notes=()
+total_estimated_size=12
+get_path_size_kb() { printf '0\n'; }
+calculate_total_size() { printf '0\n'; }
+drain_pending_input() { :; }
+rc=0
+if [[ "$INPUT_MODE" == null ]]; then
+    _batch_preview_and_confirm < /dev/null || rc=$?
+else
+    printf 'n\n' | _batch_preview_and_confirm || rc=$?
+fi
+printf 'RC=%s\n' "$rc"
+[[ $rc -eq 2 ]] || exit 1
+[[ -d "$app" ]] || exit 1
+SH
+    then
+        cat "$out"
+        return 1
+    fi
+    grep -Fq 'interactive terminal' "$out" || { cat "$out"; return 1; }
+}
+
+@test "real uninstall preview refuses /dev/null without a terminal" {
+    run_non_tty_confirmation null
+}
+
+@test "real uninstall preview refuses a piped n without a terminal" {
+    run_non_tty_confirmation piped
+}
