@@ -170,11 +170,12 @@ class Run:
         self.leftovers = []
         self.failed = False
 
-    def step(self, name, func):
-        if self.failed and not self.keep_going:
-            self.steps.append({"name": name, "status": "skipped", "detail": "an earlier step failed"})
+    def step(self, name, func, ready=True):
+        if not ready or (self.failed and not self.keep_going):
+            detail = "a required step did not pass" if not ready else "an earlier step failed"
+            self.steps.append({"name": name, "status": "skipped", "detail": detail})
             print(f"  SKIP  {name}")
-            return
+            return False
         start = time.monotonic()
         try:
             detail = func() or ""
@@ -188,6 +189,7 @@ class Run:
         seconds = round(time.monotonic() - start, 1)
         self.steps.append({"name": name, "status": status, "seconds": seconds, "detail": detail})
         print(f"  {'PASS' if status == 'passed' else 'FAIL'}  {name} ({seconds}s){': ' + detail if detail else ''}")
+        return status == "passed"
 
     def log(self, name):
         return self.dir / f"{len(self.steps) + 1:02d}-{name}.log"
@@ -506,27 +508,29 @@ def smoke(run):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--skip-build", action="store_true", help="use the existing bin/*-go builds")
-    parser.add_argument("--keep-going", action="store_true", help="run later steps after a failure")
+    parser.add_argument("--keep-going", action="store_true", help="continue independent checks after a failure")
     args = parser.parse_args()
     if platform.system() != "Darwin":
         sys.exit("macOS only")
     run = Run(args.keep_going)
     print(f"Mole e2e {run.id}, report in {run.dir}")
     try:
-        run.step("preflight", lambda: preflight(run))
+        ready = run.step("preflight", lambda: preflight(run))
     except Refused as exc:
         print(f"  REFUSED  {exc}")
         sys.exit(2)
     if not args.skip_build:
-        run.step("build", lambda: build(run))
-    run.step("download fixture", lambda: download(run))
-    run.step("install fixture", lambda: install(run))
-    run.step("launch fixture", lambda: launch(run))
-    run.step("mo uninstall", lambda: uninstall(run))
-    run.step("mo history", lambda: history(run))
-    run.step("mo installer --dry-run", lambda: installer(run))
-    run.step("mo analyze delete", lambda: analyze(run))
-    run.step("smoke commands", lambda: smoke(run))
+        ready = run.step("build", lambda: build(run), ready=ready)
+    # A failed digest or install is never permission for the next mutation,
+    # even with --keep-going. Keep the fixture when uninstall did not finish.
+    downloaded = run.step("download fixture", lambda: download(run), ready=ready)
+    installed = run.step("install fixture", lambda: install(run), ready=downloaded)
+    launched = run.step("launch fixture", lambda: launch(run), ready=installed)
+    removed = run.step("mo uninstall", lambda: uninstall(run), ready=launched)
+    run.step("mo history", lambda: history(run), ready=removed)
+    run.step("mo installer --dry-run", lambda: installer(run), ready=downloaded)
+    run.step("mo analyze delete", lambda: analyze(run), ready=removed)
+    run.step("smoke commands", lambda: smoke(run), ready=ready)
 
     leftover = [str(APP_PATH)] if APP_PATH.exists() else []
     leftover += fixture_traces()
