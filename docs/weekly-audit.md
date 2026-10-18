@@ -5,8 +5,8 @@ One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole 
 ## 2026-10-18 (dual CLI post-release audit)
 
 - Frozen source: main `3041d86c`, windows `7b2da730`, both clean and matching their remote heads. Release comparison: `V1.61.0` and `V1.36.0-windows`. Both desktop apps were outside this review.
-- Locally committed through: main `8b49a13a`, windows `9b010223`. These commits are not pushed; see Open.
-- Next window from: main `8b49a13a`, windows `9b010223`, after resolving the delivery gate below.
+- Source repairs pushed through: main `8b49a13a`, windows `9b010223`; the initial delivery heads were `7ef8e8f0` and `eccdbb8c`.
+- Next window from: main `8b49a13a`, windows `9b010223`.
 
 ### Fixed and verified
 
@@ -38,7 +38,7 @@ Local verification: `check.sh --format`, `check.sh --no-format`, and the complet
 
 ### Open
 
-- Delivery is blocked: GitHub SSH connections closed twice during remote-head verification, so further SSH attempts and remote writes stopped. A read-only GitHub API query still confirmed the frozen remote heads. Restore GitHub SSH access, push the current `main` and `windows` branches, then verify CI at each actual pushed head; Windows CI must also cover the two privilege-limited local fixtures. No tag, package, release, real application E2E or user-data cleanup was performed.
+- The source-push blocker is closed. After two SSH closures, the maintainer authorized resumption on 2026-10-18; both branches pushed successfully and remote SHAs matched the initial delivery heads above. CI is a separate gate checked at the final pushed heads, including the two privilege-limited Windows fixtures. No tag, package, release, real application E2E or user-data cleanup was performed.
 
 ## 2026-10-17 (review remediation, not a weekly run)
 
