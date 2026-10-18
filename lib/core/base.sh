@@ -554,7 +554,7 @@ FIND_BSD="/usr/bin/find"
 # or a mixed command may carry unrelated user settings and must remain intact.
 # Include the previous eval/source forms when normalizing or removing them.
 # shellcheck disable=SC2016 # Match literal shell substitutions in rc files.
-MOLE_COMPLETION_LINE_PATTERN='^[[:space:]]*(# Mole shell completion|if output="\$\((mole|mo) completion (bash|zsh) 2>/dev/null\)"; then eval "\$output"; fi|eval "\$\((mole|mo) completion (bash|zsh)\)"|source <\((mole|mo) completion (bash|zsh)\)|if output=\((mole|mo) completion fish 2>/dev/null\); eval "\$output"; end|(mole|mo) completion fish \| source)[[:space:]]*$'
+MOLE_COMPLETION_LINE_PATTERN='^[[:space:]]*(# Mole shell completion|if output="\$\((mole|mo) completion (bash|zsh) 2>/dev/null\)"; then eval "\$output"; fi|eval "\$\((mole|mo) completion (bash|zsh)\)"|source <\((mole|mo) completion (bash|zsh)\)|set -l output \((mole|mo) completion fish 2>/dev/null\); and echo "\$output" \| source|(mole|mo) completion fish \| source)[[:space:]]*$'
 
 # Print the final file a symlink chain points at. Renaming a rewritten rc file
 # over this target keeps every link in a dotfile chain; renaming over the first

@@ -6847,7 +6847,7 @@ RC
     cat > "$HOME/.config/fish/config.fish" << 'RC'
 # user fish setting
 # Mole shell completion
-if output=(mole completion fish 2>/dev/null); eval "$output"; end
+set -l output (mole completion fish 2>/dev/null); and echo "$output" | source
 RC
     printf '# generated\n# Mole completions for mole\n' > "$HOME/.config/fish/completions/mole.fish"
     printf '# generated\nsource %s\n' "$HOME/.config/fish/completions/mole.fish" > "$HOME/.config/fish/completions/mo.fish"
@@ -6872,6 +6872,7 @@ EOF
     ! grep -Fq 'Mole shell completion' "$HOME/dotfiles/bashrc" || return 1
     grep -Fq '# user bash setting' "$HOME/dotfiles/bashrc" || return 1
     ! grep -Fq 'Mole shell completion' "$HOME/.config/fish/config.fish" || return 1
+    ! grep -Fq 'completion fish' "$HOME/.config/fish/config.fish" || return 1
     grep -Fq '# user fish setting' "$HOME/.config/fish/config.fish" || return 1
     [ ! -e "$HOME/.config/fish/completions/mole.fish" ] || return 1
     [ ! -e "$HOME/.config/fish/completions/mo.fish" ] || return 1
@@ -7062,7 +7063,7 @@ RC
 if output="$(mole completion zsh 2>/dev/null)"; then eval "$output"; fi
 eval "$(mo completion bash)"
 source <(mole completion zsh)
-if output=(mole completion fish 2>/dev/null); eval "$output"; end
+set -l output (mo completion fish 2>/dev/null); and echo "$output" | source
 mo completion fish | source
 RC
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 \
