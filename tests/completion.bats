@@ -42,7 +42,7 @@ setup() {
 
 @test "completion --help shows usage" {
 	run "$PROJECT_ROOT/bin/completion.sh" --help
-	[ "$status" -ne 0 ]
+	[ "$status" -eq 0 ]
 	[[ "$output" == *"Usage: mole completion"* ]] || return 1
 	[[ "$output" == *"Auto-install"* ]]
 }

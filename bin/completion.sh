@@ -475,6 +475,7 @@ Examples:
   # Manual install - Fish
   mole completion fish | source
 EOF
+        [[ "$1" == "--help" || "$1" == "-h" ]] && exit 0
         exit 1
         ;;
 esac
