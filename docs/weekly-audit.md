@@ -2,6 +2,44 @@
 
 One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole CLI (macOS) on `main` and Mole CLI (Windows) on `windows`. The next run reads the newest entry for its commit window (`Next window from`), for the items it must not report again (`Decided, do not re-report`), and rechecks `Open` first. Facts here are a run record; lasting invariants live in `AGENTS.md` on each branch.
 
+## 2026-10-18 (dual CLI post-release audit)
+
+- Frozen source: main `3041d86c`, windows `7b2da730`, both clean and matching their remote heads. Release comparison: `V1.61.0` and `V1.36.0-windows`. Both desktop apps were outside this review.
+- Locally committed through: main `8b49a13a`, windows `9b010223`. These commits are not pushed; see Open.
+- Next window from: main `8b49a13a`, windows `9b010223`, after resolving the delivery gate below.
+
+### Fixed and verified
+
+| Branch | Finding | Commit | Regression surface |
+| --- | --- | --- | --- |
+| windows | Canonical whitelist aliases misaligned parallel rule metadata, missing later rules or indexing past the list | `d44b1e70` | `tests/CleanupBoundary.Tests.ps1`, mixed rules through `Remove-SafeItem` |
+| main | Completion normalization and self-removal could erase user commands that merely mention completion | `332d879f` | `tests/completion.bats`, `tests/uninstall.bats`, byte-preserved quoted and mixed commands |
+| main | Failed owner-root discovery could still authorize cache mutation; Conda omitted configured package roots | `e9fbcf8e` | `tests/clean_dev_caches.bats`, uv/npm/pip/mise discovery failures and every Conda `pkgs_dirs` entry |
+| main | Delayed same-path scans and cached results could replace newer Analyze requests | `8f2671cd` | `cmd/analyze/analyze_test.go`, pre-dispatch cancellation, fresh/bypass scans and cached results |
+| both | E2E `--keep-going` bypassed failed prerequisites | `8b49a13a`, `9b010223` | `tests/e2e_harness_test.py` on each branch, integrity rejection and dependent-action assertions |
+| windows | E2E combined committed PowerShell with Go built from the dirty checkout | `9b010223` | Frozen-commit archive and build-cwd provenance assertions |
+| windows | The canonical-path comment incorrectly attributed existing 8.3/trailing-dot normalization to the handle resolver | `d44b1e70` | Corrected to distinguish `GetFullPath` normalization from junction/symlink resolution |
+
+Sibling review covered ten owner-cache consumer families, changing five; Corepack, pnpm, Nix, GitHub CLI and Go had no matching failed-query/default-root authorization path. Completion uses the shared pattern at five rewrite sites. The Windows whitelist review checked five association sites and changed only the constructor. Analyze review covered seven dispatch entrypoints and all three scan APIs, including ordinary, stale and warmed cache paths; the Windows request lifecycle was already correct.
+
+Local verification: `check.sh --format`, `check.sh --no-format`, and the complete `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 ./scripts/test.sh` all exited 0; the runner reported `All tests passed!`, including Go and isolated installation checks. Targeted Analyze race tests passed. Mocked E2E suites passed 5 macOS and 9 Windows tests; workflow syntax and the Windows cross-build passed. Red runs exercised the old implementations for the repaired ownership, scan identity, whitelist and E2E failures. Windows native receipts are in `docs/development-record.md` on `windows`: both PowerShell hosts passed 37 CleanupBoundary tests, and each full suite reported 514 passed, 2 failed, 0 skipped. The two failures require symbolic-link privilege and reproduced on the original HEAD before product assertions; they are not recorded as passing.
+
+### Codified and simplified
+
+- Existing area rules now lock complete owner-root evidence, every Conda root, pre-dispatch scan identity, cached-result identity, recent-directory mtime invalidation, and E2E prerequisite/provenance checks. Windows `AGENTS.md` and `docs/development-pitfalls.md` retain canonical rule associations and empty/single/multiple-result boundaries.
+- `install-update.md` merges two overlapping shell-integration bullets into one; zero effective constraints were deleted. Independent semantic review preserved rc paths, full symlink chains, target mode, Fish files, dry-run, all log categories, failure exits and existing test locks. The intentional ownership correction is matching whole generated lines rather than mentions. The file changed from 10,340 to 10,353 bytes and 1,413 to 1,399 words; new regression anchors account for the byte increase. Frontmatter is unchanged. AGENTS.md plus area rules total 108,264 bytes, below the 20% trigger from the 99,723-byte split baseline.
+- The existing Windows CLI-SYNC-04 entry owns the Analyze backport; CLI-SYNC-02 records the whitelist follow-up. Source implementation is separate from release delivery.
+
+### Decided, do not re-report
+
+- Keep existing features, flags and safety checks; this review found no evidence that restoring previously removed dead helpers would improve behavior. No new product flag or dependency was added.
+- Keep the current explicit media-selection boundary; CLI-SYNC-09 remains the owner of the broader recording-policy decision. The prior DeviceSupport menu, memory-pressure helper and dry-run logging decisions remain unchanged.
+- Canonical-path probing stays despite its measured cost because junction and symlink protection consumes it. Consolidating a duplicated rule does not authorize removing its constraints.
+
+### Open
+
+- Delivery is blocked: GitHub SSH connections closed twice during remote-head verification, so further SSH attempts and remote writes stopped. A read-only GitHub API query still confirmed the frozen remote heads. Restore GitHub SSH access, push the current `main` and `windows` branches, then verify CI at each actual pushed head; Windows CI must also cover the two privilege-limited local fixtures. No tag, package, release, real application E2E or user-data cleanup was performed.
+
 ## 2026-10-17 (review remediation, not a weekly run)
 
 - Audited read-only: main `d7980364`, windows `78e537bb`. Landed through: main `7f09d2a4`, windows `4fa94339`.
