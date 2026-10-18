@@ -7048,3 +7048,30 @@ EOF
     [ -d "$fixture_home/Applications/TestApp.app" ] || return 1
     [ -d "$fixture_home/Library/Application Support/TestApp" ] || return 1
 }
+
+@test "completion removal preserves quoted and mixed commands byte for byte" {
+    cat > "$HOME/expected-user-lines" <<'RC'
+export NOTE="mo completion zsh"
+alias setup='mo completion zsh; echo keep'
+if command -v mole; then source <(mole completion zsh); export KEEP=yes; fi
+# Run mole completion zsh to inspect the script
+RC
+    cat "$HOME/expected-user-lines" > "$HOME/.zshrc"
+    cat >> "$HOME/.zshrc" <<'RC'
+# Mole shell completion
+if output="$(mole completion zsh 2>/dev/null)"; then eval "$output"; fi
+eval "$(mo completion bash)"
+source <(mole completion zsh)
+if output=(mole completion fish 2>/dev/null); eval "$output"; end
+mo completion fish | source
+RC
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" MOLE_TEST_NO_AUTH=1 \
+        /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/manage/remove.sh"
+_remove_completion_integration
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    cmp "$HOME/expected-user-lines" "$HOME/.zshrc" || return 1
+}

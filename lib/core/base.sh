@@ -550,9 +550,11 @@ STAT_BSD="/usr/bin/stat"
 # paths in its errors and fails on mounts BSD find walks past.
 FIND_BSD="/usr/bin/find"
 
-# The rc lines `mo completion` writes: its marker comment and the completion
-# command. The command boundary keeps an unrelated `gizmo completion zsh` line.
-MOLE_COMPLETION_LINE_PATTERN='(^# Mole shell completion$|(^|[^[:alnum:]_-])(mole|mo)[[:space:]]+completion)'
+# Only complete generated completion lines are owned by Mole. A quoted mention
+# or a mixed command may carry unrelated user settings and must remain intact.
+# Include the previous eval/source forms when normalizing or removing them.
+# shellcheck disable=SC2016 # Match literal shell substitutions in rc files.
+MOLE_COMPLETION_LINE_PATTERN='^[[:space:]]*(# Mole shell completion|if output="\$\((mole|mo) completion (bash|zsh) 2>/dev/null\)"; then eval "\$output"; fi|eval "\$\((mole|mo) completion (bash|zsh)\)"|source <\((mole|mo) completion (bash|zsh)\)|if output=\((mole|mo) completion fish 2>/dev/null\); eval "\$output"; end|(mole|mo) completion fish \| source)[[:space:]]*$'
 
 # Print the final file a symlink chain points at. Renaming a rewritten rc file
 # over this target keeps every link in a dotfile chain; renaming over the first
