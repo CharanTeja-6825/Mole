@@ -3116,7 +3116,7 @@ func TestLoadCacheExpiresWhenDirectoryChanges(t *testing.T) {
 	if _, err := os.Stat(cachePath); err != nil {
 		t.Fatalf("stat cache: %v", err)
 	}
-	oldTime := time.Now().Add(-cacheModTimeGrace - time.Minute)
+	oldTime := time.Now().Add(-time.Hour)
 	if err := os.Chtimes(cachePath, oldTime, oldTime); err != nil {
 		t.Fatalf("chtimes cache: %v", err)
 	}
@@ -3151,11 +3151,12 @@ func TestLoadCacheExpiresWhenDirectoryChanges(t *testing.T) {
 	}
 }
 
-// setChangedAfterRecentScan runs save while dir's mtime is 2h old, then moves
-// the mtime to now: past the grace window, with the scan only just recorded.
+// setChangedAfterRecentScan runs save while dir's mtime is a minute old, then
+// moves the mtime to now: a file added or removed right after the scan, as when
+// a user downloads something and reopens analyze.
 func setChangedAfterRecentScan(t *testing.T, dir string, save func()) {
 	t.Helper()
-	old := time.Now().Add(-2 * time.Hour)
+	old := time.Now().Add(-time.Minute)
 	if err := os.Chtimes(dir, old, old); err != nil {
 		t.Fatalf("chtimes %s: %v", dir, err)
 	}
