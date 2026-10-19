@@ -430,7 +430,7 @@ Removed 5 installers, freed 3.83GB
 
 ### Slim
 
-`mo slim` removes the Intel code that universal apps carry on Apple Silicon Macs. It lists the apps you own that are signed with a Developer ID, with the size of each app's Intel code, and changes only the apps you select. Each app is slimmed on a copy, touching only main executables and nested code that carries its own signature; the copy replaces the app only after it keeps its Apple Silicon code and passes code signing and Gatekeeper checks, and the original moves to the Trash. App Store apps, Apple apps, apps set to open using Rosetta, apps owned by another user, and running apps are left alone. It needs the Xcode Command Line Tools, and an app update brings the Intel code back.
+`mo slim` removes the Intel code that universal apps carry on Apple Silicon Macs. It lists the apps you own that are signed with a Developer ID, with the size of each app's Intel code, and changes only the apps you select. Each app is slimmed on a copy, touching only main executables and nested code that carries its own signature; the copy replaces the app only after it keeps its Apple Silicon code and passes code signing and Gatekeeper checks, and the original moves to the Trash. App Store apps, Apple apps, apps set to open using Rosetta, apps owned by another user, and running apps are left alone. It needs no developer tools, and an app update brings the Intel code back.
 
 ## Quick Launchers
 

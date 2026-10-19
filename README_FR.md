@@ -422,7 +422,7 @@ Removed 5 installers, freed 3.83GB
 
 ### Alléger les apps (Slim)
 
-`mo slim` retire le code Intel des apps universelles sur les Mac Apple Silicon. Il liste les apps qui vous appartiennent et sont signées avec un Developer ID, avec la taille de leur code Intel, et ne modifie que celles que vous sélectionnez. Chaque app est d'abord allégée sur une copie, en ne touchant qu'aux exécutables principaux et au code imbriqué doté de sa propre signature ; la copie ne remplace l'app que si elle conserve son code Apple Silicon et passe les vérifications de signature de code et de Gatekeeper, et l'original est placé dans la Corbeille. Les apps de l'App Store, les apps Apple, les apps réglées sur « Ouvrir avec Rosetta », celles d'un autre utilisateur et les apps en cours d'exécution ne sont pas modifiées. Les Command Line Tools de Xcode sont nécessaires, et une mise à jour de l'app réintroduit le code Intel.
+`mo slim` retire le code Intel des apps universelles sur les Mac Apple Silicon. Il liste les apps qui vous appartiennent et sont signées avec un Developer ID, avec la taille de leur code Intel, et ne modifie que celles que vous sélectionnez. Chaque app est d'abord allégée sur une copie, en ne touchant qu'aux exécutables principaux et au code imbriqué doté de sa propre signature ; la copie ne remplace l'app que si elle conserve son code Apple Silicon et passe les vérifications de signature de code et de Gatekeeper, et l'original est placé dans la Corbeille. Les apps de l'App Store, les apps Apple, les apps réglées sur « Ouvrir avec Rosetta », celles d'un autre utilisateur et les apps en cours d'exécution ne sont pas modifiées. Aucun outil de développement n'est nécessaire, et une mise à jour de l'app réintroduit le code Intel.
 
 ## Lanceurs rapides
 

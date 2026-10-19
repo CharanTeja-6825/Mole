@@ -422,7 +422,7 @@ Removed 5 installers, freed 3.83GB
 
 ### 앱 슬림화 (Slim)
 
-`mo slim`은 Apple Silicon Mac에서 유니버설 앱에 포함된 Intel용 코드를 제거합니다. 본인 소유이면서 Developer ID로 서명된 앱과 각 앱의 Intel용 코드 용량을 보여 주고, 선택한 앱만 처리합니다. 각 앱은 먼저 복사본에서 정리되며, 메인 실행 파일과 자체 서명을 가진 중첩 코드만 대상으로 합니다. 복사본이 Apple Silicon용 코드를 유지하고 코드 서명과 Gatekeeper 검사를 통과해야만 원래 앱을 대체하며, 원래 앱은 휴지통으로 이동합니다. App Store 앱, Apple 앱, Rosetta를 사용하여 열도록 설정된 앱, 다른 사용자가 소유한 앱, 실행 중인 앱은 처리하지 않습니다. Xcode Command Line Tools가 필요하며, 앱을 업데이트하면 Intel용 코드가 다시 생깁니다.
+`mo slim`은 Apple Silicon Mac에서 유니버설 앱에 포함된 Intel용 코드를 제거합니다. 본인 소유이면서 Developer ID로 서명된 앱과 각 앱의 Intel용 코드 용량을 보여 주고, 선택한 앱만 처리합니다. 각 앱은 먼저 복사본에서 정리되며, 메인 실행 파일과 자체 서명을 가진 중첩 코드만 대상으로 합니다. 복사본이 Apple Silicon용 코드를 유지하고 코드 서명과 Gatekeeper 검사를 통과해야만 원래 앱을 대체하며, 원래 앱은 휴지통으로 이동합니다. App Store 앱, Apple 앱, Rosetta를 사용하여 열도록 설정된 앱, 다른 사용자가 소유한 앱, 실행 중인 앱은 처리하지 않습니다. 개발 도구는 필요 없으며, 앱을 업데이트하면 Intel용 코드가 다시 생깁니다.
 
 ## 퀵 런처
 

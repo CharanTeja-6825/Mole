@@ -35,10 +35,6 @@ trap 'trap - EXIT; cleanup; exit 130' INT TERM
 readonly SLIM_EXIT_UNSUPPORTED=4
 # Signature and Gatekeeper checks read every file of a large app.
 readonly SLIM_VERIFY_TIMEOUT_SEC=180
-# Slices that never run natively on Apple Silicon.
-readonly SLIM_INTEL_ARCHS=(x86_64 x86_64h i386)
-
-LIPO_BIN=""
 SLIM_WORK_DIR=""
 
 # Scan results, one index per app.
@@ -88,26 +84,6 @@ slim_host_is_apple_silicon() {
     fi
     # uname -m reports x86_64 inside a Rosetta shell; the sysctl does not.
     [[ "$(sysctl -n hw.optional.arm64 2> /dev/null || echo 0)" == "1" ]]
-}
-
-# Resolve lipo without touching /usr/bin/lipo, whose shim opens the Command
-# Line Tools installer when no developer directory exists.
-slim_resolve_lipo() {
-    if [[ -n "${MOLE_SLIM_TEST_LIPO:-}" && "${MOLE_TEST_MODE:-0}" == "1" ]]; then
-        LIPO_BIN="$MOLE_SLIM_TEST_LIPO"
-        return 0
-    fi
-    local developer_dir candidate
-    developer_dir=$(xcode-select -p 2> /dev/null) || return 1
-    for candidate in \
-        "$developer_dir/usr/bin/lipo" \
-        "$developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo"; do
-        if [[ -x "$candidate" ]]; then
-            LIPO_BIN="$candidate"
-            return 0
-        fi
-    done
-    return 1
 }
 
 slim_plist_value() {
@@ -270,30 +246,84 @@ slim_is_main_executable() {
     [[ -n "$exe" && "$(basename "$file")" == "$exe" ]]
 }
 
-slim_is_intel_arch() {
-    local arch="$1" intel
-    for intel in "${SLIM_INTEL_ARCHS[@]}"; do
-        [[ "$arch" == "$intel" ]] && return 0
+# Fat headers are read with od, so slimming needs no developer tools: lipo
+# comes with the Command Line Tools, a larger install than most apps free.
+# Print "<arch> <offset> <size>" per slice; a non-fat file fails.
+slim_fat_slices() {
+    local file="$1" entry n i p cpu sub arch off size file_size
+    local -a b=()
+    read -r -a b <<< "$(od -An -v -tu1 -N 8 "$file" 2> /dev/null | tr '\n' ' ')"
+    [[ ${#b[@]} -eq 8 ]] || return 1
+    case "${b[0]} ${b[1]} ${b[2]} ${b[3]}" in
+        "202 254 186 190") entry=20 ;; # FAT_MAGIC
+        "202 254 186 191") entry=32 ;; # FAT_MAGIC_64
+        *) return 1 ;;
+    esac
+    n=$(((b[4] << 24) | (b[5] << 16) | (b[6] << 8) | b[7]))
+    ((n >= 1 && n <= 16)) || return 1
+    read -r -a b <<< "$(od -An -v -tu1 -N $((8 + n * entry)) "$file" 2> /dev/null | tr '\n' ' ')"
+    [[ ${#b[@]} -eq $((8 + n * entry)) ]] || return 1
+    file_size=$("$STAT_BSD" -f %z "$file" 2> /dev/null) || return 1
+
+    for ((i = 0; i < n; i++)); do
+        p=$((8 + i * entry))
+        cpu=$(((b[p] << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3]))
+        sub=$(((b[p + 5] << 16) | (b[p + 6] << 8) | b[p + 7]))
+        if [[ $entry -eq 20 ]]; then
+            off=$(((b[p + 8] << 24) | (b[p + 9] << 16) | (b[p + 10] << 8) | b[p + 11]))
+            size=$(((b[p + 12] << 24) | (b[p + 13] << 16) | (b[p + 14] << 8) | b[p + 15]))
+        else
+            off=$(((b[p + 8] << 56) | (b[p + 9] << 48) | (b[p + 10] << 40) | (b[p + 11] << 32) | (\
+                b[p + 12] << 24) | (b[p + 13] << 16) | (b[p + 14] << 8) | b[p + 15]))
+            size=$(((b[p + 16] << 56) | (b[p + 17] << 48) | (b[p + 18] << 40) | (b[p + 19] << 32) | (\
+                b[p + 20] << 24) | (b[p + 21] << 16) | (b[p + 22] << 8) | b[p + 23]))
+        fi
+        ((off > 0 && size > 0 && off + size <= file_size)) || return 1
+        case "$cpu:$sub" in
+            16777228:2) arch=arm64e ;; # CPU_TYPE_ARM64, CPU_SUBTYPE_ARM64E
+            16777228:*) arch=arm64 ;;
+            16777223:8) arch=x86_64h ;; # CPU_TYPE_X86_64, CPU_SUBTYPE_X86_64_H
+            16777223:*) arch=x86_64 ;;
+            7:*) arch=i386 ;;
+            *) arch=other ;;
+        esac
+        printf '%s %s %s\n' "$arch" "$off" "$size"
     done
-    return 1
+}
+
+# Print "<offset> <size> <intel bytes>" when the file holds exactly one Apple
+# Silicon slice plus Intel slices and nothing else; that slice is the whole
+# slimmed file. Files with both arm64 and arm64e are left alone.
+slim_arm_slice() {
+    local file="$1" slices arch off size
+    local arm_count=0 arm_off=0 arm_size=0 intel=0
+    slices=$(slim_fat_slices "$file") || return 1
+    while read -r arch off size; do
+        case "$arch" in
+            arm64 | arm64e)
+                arm_count=$((arm_count + 1))
+                arm_off=$off
+                arm_size=$size
+                ;;
+            x86_64 | x86_64h | i386) intel=$((intel + size)) ;;
+            *) return 1 ;;
+        esac
+    done <<< "$slices"
+    [[ $arm_count -eq 1 && $intel -gt 0 ]] || return 1
+    printf '%s %s %s\n' "$arm_off" "$arm_size" "$intel"
 }
 
 # Bytes of Intel slices in a universal file that also runs natively.
 slim_intel_bytes() {
-    local file="$1" archs arch has_arm=false has_intel=false
-    archs=$("$LIPO_BIN" -archs "$file" 2> /dev/null) || return 1
-    for arch in $archs; do
-        case "$arch" in
-            arm64 | arm64e) has_arm=true ;;
-            *) slim_is_intel_arch "$arch" && has_intel=true ;;
-        esac
-    done
-    [[ "$has_arm" == true && "$has_intel" == true ]] || return 1
-    "$LIPO_BIN" -detailed_info "$file" 2> /dev/null | awk '
-        $1 == "architecture" { arch = $2 }
-        $1 == "size" && (arch == "x86_64" || arch == "x86_64h" || arch == "i386") { sum += $2 }
-        END { if (sum > 0) print sum; else exit 1 }
-    '
+    local info
+    info=$(slim_arm_slice "$1") || return 1
+    printf '%s\n' "${info##* }"
+}
+
+# A thin 64-bit Mach-O for Apple Silicon: MH_MAGIC_64 then CPU_TYPE_ARM64,
+# both little-endian.
+slim_is_thin_arm() {
+    [[ "$(od -An -v -tu1 -N 8 "$1" 2> /dev/null | tr -s ' \n' ' ')" == " 207 250 237 254 12 0 0 1 " ]]
 }
 
 # Write "<path relative to the app>\t<intel bytes>" for every file that can
@@ -421,28 +451,16 @@ record_slim_failure() {
 }
 
 slim_thin_file() {
-    local file="$1" archs arch
-    local -a keep=() remove=()
-    archs=$("$LIPO_BIN" -archs "$file" 2> /dev/null) || return 1
-    for arch in $archs; do
-        if slim_is_intel_arch "$arch"; then
-            remove+=("$arch")
-        else
-            keep+=("$arch")
-        fi
-    done
-    [[ ${#keep[@]} -gt 0 && ${#remove[@]} -gt 0 ]] || return 1
+    local file="$1" info off size _intel
+    info=$(slim_arm_slice "$file") || return 1
+    read -r off size _intel <<< "$info"
 
     local out="$file.mole-slim" mode
     mode=$("$STAT_BSD" -f %Lp "$file") || return 1
-    if [[ ${#keep[@]} -eq 1 ]]; then
-        "$LIPO_BIN" "$file" -thin "${keep[0]}" -output "$out" 2> /dev/null || return 1
-    else
-        local -a args=()
-        for arch in "${remove[@]}"; do
-            args+=(-remove "$arch")
-        done
-        "$LIPO_BIN" "$file" "${args[@]}" -output "$out" 2> /dev/null || return 1
+    tail -c +"$((off + 1))" "$file" 2> /dev/null | head -c "$size" > "$out" 2> /dev/null || return 1
+    if [[ "$("$STAT_BSD" -f %z "$out" 2> /dev/null)" != "$size" ]] || ! slim_is_thin_arm "$out"; then
+        rm -f "$out" # SAFE: partial slice written by this function inside the staging copy
+        return 1
     fi
     chmod "$mode" "$out" && mv -f "$out" "$file"
 }
@@ -450,24 +468,10 @@ slim_thin_file() {
 # Every check runs on the slimmed copy; any failure keeps the original.
 slim_verify_copy() {
     local copy="$1" team="$2" plan_file="$3"
-    local rel bytes archs arch has_arm
+    local rel _bytes
 
-    while IFS=$'\t' read -r rel bytes; do
-        archs=$("$LIPO_BIN" -archs "$copy/$rel" 2> /dev/null) || {
-            echo "unreadable binary"
-            return 1
-        }
-        has_arm=false
-        for arch in $archs; do
-            case "$arch" in
-                arm64 | arm64e) has_arm=true ;;
-                *) slim_is_intel_arch "$arch" && {
-                    echo "Intel code left behind"
-                    return 1
-                } ;;
-            esac
-        done
-        [[ "$has_arm" == true ]] || {
+    while IFS=$'\t' read -r rel _bytes; do
+        slim_is_thin_arm "$copy/$rel" || {
             echo "Apple Silicon code missing"
             return 1
         }
@@ -654,11 +658,6 @@ show_slim_summary() {
 slim_preflight() {
     if ! slim_host_is_apple_silicon; then
         printf 'mo slim needs an Apple Silicon Mac; on an Intel Mac the Intel code is the code that runs.\n' >&2
-        return "$SLIM_EXIT_UNSUPPORTED"
-    fi
-    if ! slim_resolve_lipo; then
-        printf 'mo slim needs lipo from the Xcode Command Line Tools, which are not installed.\n' >&2
-        printf 'Run xcode-select --install, then retry mo slim.\n' >&2
         return "$SLIM_EXIT_UNSUPPORTED"
     fi
     SLIM_WORK_DIR=$(create_temp_dir) || return 1

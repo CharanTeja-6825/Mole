@@ -422,7 +422,7 @@ Removed 5 installers, freed 3.83GB
 
 ### 应用瘦身（Slim）
 
-`mo slim` 在 Apple Silicon Mac 上移除通用应用里的 Intel 代码。它列出归你所有、使用 Developer ID 签名的应用及各自的 Intel 代码大小，只处理你选中的应用。每个应用先在副本上瘦身，只动主程序和自带签名的嵌套代码，副本保留 Apple Silicon 代码并通过代码签名与 Gatekeeper 检查后才替换原应用，原应用移入废纸篓。App Store 应用、Apple 应用、设为使用 Rosetta 打开的应用、属于其他用户的应用以及正在运行的应用都不会处理。需要安装 Xcode Command Line Tools，应用更新后 Intel 代码会回来。
+`mo slim` 在 Apple Silicon Mac 上移除通用应用里的 Intel 代码。它列出归你所有、使用 Developer ID 签名的应用及各自的 Intel 代码大小，只处理你选中的应用。每个应用先在副本上瘦身，只动主程序和自带签名的嵌套代码，副本保留 Apple Silicon 代码并通过代码签名与 Gatekeeper 检查后才替换原应用，原应用移入废纸篓。App Store 应用、Apple 应用、设为使用 Rosetta 打开的应用、属于其他用户的应用以及正在运行的应用都不会处理。不需要安装开发工具，应用更新后 Intel 代码会回来。
 
 ## 快捷启动器
 

@@ -98,18 +98,54 @@ slim_env() {
 	[[ "$output" == *"needs an Apple Silicon Mac"* ]]
 }
 
-@test "slim without Command Line Tools names the install command and never runs lipo" {
-	mole_test_fake_command xcode-select 'exit 2'
-	mole_test_fake_command lipo 'echo LIPO_RAN >&2; exit 1'
+@test "slim_fat_slices reads fat and fat64 headers the way lipo does" {
+	[[ "$SLIM_HAVE_FAT_TOOLCHAIN" == "1" ]] || skip "needs clang and a developer directory"
+	lipo "$FIXTURE_BIN_DIR/fat-exe" -thin arm64 -output "$BATS_TEST_TMPDIR/a" || return 1
+	lipo "$FIXTURE_BIN_DIR/fat-exe" -thin x86_64 -output "$BATS_TEST_TMPDIR/x" || return 1
+	lipo -create -fat64 "$BATS_TEST_TMPDIR/a" "$BATS_TEST_TMPDIR/x" -output "$BATS_TEST_TMPDIR/fat64-exe" || return 1
+	[[ "$(od -An -tx1 -N4 "$BATS_TEST_TMPDIR/fat64-exe" | tr -d ' ')" == "cafebabf" ]] || return 1
+
+	local file expected actual
+	for file in "$FIXTURE_BIN_DIR/fat-exe" "$BATS_TEST_TMPDIR/fat64-exe"; do
+		expected=$(lipo -detailed_info "$file" | awk '
+			$1 == "architecture" { arch = $2 }
+			$1 == "offset" { off = $2 }
+			$1 == "size" { print arch, off, $2 }
+		' | sort)
+		actual=$(MOLE_TEST_MODE=1 /bin/bash -c 'source "$1"; slim_fat_slices "$2"' bash "$PROJECT_ROOT/bin/slim.sh" "$file" | sort)
+		[[ -n "$actual" && "$actual" == "$expected" ]] || {
+			printf 'expected:\n%s\nactual:\n%s\n' "$expected" "$actual"
+			return 1
+		}
+	done
+
+	cp "$BATS_TEST_TMPDIR/fat64-exe" "$BATS_TEST_TMPDIR/thin-me"
+	MOLE_TEST_MODE=1 /bin/bash -c 'source "$1"; slim_thin_file "$2"' bash "$PROJECT_ROOT/bin/slim.sh" "$BATS_TEST_TMPDIR/thin-me" || return 1
+	lipo "$BATS_TEST_TMPDIR/fat64-exe" -thin arm64 -output "$BATS_TEST_TMPDIR/lipo-thin"
+	cmp "$BATS_TEST_TMPDIR/thin-me" "$BATS_TEST_TMPDIR/lipo-thin"
+}
+
+@test "slim runs without developer tools and never calls lipo or xcode-select" {
+	[[ "$SLIM_HAVE_FAT_TOOLCHAIN" == "1" ]] || skip "needs clang and a developer directory"
+	local app
+	app=$(make_fixture_app)
+	mole_test_fake_command spctl 'exit 0'
+	mole_test_fake_command lipo 'echo DEVTOOL_RAN lipo >&2; exit 97'
+	mole_test_fake_command xcode-select 'echo DEVTOOL_RAN xcode-select >&2; exit 97'
 
 	run slim_env MOLE_SLIM_TEST_HOST_ARM64=1 /bin/bash -c '
 		source "$1"
-		main --dry-run
+		slim_signing_team() { echo ABCDE12345; }
+		slim_preflight || exit 9
+		collect_slim_candidates || exit 8
+		slim_one_app 0 || exit 7
+		echo "slimmed=$total_slimmed failed=$total_failed"
 	' bash "$PROJECT_ROOT/bin/slim.sh"
 
-	[ "$status" -eq 1 ]
-	[[ "$output" == *"xcode-select --install"* ]] || return 1
-	[[ "$output" != *"LIPO_RAN"* ]]
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"slimmed=1 failed=0"* ]] || return 1
+	[[ "$output" != *"DEVTOOL_RAN"* ]] || return 1
+	[[ "$(file -b "$app/Contents/MacOS/Fixture")" == "Mach-O 64-bit executable arm64" ]]
 }
 
 @test "slim_cdhash_sealed_keys lists only files2 entries sealed by cdhash" {
@@ -223,7 +259,6 @@ PLIST
 
 	run slim_env /bin/bash -c '
 		source "$1"
-		slim_resolve_lipo || exit 9
 		plan=$(mktemp)
 		slim_plan_app "$2" "$plan" > /dev/null
 		cut -f1 "$plan" | sort

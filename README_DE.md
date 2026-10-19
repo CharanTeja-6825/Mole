@@ -422,7 +422,7 @@ Removed 5 installers, freed 3.83GB
 
 ### Apps verschlanken (Slim)
 
-`mo slim` entfernt auf Apple-Silicon-Macs den Intel-Code aus Universal-Apps. Es listet die Apps, die dir gehören und mit einer Developer ID signiert sind, samt der Größe ihres Intel-Codes, und ändert nur die Apps, die du auswählst. Jede App wird zuerst in einer Kopie verschlankt, wobei nur Hauptprogramme und verschachtelter Code mit eigener Signatur angefasst werden. Die Kopie ersetzt die App erst, wenn sie ihren Apple-Silicon-Code behält und die Codesignatur- und Gatekeeper-Prüfung besteht; das Original wandert in den Papierkorb. App-Store-Apps, Apple-Apps, Apps mit „Mit Rosetta öffnen“, Apps anderer Benutzer und laufende Apps bleiben unangetastet. Benötigt werden die Xcode Command Line Tools, und ein App-Update bringt den Intel-Code zurück.
+`mo slim` entfernt auf Apple-Silicon-Macs den Intel-Code aus Universal-Apps. Es listet die Apps, die dir gehören und mit einer Developer ID signiert sind, samt der Größe ihres Intel-Codes, und ändert nur die Apps, die du auswählst. Jede App wird zuerst in einer Kopie verschlankt, wobei nur Hauptprogramme und verschachtelter Code mit eigener Signatur angefasst werden. Die Kopie ersetzt die App erst, wenn sie ihren Apple-Silicon-Code behält und die Codesignatur- und Gatekeeper-Prüfung besteht; das Original wandert in den Papierkorb. App-Store-Apps, Apple-Apps, Apps mit „Mit Rosetta öffnen“, Apps anderer Benutzer und laufende Apps bleiben unangetastet. Entwicklerwerkzeuge sind nicht nötig, und ein App-Update bringt den Intel-Code zurück.
 
 ## Schnellstarter
 
