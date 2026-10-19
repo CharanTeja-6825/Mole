@@ -182,7 +182,7 @@ Free space: 223.5GB (+4.5GB)
 
 `mo uninstall` entfernt eine installierte App zusammen mit den zugehörigen Dateien, die Mole eindeutig dieser App zuordnen kann. Gemeinsam genutzte Dateien bleiben erhalten, solange eine andere installierte Kopie derselben App sie noch nutzt. Falls eine App bereits gelöscht wurde, findet `mo clean` verbliebene Reste.
 
-Persönliche Daten wie Einstellungen und Plugins bleiben standardmäßig erhalten. Mit `D` in der Vorschau wählen Sie einzelne Datenpfade zum Entfernen aus. Nach der Deinstallation zeigt Mole Verweise auf entfernte Pfade in Shell-, Hook- oder MCP-Konfigurationen nur als Datei und Zeilennummer an; die Konfigurationen bleiben unverändert.
+Persönliche Daten wie Einstellungen und Plugins bleiben standardmäßig erhalten. Mit `D` in der Vorschau wählen Sie einzelne Datenpfade zum Entfernen aus. Mit `mo uninstall --with-data` sind diese Daten bereits ausgewählt, ausgenommen Browserprofile und App-Group-Container; die Vorschau listet sie separat, und mit `D` behalten Sie jeden beliebigen Pfad. Nach der Deinstallation zeigt Mole Verweise auf entfernte Pfade in Shell-, Hook- oder MCP-Konfigurationen nur als Datei und Zeilennummer an; die Konfigurationen bleiben unverändert.
 
 ```text
 $ mo uninstall

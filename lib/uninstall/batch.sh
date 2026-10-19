@@ -2275,7 +2275,6 @@ _batch_preview_and_confirm() {
             echo -e "${BLUE}${ICON_CONFIRM}${NC} ${display_app_name}${brew_tag} ${GRAY}, ${app_size_display}${NC}"
 
             # Show detailed file list for ALL apps (brew casks leave user data behind)
-            local related_files=$(decode_file_list "$encoded_files" "$app_name")
             local system_files=$(decode_file_list "$encoded_system_files" "$app_name")
             local diag_system_display
             diag_system_display=$(decode_file_list "$encoded_diag_system" "$app_name")
@@ -2297,21 +2296,29 @@ _batch_preview_and_confirm() {
 
             local preview_path=""
             preview_path=$(format_uninstall_preview_path "$app_path" "${_review_app_sizes[review_index]}") || return $?
-            review_index=$((review_index + 1))
             echo -e "  ${GREEN}${ICON_SUCCESS}${NC} $preview_path"
 
-            _uninstall_print_preview_paths "$related_files" "  ${GREEN}${ICON_SUCCESS}${NC} " || return $?
+            # Selected personal data is listed under its own heading below,
+            # so only the automatic leftovers sit beside the app.
+            _uninstall_print_preview_paths "${_review_auto_files[review_index]}" "  ${GREEN}${ICON_SUCCESS}${NC} " || return $?
+            review_index=$((review_index + 1))
             _uninstall_print_preview_paths "$system_files" "  ${BLUE}${ICON_WARNING}${NC} System: " || return $?
             _uninstall_print_preview_paths "$review_system_display" "  ${YELLOW}${ICON_WARNING}${NC} Review only: " || return $?
         done
 
         if [[ ${#_review_personal_paths[@]} -gt 0 ]]; then
-            local kept_data="" personal_path
+            local kept_data="" removed_data="" personal_path
             for personal_path in "${_review_personal_paths[@]}"; do
-                if ! mole_identity_in_list "$personal_path" "${_review_selected_paths[@]+"${_review_selected_paths[@]}"}"; then
+                if mole_identity_in_list "$personal_path" "${_review_selected_paths[@]+"${_review_selected_paths[@]}"}"; then
+                    removed_data=$(append_line "$removed_data" "$personal_path")
+                else
                     kept_data=$(append_line "$kept_data" "$personal_path")
                 fi
             done
+            if [[ -n "$removed_data" ]]; then
+                echo -e "\n${PURPLE_BOLD}Personal data to remove:${NC}"
+                _uninstall_print_preview_paths "$removed_data" "  ${GREEN}${ICON_SUCCESS}${NC} " || return $?
+            fi
             if [[ -n "$kept_data" ]]; then
                 echo -e "\n${GRAY}Personal data kept:${NC}"
                 while IFS= read -r personal_path; do
@@ -2330,6 +2337,7 @@ _batch_preview_and_confirm() {
         echo ""
         local removal_note="Remove ${app_total} ${app_text}"
         [[ -n "$size_display" ]] && removal_note+=", ${size_display}"
+        [[ ${#_review_selected_paths[@]} -eq 0 ]] || removal_note+=", including personal data"
         if [[ ${#running_apps[@]} -gt 0 ]]; then
             removal_note+=" ${YELLOW}[Running]${NC}"
         fi

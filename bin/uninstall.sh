@@ -2000,6 +2000,8 @@ main() {
     # Default to Trash routing so an accidental uninstall is recoverable.
     # The caller can opt back into rm -rf with --permanent. See #723.
     export MOLE_DELETE_MODE="${MOLE_DELETE_MODE:-trash}"
+    # Only the --with-data flag preselects personal data, never the environment.
+    MOLE_UNINSTALL_WITH_DATA=0
 
     # Parse flags and collect app name arguments
     local -a app_name_args=()
@@ -2018,6 +2020,9 @@ main() {
                 ;;
             "--permanent")
                 export MOLE_DELETE_MODE="permanent"
+                ;;
+            "--with-data")
+                MOLE_UNINSTALL_WITH_DATA=1
                 ;;
             "--list")
                 list_mode=1
