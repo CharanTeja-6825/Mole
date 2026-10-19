@@ -62,6 +62,7 @@ mo analyze                   # 디스크 분석: 인터랙티브 디스크 용�
 mo status                    # 상태 모니터링: CPU, 메모리, 네트워크 및 하드웨어 실시간 대시보드
 mo purge                     # 프로젝트 정리: 개발 빌드 결과물(node_modules, target 등) 정리
 mo installer                 # 설치 파일 정리: 설치 파일 탐색 및 삭제
+mo slim                      # 앱 슬림화: 유니버설 앱의 Intel용 코드 제거
 
 mo touchid                   # 터미널 sudo용 Touch ID 지문 인증 설정
 mo completion                # 셸 Tab 키 자동완성 구성
@@ -80,6 +81,7 @@ mo uninstall --dry-run
 mo optimize --dry-run
 mo purge --dry-run
 mo installer --dry-run
+mo slim --dry-run
 mo history
 mo history --json
 
@@ -131,9 +133,9 @@ nix profile remove mole
 
 Mole은 파일을 삭제할 수 있으므로 경로를 검증하고, 공유 위치와 시스템 소유 위치를 보호하며, 필요할 때 확인을 요청합니다. 안전하게 변경할 수 있다고 확인할 수 없는 항목은 건너뛰거나 거부합니다.
 
-- `clean`, `uninstall`, `purge`, `installer`, `remove` 명령은 파일을 삭제하므로 먼저 `--dry-run`으로 확인하고 필요 시 `--debug`를 함께 사용하세요
+- `clean`, `uninstall`, `purge`, `installer`, `slim`, `remove` 명령은 파일을 삭제하므로 먼저 `--dry-run`으로 확인하고 필요 시 `--debug`를 함께 사용하세요
 - 일상적인 Mole 실행에는 **`sudo`가 필요하지 않으며**, 시스템 수준의 정리 작업에만 관리자 권한을 요청합니다
-- `mo uninstall`과 `mo analyze`는 확인 후 삭제 항목을 기본적으로 휴지통으로 이동합니다. `clean`, `purge`, `installer`는 영구 삭제하며, `mo uninstall --permanent`는 휴지통을 거치지 않습니다
+- `mo uninstall`, `mo analyze`, `mo slim`은 확인 후 삭제 항목을 기본적으로 휴지통으로 이동합니다. `clean`, `purge`, `installer`는 영구 삭제하며, `mo uninstall --permanent`는 휴지통을 거치지 않습니다
 - 정리 내역은 `~/Library/Logs/mole/operations.log`에 기록되며, `mo history`로 확인하거나 `MO_NO_OPLOG=1`로 비활성화할 수 있습니다
 - `mo clean --whitelist`로 보존할 캐시를 지정하거나 `mo optimize --whitelist`로 제외할 유지보수 작업을 관리하세요
 - 화이트리스트 파일을 읽을 수 없으면 `clean`, `purge`, `optimize`는 이를 무시하고 실행하지 않고 중단합니다
@@ -417,6 +419,10 @@ Removed 5 installers, freed 3.83GB
 ```
 
 </details>
+
+### 앱 슬림화 (Slim)
+
+`mo slim`은 Apple Silicon Mac에서 유니버설 앱에 포함된 Intel용 코드를 제거합니다. 본인 소유이면서 Developer ID로 서명된 앱과 각 앱의 Intel용 코드 용량을 보여 주고, 선택한 앱만 처리합니다. 각 앱은 먼저 복사본에서 정리되며, 메인 실행 파일과 자체 서명을 가진 중첩 코드만 대상으로 합니다. 복사본이 Apple Silicon용 코드를 유지하고 코드 서명과 Gatekeeper 검사를 통과해야만 원래 앱을 대체하며, 원래 앱은 휴지통으로 이동합니다. App Store 앱, Apple 앱, Rosetta를 사용하여 열도록 설정된 앱, 다른 사용자가 소유한 앱, 실행 중인 앱은 처리하지 않습니다. Xcode Command Line Tools가 필요하며, 앱을 업데이트하면 Intel용 코드가 다시 생깁니다.
 
 ## 퀵 런처
 

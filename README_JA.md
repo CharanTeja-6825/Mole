@@ -62,6 +62,7 @@ mo analyze                   # ディスク分析：ディスク容量の内訳�
 mo status                    # 状態監視：CPU、メモリ、ネットワーク、ハードウェアの健康度ダッシュボード
 mo purge                     # プロジェクトクリーン：ビルド生成物（node_modules、targetなど）の整理
 mo installer                 # インストーラ整理：インストーラファイルの探索と削除
+mo slim                      # アプリのスリム化：ユニバーサルアプリの Intel 用コードを削除
 
 mo touchid                   # ターミナルsudo用Touch ID認証の設定
 mo completion                # シェル補完の設定
@@ -80,6 +81,7 @@ mo uninstall --dry-run
 mo optimize --dry-run
 mo purge --dry-run
 mo installer --dry-run
+mo slim --dry-run
 mo history
 mo history --json
 
@@ -131,9 +133,9 @@ nix profile remove mole
 
 Moleはファイルを削除できるため、パスを検証し、共有の場所やシステム所有の場所を保護し、必要な操作では確認を求めます。安全に変更できると確認できない項目は、スキップするか処理を拒否します。
 
-- `clean`、`uninstall`、`purge`、`installer`、`remove` はファイル削除を伴うため、事前に `--dry-run` で確認し、必要に応じて `--debug` を併用してください
+- `clean`、`uninstall`、`purge`、`installer`、`slim`、`remove` はファイル削除を伴うため、事前に `--dry-run` で確認し、必要に応じて `--debug` を併用してください
 - 通常利用では **`sudo` 不要** で、システム領域のクリーン時のみ必要に応じて管理者権限を要求します
-- `mo uninstall` と `mo analyze` は、確認後に削除項目を既定でゴミ箱へ移動します。`clean`、`purge`、`installer` は完全に削除し、`mo uninstall --permanent` はゴミ箱を経由しません
+- `mo uninstall`、`mo analyze`、`mo slim` は、確認後に削除項目を既定でゴミ箱へ移動します。`clean`、`purge`、`installer` は完全に削除し、`mo uninstall --permanent` はゴミ箱を経由しません
 - クリーンアップ履歴は `~/Library/Logs/mole/operations.log` に記録され、`mo history` で確認するか、`MO_NO_OPLOG=1` で無効化できます
 - `mo clean --whitelist` で保持したいキャッシュを保護し、`mo optimize --whitelist` で除外項目を設定できます
 - ホワイトリストファイルを読み取れない場合、`clean`、`purge`、`optimize` はそれなしで実行せずに停止します
@@ -417,6 +419,10 @@ Removed 5 installers, freed 3.83GB
 ```
 
 </details>
+
+### アプリのスリム化（Slim）
+
+`mo slim` は Apple Silicon Mac で、ユニバーサルアプリに含まれる Intel 用コードを削除します。自分が所有し Developer ID で署名されたアプリと、それぞれの Intel 用コードのサイズを一覧表示し、選択したアプリだけを処理します。各アプリはまずコピー上でスリム化され、対象はメイン実行ファイルと独自の署名を持つ入れ子のコードに限られます。コピーが Apple Silicon 用コードを保ち、コード署名と Gatekeeper の検証に通った場合にのみ元のアプリと置き換え、元のアプリはゴミ箱へ移動します。App Store のアプリ、Apple のアプリ、Rosetta を使用して開く設定のアプリ、他のユーザーが所有するアプリ、実行中のアプリは処理しません。Xcode Command Line Tools が必要で、アプリをアップデートすると Intel 用コードは元に戻ります。
 
 ## クイックランチャー
 

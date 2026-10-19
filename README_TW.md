@@ -62,6 +62,7 @@ mo analyze                   # 磁碟空間瀏覽（也可寫 mo analyse）
 mo status                    # 即時系統健康儀表板
 mo purge                     # 清理專案建置產物
 mo installer                 # 尋找並刪除安裝檔
+mo slim                      # 移除通用應用程式裡的 Intel 程式碼
 
 mo touchid                   # 設定終端機 Touch ID 指紋認證
 mo completion                # 設定命令列 Tab 鍵自動補全
@@ -80,6 +81,7 @@ mo uninstall --dry-run
 mo optimize --dry-run
 mo purge --dry-run
 mo installer --dry-run
+mo slim --dry-run
 mo history
 mo history --json
 
@@ -131,9 +133,9 @@ nix profile remove mole
 
 Mole 會刪除檔案，所以會先檢查路徑、保護共用和系統目錄，需要時才請你確認，無法確認安全的項目一律略過或拒絕。
 
-- `clean`、`uninstall`、`purge`、`installer` 與 `remove` 會刪除檔案，可先用 `--dry-run` 預覽，需要時加上 `--debug`
+- `clean`、`uninstall`、`purge`、`installer`、`slim` 與 `remove` 會刪除檔案，可先用 `--dry-run` 預覽，需要時加上 `--debug`
 - 日常執行 **無需 `sudo`**，僅在觸及系統級清理時按需請求管理員權限
-- `mo uninstall` 與 `mo analyze` 在確認後預設將刪除項目放入垃圾桶；`clean`、`purge` 與 `installer` 為永久刪除，`mo uninstall --permanent` 可跳過垃圾桶
+- `mo uninstall`、`mo analyze` 與 `mo slim` 在確認後預設將刪除項目放入垃圾桶；`clean`、`purge` 與 `installer` 為永久刪除，`mo uninstall --permanent` 可跳過垃圾桶
 - 清理操作記錄在 `~/Library/Logs/mole/operations.log` 中，可透過 `mo history` 查看，或設定 `MO_NO_OPLOG=1` 停用
 - 可透過 `mo clean --whitelist` 保護指定快取，或使用 `mo optimize --whitelist` 排除維護項目
 - 白名單檔案無法讀取時，`clean`、`purge` 和 `optimize` 會直接停止，不會在沒有白名單的情況下繼續執行
@@ -417,6 +419,10 @@ Removed 5 installers, freed 3.83GB
 ```
 
 </details>
+
+### 應用程式瘦身（Slim）
+
+`mo slim` 在 Apple Silicon Mac 上移除通用應用程式裡的 Intel 程式碼。它會列出歸你所有、以 Developer ID 簽署的應用程式及各自的 Intel 程式碼大小，只處理你選取的應用程式。每個應用程式先在副本上瘦身，只動主程式與自帶簽名的巢狀程式碼，副本保留 Apple Silicon 程式碼並通過程式碼簽名與 Gatekeeper 檢查後才取代原應用程式，原應用程式會放入垃圾桶。App Store 應用程式、Apple 應用程式、設為使用 Rosetta 打開的應用程式、屬於其他使用者的應用程式以及正在執行的應用程式都不會處理。需要安裝 Xcode Command Line Tools，應用程式更新後 Intel 程式碼會回來。
 
 ## 快捷啟動器
 

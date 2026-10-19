@@ -62,6 +62,7 @@ mo analyze                   # Visual disk explorer (or 'mo analyse')
 mo status                    # Live system health dashboard
 mo purge                     # Clean project build artifacts
 mo installer                 # Find and remove installer files
+mo slim                      # Remove Intel code from universal apps
 
 mo touchid                   # Configure Touch ID for sudo
 mo completion                # Set up shell tab completion
@@ -80,6 +81,7 @@ mo uninstall --dry-run
 mo optimize --dry-run
 mo purge --dry-run
 mo installer --dry-run
+mo slim --dry-run
 mo history
 mo history --json
 
@@ -131,9 +133,9 @@ For a declarative installation, add `github:tw93/mole/main` as a flake input and
 
 Mole can remove files, so it validates paths, protects shared and system-owned locations, and asks for confirmation when an action needs it. When Mole cannot prove an item is safe to change, it skips or refuses it.
 
-- `clean`, `uninstall`, `purge`, `installer`, and `remove` can delete files, so review them with `--dry-run` first and add `--debug` when needed
+- `clean`, `uninstall`, `purge`, `installer`, `slim`, and `remove` can delete files, so review them with `--dry-run` first and add `--debug` when needed
 - Run Mole without `sudo`; it requests administrator access only when needed
-- `mo uninstall` and `mo analyze` route deletions to Trash by default after confirmation; `clean`, `purge`, and `installer` delete permanently. `mo uninstall --permanent` skips Trash
+- `mo uninstall`, `mo analyze`, and `mo slim` route deletions to Trash by default after confirmation; `clean`, `purge`, and `installer` delete permanently. `mo uninstall --permanent` skips Trash
 - Cleanup activity is recorded in `~/Library/Logs/mole/operations.log`; review it with `mo history` or disable it with `MO_NO_OPLOG=1`
 - Protect caches with `mo clean --whitelist`, or maintenance items with `mo optimize --whitelist`
 - If the whitelist file cannot be read, `clean`, `purge`, and `optimize` stop instead of running without it
@@ -425,6 +427,10 @@ Removed 5 installers, freed 3.83GB
 ```
 
 </details>
+
+### Slim
+
+`mo slim` removes the Intel code that universal apps carry on Apple Silicon Macs. It lists the apps you own that are signed with a Developer ID, with the size of each app's Intel code, and changes only the apps you select. Each app is slimmed on a copy, touching only main executables and nested code that carries its own signature; the copy replaces the app only after it keeps its Apple Silicon code and passes code signing and Gatekeeper checks, and the original moves to the Trash. App Store apps, Apple apps, apps set to open using Rosetta, apps owned by another user, and running apps are left alone. It needs the Xcode Command Line Tools, and an app update brings the Intel code back.
 
 ## Quick Launchers
 

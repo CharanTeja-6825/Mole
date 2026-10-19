@@ -62,6 +62,7 @@ mo analyze                   # Explorateur visuel de disque (ou 'mo analyse')
 mo status                    # Tableau de bord de santé système en direct
 mo purge                     # Nettoyer les fichiers de build de projets
 mo installer                 # Trouver et supprimer les fichiers d'installation
+mo slim                      # Retirer le code Intel des apps universelles
 
 mo touchid                   # Configurer Touch ID pour sudo dans le terminal
 mo completion                # Activer l'autocomplétion du shell
@@ -80,6 +81,7 @@ mo uninstall --dry-run
 mo optimize --dry-run
 mo purge --dry-run
 mo installer --dry-run
+mo slim --dry-run
 mo history
 mo history --json
 
@@ -131,9 +133,9 @@ Pour une installation déclarative, ajoutez `github:tw93/mole/main` comme entré
 
 Mole peut supprimer des fichiers ; il valide donc les chemins, protège les emplacements partagés et ceux du système, et demande une confirmation quand une action l'exige. Quand Mole ne peut pas prouver qu'un élément peut être modifié sans risque, il l'ignore ou refuse l'opération.
 
-- `clean`, `uninstall`, `purge`, `installer` et `remove` suppriment des fichiers : prévisualisez toujours leurs actions avec `--dry-run`, complété au besoin de `--debug`
+- `clean`, `uninstall`, `purge`, `installer`, `slim` et `remove` suppriment des fichiers : prévisualisez toujours leurs actions avec `--dry-run`, complété au besoin de `--debug`
 - Exécutez Mole **sans `sudo`** : les privilèges administrateur ne sont demandés que pour les actions touchant au système
-- `mo uninstall` et `mo analyze` placent leurs suppressions dans la Corbeille par défaut après confirmation ; `clean`, `purge` et `installer` suppriment définitivement. `mo uninstall --permanent` évite la Corbeille
+- `mo uninstall`, `mo analyze` et `mo slim` placent leurs suppressions dans la Corbeille par défaut après confirmation ; `clean`, `purge` et `installer` suppriment définitivement. `mo uninstall --permanent` évite la Corbeille
 - Les opérations de nettoyage sont consignées dans `~/Library/Logs/mole/operations.log` ; consultez-les avec `mo history` ou désactivez la journalisation avec `MO_NO_OPLOG=1`
 - Préservez des caches avec `mo clean --whitelist` ou excluez des opérations avec `mo optimize --whitelist`
 - Si le fichier de liste blanche est illisible, `clean`, `purge` et `optimize` s'arrêtent au lieu de s'exécuter sans lui
@@ -417,6 +419,10 @@ Removed 5 installers, freed 3.83GB
 ```
 
 </details>
+
+### Alléger les apps (Slim)
+
+`mo slim` retire le code Intel des apps universelles sur les Mac Apple Silicon. Il liste les apps qui vous appartiennent et sont signées avec un Developer ID, avec la taille de leur code Intel, et ne modifie que celles que vous sélectionnez. Chaque app est d'abord allégée sur une copie, en ne touchant qu'aux exécutables principaux et au code imbriqué doté de sa propre signature ; la copie ne remplace l'app que si elle conserve son code Apple Silicon et passe les vérifications de signature de code et de Gatekeeper, et l'original est placé dans la Corbeille. Les apps de l'App Store, les apps Apple, les apps réglées sur « Ouvrir avec Rosetta », celles d'un autre utilisateur et les apps en cours d'exécution ne sont pas modifiées. Les Command Line Tools de Xcode sont nécessaires, et une mise à jour de l'app réintroduit le code Intel.
 
 ## Lanceurs rapides
 

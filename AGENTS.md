@@ -13,6 +13,7 @@ Layout: this file is always loaded and holds the cross-cutting contract. Area ru
 | `.claude/rules/purge-installer.md` | `mo purge` discovery and protection, worktrees, `mo installer` |
 | `.claude/rules/uninstall.md` | `mo uninstall` inventory, display names, app protection, leftovers, sibling guard, batch execution, Homebrew casks |
 | `.claude/rules/optimize.md` | `mo optimize` tasks, preference repair, Spotlight, LaunchServices |
+| `.claude/rules/slim.md` | `mo slim`: Intel slice removal scope, seal-aware thinning, verified swap |
 | `.claude/rules/go-tuis.md` | `cmd/analyze` and `cmd/status` Go TUIs |
 | `.claude/rules/install-update.md` | `mole` router pins, `install.sh`, `mo update`, self-heal, install lock, `mo remove` |
 | `.claude/rules/tests.md` | Bats and Go test validity, test lint, CI jobs |
@@ -54,7 +55,7 @@ Mole is a terminal-first macOS maintenance toolkit. Its core job is to help powe
 ### What Mole Should Not Do
 
 - Do not add broad system modification, privacy reset, package management, app bundle patching, or device-management features just because they are technically possible.
-- Do not remove or rewrite third-party app bundle contents, signed resources, user documents, credentials, sessions, active databases, or active developer-tool state.
+- Do not remove or rewrite third-party app bundle contents, signed resources, user documents, credentials, sessions, active databases, or active developer-tool state. The one named exception is `mo slim` removing Intel slices from apps the user owns (maintainer decision 2026-10-19); its scope and verification contract are in `.claude/rules/slim.md` and do not widen by analogy.
 - Do not add background agents, persistent monitoring, notifications, schedulers, menu bar behavior, or GUI-like state unless explicitly requested and justified as CLI scope.
 - Do not broaden leftover matching from exact app or bundle evidence into vendor-wide, TeamID-prefix, generic-name, or fallback wildcard deletion.
 - Do not turn `status` into a noisy dashboard. Extra rows, live alerts, and tuning controls need a common user action, not just an available metric.
@@ -65,7 +66,7 @@ Mole is a terminal-first macOS maintenance toolkit. Its core job is to help powe
 
 Before accepting a new feature, answer these questions in the PR, issue, or review notes when the fit is not obvious:
 
-1. Does it clearly belong to clean, uninstall, analyze, optimize, status, purge, history, installer, update, completion, touchid, or remove?
+1. Does it clearly belong to clean, uninstall, analyze, optimize, status, purge, history, installer, slim, update, completion, touchid, or remove?
 2. Is it safe by default, previewable where destructive, testable without real auth, and explainable in one terminal screen?
 3. Can the user verify what will change before Mole changes it?
 4. Is the target data locally rebuildable, disposable, or backed by exact app/bundle evidence?

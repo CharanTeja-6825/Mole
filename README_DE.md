@@ -62,6 +62,7 @@ mo analyze                   # Visuelle Festplattenanalyse (oder 'mo analyse')
 mo status                    # Live-Dashboard zur Systemgesundheit
 mo purge                     # Build-Artefakte von Projekten bereinigen
 mo installer                 # Installationsdateien finden und entfernen
+mo slim                      # Intel-Code aus Universal-Apps entfernen
 
 mo touchid                   # Touch ID für sudo konfigurieren
 mo completion                # Shell-Autovervollständigung einrichten
@@ -80,6 +81,7 @@ mo uninstall --dry-run
 mo optimize --dry-run
 mo purge --dry-run
 mo installer --dry-run
+mo slim --dry-run
 mo history
 mo history --json
 
@@ -131,9 +133,9 @@ Für eine deklarative Konfiguration füge `github:tw93/mole/main` als Flake-Inpu
 
 Mole kann Dateien löschen. Deshalb prüft es Pfade, schützt gemeinsam genutzte und systemeigene Orte und fragt nach einer Bestätigung, wenn eine Aktion sie braucht. Kann Mole nicht belegen, dass eine Änderung sicher ist, überspringt oder verweigert es sie.
 
-- `clean`, `uninstall`, `purge`, `installer` und `remove` löschen Dateien, überprüfe sie also zuerst mit `--dry-run` und bei Bedarf mit `--debug`
+- `clean`, `uninstall`, `purge`, `installer`, `slim` und `remove` löschen Dateien, überprüfe sie also zuerst mit `--dry-run` und bei Bedarf mit `--debug`
 - Führe Mole **ohne `sudo`** aus; Administratorrechte werden nur bei Bedarf für Systembereinigungen angefordert
-- `mo uninstall` und `mo analyze` verschieben Löschungen nach Bestätigung standardmäßig in den Papierkorb; `clean`, `purge` und `installer` löschen endgültig. `mo uninstall --permanent` überspringt den Papierkorb
+- `mo uninstall`, `mo analyze` und `mo slim` verschieben Löschungen nach Bestätigung standardmäßig in den Papierkorb; `clean`, `purge` und `installer` löschen endgültig. `mo uninstall --permanent` überspringt den Papierkorb
 - Bereinigungsaktivitäten werden in `~/Library/Logs/mole/operations.log` protokolliert; überprüfe sie mit `mo history` oder deaktiviere das Logging mit `MO_NO_OPLOG=1`
 - Schütze Caches mit `mo clean --whitelist` oder Wartungsaufgaben mit `mo optimize --whitelist`
 - Lässt sich die Whitelist-Datei nicht lesen, brechen `clean`, `purge` und `optimize` ab, statt ohne sie weiterzulaufen
@@ -417,6 +419,10 @@ Removed 5 installers, freed 3.83GB
 ```
 
 </details>
+
+### Apps verschlanken (Slim)
+
+`mo slim` entfernt auf Apple-Silicon-Macs den Intel-Code aus Universal-Apps. Es listet die Apps, die dir gehören und mit einer Developer ID signiert sind, samt der Größe ihres Intel-Codes, und ändert nur die Apps, die du auswählst. Jede App wird zuerst in einer Kopie verschlankt, wobei nur Hauptprogramme und verschachtelter Code mit eigener Signatur angefasst werden. Die Kopie ersetzt die App erst, wenn sie ihren Apple-Silicon-Code behält und die Codesignatur- und Gatekeeper-Prüfung besteht; das Original wandert in den Papierkorb. App-Store-Apps, Apple-Apps, Apps mit „Mit Rosetta öffnen“, Apps anderer Benutzer und laufende Apps bleiben unangetastet. Benötigt werden die Xcode Command Line Tools, und ein App-Update bringt den Intel-Code zurück.
 
 ## Schnellstarter
 
