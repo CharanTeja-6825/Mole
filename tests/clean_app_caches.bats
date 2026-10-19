@@ -939,6 +939,101 @@ EOF
     [[ "$output" != *"SW|"* ]]
 }
 
+@test "clean_futu_update_downloads cleans the update folder only while Futu is closed" {
+    local base="$HOME/iso-futu"
+    local state
+    for state in idle running unknown sink-flip symlink; do
+        run env HOME="$base-$state" PROJECT_ROOT="$PROJECT_ROOT" STATE="$state" \
+            /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+container="$HOME/Library/Containers/cn.futu.niuniu.nx/Data/Library/Application Support"
+if [[ "$STATE" == "symlink" ]]; then
+    mkdir -p "$container/LiveUpdate" "$HOME/outside"
+    echo dmg > "$HOME/outside/private.dmg"
+    ln -s "$HOME/outside" "$container/LiveUpdate/mac_qtnn"
+else
+    mkdir -p "$container/LiveUpdate/mac_qtnn"
+    echo dmg > "$container/LiveUpdate/mac_qtnn/FTNN_15.40.dmg"
+fi
+mkdir -p "$container/Futu"
+echo keep > "$container/Futu/account.db"
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+futu_running() {
+    case "$STATE" in
+        running) return 0 ;;
+        unknown) return 2 ;;
+        *) return 1 ;;
+    esac
+}
+note_activity() { :; }
+mole_defer_cleanup_family() { echo "DEFER:$1"; }
+safe_clean() { echo "UNGUARDED:$*"; }
+safe_clean_guarded() {
+    local guard="$1"
+    shift
+    [[ "$STATE" == "sink-flip" ]] && return 75
+    "$guard" || return 75
+    echo "CLEAN:$guard:$*"
+}
+clean_futu_update_downloads
+EOF
+        [ "$status" -eq 0 ] || return 1
+        [[ "$output" != *"UNGUARDED"* ]] || return 1
+        [[ "$output" != *"account.db"* ]] || return 1
+        case "$state" in
+            idle)
+                [[ "$output" == *"CLEAN:_futu_update_delete_guard_allows:$base-idle/Library/Containers/cn.futu.niuniu.nx/Data/Library/Application Support/LiveUpdate/mac_qtnn/FTNN_15.40.dmg Futu update downloads"* ]] || return 1
+                ;;
+            running | sink-flip)
+                [[ "$output" == *"DEFER:Futu"* ]] || return 1
+                [[ "$output" != *"CLEAN:"* ]] || return 1
+                ;;
+            unknown)
+                [[ "$output" == *"Futu update downloads · stopped (process state unknown)"* ]] || return 1
+                [[ "$output" != *"CLEAN:"* ]] || return 1
+                ;;
+            symlink)
+                [[ "$output" != *"CLEAN:"* ]] || return 1
+                [[ "$output" != *"DEFER:"* ]] || return 1
+                ;;
+        esac
+    done
+}
+
+@test "futu_running sees the app and its helpers but not look-alike names" {
+    run env PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+pgrep() {
+    local selector="$1" pattern="$2" line
+    for line in "${PROC_LINES[@]}"; do
+        if [[ "$selector" == "-x" ]]; then
+            [[ "${line##*/}" == "$pattern" ]] && return 0
+        elif printf '%s\n' "$line" | grep -Eq -- "$pattern"; then
+            return 0
+        fi
+    done
+    return 1
+}
+probe() {
+    PROC_LINES=("$@")
+    local rc=0
+    futu_running || rc=$?
+    echo "$rc"
+}
+echo "main=$(probe '/Applications/富途牛牛.app/Contents/MacOS/FTNN')"
+echo "helper=$(probe '/Applications/富途牛牛.app/Contents/Frameworks/FTNN Helper (GPU).app/Contents/MacOS/FTNN Helper (GPU) --type=gpu-process')"
+echo "other=$(probe '/Applications/Other.app/Contents/MacOS/FTNNX' '/usr/bin/vim notes-about-FTNN.txt')"
+EOF
+
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" == *"main=0"* ]] || return 1
+    [[ "$output" == *"helper=0"* ]] || return 1
+    [[ "$output" == *"other=1"* ]]
+}
+
 @test "clean_notion_service_worker_caches refuses a symlinked cache child" {
     local iso="$HOME/iso-notion-child-symlink"
     run env HOME="$iso" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'

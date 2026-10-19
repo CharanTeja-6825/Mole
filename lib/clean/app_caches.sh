@@ -1683,6 +1683,51 @@ clean_3d_tools() {
     clean_autodesk_fusion_old_bundles
 }
 # Productivity apps.
+# Futu NiuNiu (cn.futu.niuniu.nx) downloads each in-app update as one DMG
+# into LiveUpdate/mac_qtnn and never removes it: a 582 MB package from July
+# sat beside an app updated in October (2026-10-19). Only that folder's
+# children, never the rest of the container; the sandbox is unreadable without
+# Full Disk Access, so nothing is listed then. The guard is re-asked at every
+# sink because an update can start downloading while Mole runs.
+futu_running() {
+    mole_pgrep_any \
+        -x "FTNN" \
+        -f '/Contents/MacOS/FTNN( |$)'
+}
+
+_futu_update_delete_guard_allows() {
+    mole_clean_process_guard futu_running "Futu started"
+}
+
+clean_futu_update_downloads() {
+    local root="$HOME/Library/Containers/cn.futu.niuniu.nx/Data/Library/Application Support/LiveUpdate/mac_qtnn"
+    mole_cleanup_targets_exist "$root"/* || return 0
+    local physical_root
+    physical_root=$(cd -P "$root" 2> /dev/null && pwd -P) || return 0
+    if [[ "$physical_root" != "$root" ]]; then
+        debug_log "Refusing symlinked Futu update folder: $root -> $physical_root"
+        return 0
+    fi
+
+    local _MOLE_CLEAN_GUARD_REASON=""
+    if ! _futu_update_delete_guard_allows; then
+        mole_report_guard_stop "Futu update downloads" mole_defer_cleanup_family "Futu"
+        return 0
+    fi
+    if ! declare -f safe_clean_guarded > /dev/null 2>&1; then
+        safe_clean "$root"/* "Futu update downloads"
+        return $?
+    fi
+
+    local guarded_rc=0
+    safe_clean_guarded _futu_update_delete_guard_allows "$root"/* "Futu update downloads" || guarded_rc=$?
+    if [[ $guarded_rc -eq 75 ]]; then
+        mole_report_guard_stop "Futu update downloads" mole_defer_cleanup_family "Futu"
+        return 0
+    fi
+    return "$guarded_rc"
+}
+
 clean_productivity_apps() {
     safe_clean ~/Library/Caches/com.tw93.MiaoYan/* "MiaoYan cache"
     safe_clean ~/Library/Caches/com.klee.desktop/* "Klee cache"
@@ -1696,6 +1741,7 @@ clean_productivity_apps() {
     safe_clean ~/.cache/kaku/* "Kaku cache"
     safe_clean ~/Library/Application\ Support/spacedrive/thumbnails/* "Spacedrive thumbnail cache"
     safe_clean ~/Library/Containers/is.follow/Data/Library/Application\ Support/Folo/Cache/Cache_Data/* "Folo cache"
+    clean_futu_update_downloads
 }
 # Music/media players (protect Spotify offline music).
 clean_media_players() {
