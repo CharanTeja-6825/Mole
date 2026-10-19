@@ -1417,6 +1417,14 @@ should_protect_path "$wechat/Documents/xwechat_files/account/db_storage/message.
 should_protect_path "$wechat/Documents/app_data/radium/users/account/state.db"
 should_protect_path "$wechat/Documents/app_data/log"
 should_protect_path "$wechat/.wxapplet/WMPF"
+web="$wechat/Documents/app_data/radium/web/profiles/multitab_a1"
+! should_protect_path "$web/Cache/data_0" || exit 1
+! should_protect_path "$web/Service Worker/CacheStorage/index" || exit 1
+should_protect_path "$web/Cache" || exit 1
+should_protect_path "$web/IndexedDB/site.db" || exit 1
+should_protect_path "$web/WebStorage/store" || exit 1
+should_protect_path "$web/Service Worker/ScriptCache/a" || exit 1
+should_protect_path "$wechat/Documents/app_data/radium/web/profiles/Cache/x" || exit 1
 EOF
 
     [ "$status" -eq 0 ]

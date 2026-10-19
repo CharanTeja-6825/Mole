@@ -799,6 +799,59 @@ EOF
     [[ "$output" != *"users/global/"* ]] || return 1
 }
 
+@test "clean_communication_apps reaches the Feishu iron engine and the sandboxed build" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+shell="$HOME/Library/Application Support/LarkShell"
+sandbox="$HOME/Library/Containers/com.bytedance.macos.feishu/Data/Library"
+mkdir -p "$shell/iron/users/b6eb487b/profile_main/Service Worker/CacheStorage"
+mkdir -p "$shell/iron/users/b6eb487b/profile_main/IndexedDB"
+mkdir -p "$shell/iron/users/b6eb487b/profile_explorer/Service Worker/CacheStorage"
+mkdir -p "$sandbox/Application Support/LarkShell/aha/users/b6eb487b/profile_explorer/Service Worker/CacheStorage"
+mkdir -p "$sandbox/Application Support/LarkShell/iron/users/b6eb487b/profile_main/Service Worker/CacheStorage"
+mkdir -p "$HOME/Library/Caches/LarkShell/iron" "$sandbox/Caches/LarkShell"
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/caches.sh"
+source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+safe_clean() { :; }
+safe_clean_guarded() { echo "SCG|$1|$2"; }
+mole_cleanup_targets_exist() { return 0; }
+feishu_or_lark_running() { return 1; }
+clean_service_worker_cache() { echo "SW|$1|$2"; }
+clean_communication_apps
+EOF
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"SW|Feishu|$HOME/Library/Application Support/LarkShell/iron/users/b6eb487b/profile_main/Service Worker/CacheStorage"* ]] || return 1
+    [[ "$output" == *"SW|Feishu|$HOME/Library/Containers/com.bytedance.macos.feishu/Data/Library/Application Support/LarkShell/aha/users/b6eb487b/profile_explorer/Service Worker/CacheStorage"* ]] || return 1
+    [[ "$output" == *"SW|Feishu|$HOME/Library/Containers/com.bytedance.macos.feishu/Data/Library/Application Support/LarkShell/iron/users/b6eb487b/profile_main/Service Worker/CacheStorage"* ]] || return 1
+    [[ "$output" != *"iron/users/b6eb487b/profile_explorer"* ]] || return 1
+    [[ "$output" != *"IndexedDB"* ]] || return 1
+    [[ "$output" == *"SCG|_feishu_disk_cache_delete_guard_allows|$HOME/Library/Caches/LarkShell/iron"* ]] || return 1
+    [[ "$output" == *"SCG|_feishu_disk_cache_delete_guard_allows|$HOME/Library/Containers/com.bytedance.macos.feishu/Data/Library/Caches/LarkShell"* ]]
+}
+
+@test "clean_communication_apps leaves Feishu disk caches while Feishu runs" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+mkdir -p "$HOME/Library/Caches/LarkShell/iron"
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/caches.sh"
+source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+safe_clean() { :; }
+safe_clean_guarded() { echo "SCG|$2"; }
+mole_cleanup_targets_exist() { return 0; }
+mole_defer_cleanup_family() { echo "DEFER|$1"; }
+feishu_or_lark_running() { return 0; }
+clean_service_worker_cache() { echo "SW|$2"; }
+clean_communication_apps
+EOF
+
+    [ "$status" -eq 0 ]
+    [[ "$output" != *"SCG|$HOME/Library/Caches/LarkShell"* ]] || return 1
+    [[ "$output" == *"DEFER|Feishu/Lark"* ]]
+}
+
 @test "clean_notion_service_worker_caches targets CacheStorage in every Electron partition" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
@@ -2524,6 +2577,40 @@ EOF
     [[ "$output" != *"Local Storage"* ]] || return 1
     [[ "$output" != *"Service Worker/Database"* ]] || return 1
     [[ "$output" != *"Service Worker/ScriptCache"* ]] || return 1
+}
+
+@test "clean_wechat_container_caches takes only the web profile caches" {
+    local iso="$HOME/iso-wechat-radium"
+    run env HOME="$iso" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
+set -euo pipefail
+profile="$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/radium/web/profiles/multitab_a1"
+mkdir -p "$profile/Cache" "$profile/Service Worker/CacheStorage" "$profile/IndexedDB" "$profile/WebStorage"
+touch "$profile/Cache/data_0" "$profile/Service Worker/CacheStorage/index"
+touch "$profile/IndexedDB/site.db" "$profile/WebStorage/store"
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/caches.sh"
+source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+wechat_running() { return 1; }
+wecom_running() { return 1; }
+safe_clean_guarded() {
+    local guard="$1"
+    shift
+    local label="${*: -1}"
+    local path
+    for path in "${@:1:$#-1}"; do
+        if "$guard" "$path"; then echo "OK|$path|$label"; else echo "NO|$path"; fi
+    done
+}
+clean_wechat_container_caches
+if _wechat_container_delete_guard_allows "$profile/IndexedDB/site.db"; then echo "LEAK|IndexedDB"; fi
+EOF
+
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" == *"OK|$iso/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/radium/web/profiles/multitab_a1/Cache/data_0|WeChat web cache"* ]] || return 1
+    [[ "$output" == *"OK|"*"multitab_a1/Service Worker/CacheStorage/index|WeChat service worker cache"* ]] || return 1
+    [[ "$output" != *"IndexedDB"* ]] || return 1
+    [[ "$output" != *"WebStorage"* ]] || return 1
+    [[ "$output" != *"NO|"* ]] || return 1
 }
 
 @test "clean_wechat_container_caches skips every target while an owner is running" {

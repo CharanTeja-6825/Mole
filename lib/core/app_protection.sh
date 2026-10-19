@@ -373,6 +373,23 @@ _mole_is_steam_library_path() {
     return 1
 }
 
+# WeChat's built-in browser keeps one Chromium profile per tab group under
+# radium/web/profiles. Only entries inside a profile's HTTP cache and Service
+# Worker CacheStorage are regenerable; IndexedDB, WebStorage and the profile
+# itself stay protected with the rest of the container.
+_is_wechat_web_profile_cache_child() {
+    local path="$1"
+    local root="$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/radium/web/profiles/"
+    local relative="${path#"$root"}"
+    [[ "$relative" != "$path" ]] || return 1
+    local profile="${relative%%/*}"
+    [[ -n "$profile" && "$profile" != "$relative" ]] || return 1
+    case "${relative#*/}" in
+        Cache/?* | "Service Worker/CacheStorage/"?*) return 0 ;;
+    esac
+    return 1
+}
+
 # Check if a path is protected from deletion
 # Centralized logic to protect system settings, control center, and critical apps
 #
@@ -478,7 +495,8 @@ should_protect_path() {
         # blocking on the blanket com.apple.* match in should_protect_data.
         if [[ "$path" == */Data/Library/Caches/* || "$path" == */Data/tmp/* ||
             "$path" == "$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/app_data/log/"* ||
-            "$path" == "$HOME/Library/Containers/com.tencent.xinWeChat/Data/.wxapplet/WMPF/"* ]]; then
+            "$path" == "$HOME/Library/Containers/com.tencent.xinWeChat/Data/.wxapplet/WMPF/"* ]] ||
+            _is_wechat_web_profile_cache_child "$path"; then
             _container_cache_path=true
         elif [[ "${MOLE_UNINSTALL_MODE:-0}" != "1" ]] && should_protect_data "$bundle_id"; then
             return 0
