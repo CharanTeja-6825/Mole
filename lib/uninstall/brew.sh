@@ -542,6 +542,13 @@ brew_uninstall_cask() {
         debug_log "App size: ${size_gb}GB, timeout: ${timeout}s"
     fi
 
+    # Nested sudo needs the foreground tty. Use the existing tty-aware Perl
+    # supervisor here, keeping process-group cleanup and other callers unchanged.
+    local MO_TIMEOUT_BIN="${MO_TIMEOUT_BIN:-}"
+    if [[ -t 0 && -x "${MO_TIMEOUT_PERL_BIN:-}" ]]; then
+        MO_TIMEOUT_BIN=""
+    fi
+
     # Run with timeout to prevent hangs from problematic cask scripts.
     if [[ -n "${SUDO_USER:-}" ]]; then
         if run_with_timeout "$timeout" sudo -u "$SUDO_USER" env \
