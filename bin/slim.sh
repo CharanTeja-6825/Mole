@@ -291,16 +291,18 @@ slim_fat_slices() {
     done
 }
 
-# Print "<offset> <size> <intel bytes>" when the file holds exactly one Apple
-# Silicon slice plus Intel slices and nothing else; that slice is the whole
-# slimmed file. Files with both arm64 and arm64e are left alone.
+# Print "<offset> <size> <intel bytes>" when the file holds exactly one arm64
+# slice plus Intel slices and nothing else; that slice is the whole slimmed
+# file. Any arm64e slice leaves the file alone: macOS refuses third-party
+# arm64e code unless the arm64e ABI is enabled, so such an app may be running
+# its Intel slice today and would have nothing left that runs.
 slim_arm_slice() {
     local file="$1" slices arch off size
     local arm_count=0 arm_off=0 arm_size=0 intel=0
     slices=$(slim_fat_slices "$file") || return 1
     while read -r arch off size; do
         case "$arch" in
-            arm64 | arm64e)
+            arm64)
                 arm_count=$((arm_count + 1))
                 arm_off=$off
                 arm_size=$size
@@ -457,7 +459,10 @@ slim_thin_file() {
 
     local out="$file.mole-slim" mode
     mode=$("$STAT_BSD" -f %Lp "$file") || return 1
-    tail -c +"$((off + 1))" "$file" 2> /dev/null | head -c "$size" > "$out" 2> /dev/null || return 1
+    # head stops reading once it has the slice, so when the slice is not the
+    # last one tail dies of SIGPIPE; the size and Mach-O checks below are what
+    # decide whether the copy is whole.
+    { tail -c +"$((off + 1))" "$file" 2> /dev/null || true; } | head -c "$size" > "$out" 2> /dev/null || return 1
     if [[ "$("$STAT_BSD" -f %z "$out" 2> /dev/null)" != "$size" ]] || ! slim_is_thin_arm "$out"; then
         rm -f "$out" # SAFE: partial slice written by this function inside the staging copy
         return 1
@@ -576,18 +581,29 @@ slim_one_app() {
         return 0
     fi
 
+    # From here until the copy is in place an interrupt would leave neither
+    # app in /Applications: the cleanup trap deletes the work folder, copy
+    # included. Hold INT and TERM over the swap and act on them after it.
+    local swap_signal=""
+    trap 'swap_signal=INT' INT
+    trap 'swap_signal=TERM' TERM
     local delete_rc=0
     MOLE_DELETE_MODE=trash mole_delete "$app" false "$planned_identity" || delete_rc=$?
+    local swap_failed=""
     if [[ $delete_rc -ne 0 || -e "$app" ]]; then
-        slim_discard_stage "$stage"
-        record_slim_failure "$app" "could not move the original to Trash"
-        mole_rc_timeout_or_signal "$delete_rc" && return "$delete_rc"
+        swap_failed="could not move the original to Trash"
+    elif ! mv "$copy" "$app" 2> /dev/null; then
+        swap_failed="original is in the Trash, drag it back to ${app%/*}"
+    fi
+    trap 'trap - EXIT; cleanup; exit 130' INT TERM
+    if [[ -n "$swap_failed" ]]; then
+        [[ "$swap_failed" == "could not move"* ]] && slim_discard_stage "$stage"
+        record_slim_failure "$app" "$swap_failed"
+        [[ -z "$swap_signal" ]] || kill -s "$swap_signal" $$
+        [[ "$swap_failed" == "could not move"* ]] && mole_rc_timeout_or_signal "$delete_rc" && return "$delete_rc"
         return 0
     fi
-    if ! mv "$copy" "$app" 2> /dev/null; then
-        record_slim_failure "$app" "original is in the Trash, drag it back to ${app%/*}"
-        return 0
-    fi
+    [[ -z "$swap_signal" ]] || kill -s "$swap_signal" $$
 
     slim_discard_stage "$stage"
     total_slimmed=$((total_slimmed + 1))

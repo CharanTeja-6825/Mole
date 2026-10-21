@@ -407,6 +407,56 @@ exec /usr/bin/codesign \"\$@\""
 	/usr/bin/xattr -p com.apple.FinderInfo "$outside" > /dev/null
 }
 
+@test "slim_thin_file keeps a slice cut when tail dies of SIGPIPE" {
+	[[ "$SLIM_HAVE_FAT_TOOLCHAIN" == "1" ]] || skip "needs clang and a developer directory"
+	cp "$FIXTURE_BIN_DIR/fat-exe" "$BATS_TEST_TMPDIR/thin-me"
+	# The slice is not always the last one, and then head closes the pipe
+	# while tail is still writing.
+	run env MOLE_TEST_MODE=1 /bin/bash -c '
+		set -o pipefail
+		source "$1"
+		tail() { command tail "$@"; return 141; }
+		slim_thin_file "$2"
+	' bash "$PROJECT_ROOT/bin/slim.sh" "$BATS_TEST_TMPDIR/thin-me"
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$(lipo -archs "$BATS_TEST_TMPDIR/thin-me")" == "arm64" ]]
+}
+
+@test "slim leaves a file whose Apple Silicon slice is arm64e" {
+	run env MOLE_TEST_MODE=1 /bin/bash -c '
+		source "$1"
+		slim_fat_slices() { printf "arm64e 16384 100\nx86_64 32768 200\n"; }
+		slim_arm_slice /dev/null && echo planned
+		slim_fat_slices() { printf "arm64 16384 100\nx86_64 32768 200\n"; }
+		slim_arm_slice /dev/null
+	' bash "$PROJECT_ROOT/bin/slim.sh"
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == "16384 100 200" ]]
+}
+
+@test "an interrupt during the swap still leaves the slimmed app in place" {
+	[[ "$SLIM_HAVE_FAT_TOOLCHAIN" == "1" ]] || skip "needs clang and a developer directory"
+	local app
+	app=$(make_fixture_app)
+	mole_test_fake_command spctl 'exit 0'
+
+	run slim_env MOLE_SLIM_TEST_HOST_ARM64=1 /bin/bash -c '
+		source "$1"
+		slim_signing_team() { echo ABCDE12345; }
+		mole_delete() { mv "$1" "$MOLE_TEST_TRASH_DIR/original.app" && kill -INT $$; }
+		slim_preflight || exit 9
+		collect_slim_candidates || exit 8
+		slim_one_app 0
+		echo "not interrupted"
+	' bash "$PROJECT_ROOT/bin/slim.sh"
+
+	[ "$status" -eq 130 ] || { echo "$output"; return 1; }
+	[[ "$output" != *"not interrupted"* ]] || return 1
+	[[ -d "$app" ]] || return 1
+	[[ "$(lipo -archs "$app/Contents/MacOS/Fixture")" == "arm64" ]] || return 1
+	[[ -d "$TRASH_DIR/original.app" ]]
+}
+
 @test "slim lists a running app but refuses it when slimming starts" {
 	[[ "$SLIM_HAVE_FAT_TOOLCHAIN" == "1" ]] || skip "needs clang and a developer directory"
 	local app
