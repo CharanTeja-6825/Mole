@@ -49,7 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
-Mole is only distributed through Homebrew, this GitHub repository, and [mole.fit](https://mole.fit/) for the Mac and Windows apps. Sites offering a "Mole-based" app or asking you to paste an encoded command into Terminal are not affiliated with Mole.
+Mole is only distributed through Homebrew, this GitHub repository, and [mole.fit](https://mole.fit/) for the Mac and Windows apps. Sites offering a "Mole-based" app or asking you to paste an encoded command into Terminal are not affiliated with Mole. This includes `molemac.com`, `moleapp.net` and `molefit.com`, and the Windows app at `mole.bluecatbot.com` is a separate project that reuses the name.
 
 **With an AI agent**
 

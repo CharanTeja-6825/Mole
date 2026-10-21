@@ -49,7 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
-Mole은 Homebrew, 이 GitHub 저장소, Mac 앱과 Windows 앱용 [mole.fit](https://mole.fit/)에서만 배포됩니다. "Mole 기반"이라고 소개하는 다른 앱이나 인코딩된 명령을 터미널에 붙여 넣으라고 하는 사이트는 Mole과 관련이 없습니다.
+Mole은 Homebrew, 이 GitHub 저장소, Mac 앱과 Windows 앱용 [mole.fit](https://mole.fit/)에서만 배포됩니다. "Mole 기반"이라고 소개하는 다른 앱이나 인코딩된 명령을 터미널에 붙여 넣으라고 하는 사이트는 Mole과 관련이 없습니다. `molemac.com`, `moleapp.net`, `molefit.com`은 Mole 공식 사이트가 아니며, `mole.bluecatbot.com`의 Windows 앱도 Mole이라는 이름을 쓰는 별개의 프로젝트입니다.
 
 **AI 에이전트로 설치**
 
