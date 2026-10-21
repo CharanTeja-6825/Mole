@@ -9,11 +9,12 @@ rejected as an unknown option; fall back to `mo status --json`,
 
 ```powershell
 scoop install mole
-# or
-iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
-The script install needs Git, and Go when it has to build the native tools.
+Without Scoop, point the user to the install script in the README
+(https://github.com/tw93/Mole/tree/windows#quick-start) and let them run it; do
+not pipe a download into a shell yourself. The script install needs Git, and Go
+when it has to build the native tools.
 Mole runs in Windows PowerShell 5.1 or PowerShell 7. A winget or Scoop install
 is updated and removed through that package manager; `mo update` and
 `mo remove` print the right command.

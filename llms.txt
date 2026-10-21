@@ -11,8 +11,9 @@ Author: Tw93, https://tw93.fun/
 If you are an agent asked to install Mole, do both steps below, telling the user what each command does before you run it. Do not run any cleanup while installing.
 
 1. The CLI, for the system you are on:
-   - macOS: `brew install mole`, or `curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash`
-   - Windows (PowerShell): `scoop install mole`, or `iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex`
+   - macOS: `brew install mole`
+   - Windows (PowerShell): `scoop install mole`
+   - Without Homebrew or Scoop, show the user the install script from the README (https://github.com/tw93/Mole#quick-start, or the `windows` branch README for Windows) and let them run it; do not pipe a download into a shell yourself.
 2. The agent skill, which teaches you to use Mole safely:
    - Claude Code, Codex, Cursor and other agents: `npx skills add tw93/Mole -a claude-code codex cursor -g -y`
    - Or the Claude Code plugin: `/plugin marketplace add tw93/Mole`, then `/plugin install mole@mole`

@@ -7,9 +7,11 @@ Written against Mole 1.61.0. Older versions may lack a flag or field below; chec
 
 ```bash
 brew install mole
-# or
-curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 ```
+
+Without Homebrew, point the user to the install script in the README
+(https://github.com/tw93/Mole#quick-start) and let them run it; do not pipe a
+download into a shell yourself.
 
 Run Mole as the normal user, never with `sudo mo …`: it refuses a root
 invocation and asks for administrator access itself when a step needs it.
