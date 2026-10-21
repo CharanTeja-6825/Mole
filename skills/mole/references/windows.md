@@ -1,7 +1,7 @@
 # Mole CLI (Windows)
 
-Written against the first Mole CLI (Windows) release after 1.36.0, which adds
-`mo analyze --json` and `mo uninstall --list`. On 1.36.0 or older either flag is
+Written against Mole CLI (Windows) 1.37.0, which adds `mo analyze --json` and
+`mo uninstall --list`. On 1.36.0 or older either flag is
 rejected as an unknown option; fall back to `mo status --json`,
 `mo history --json` and `mo clean --dry-run`.
 
