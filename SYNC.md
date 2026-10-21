@@ -47,6 +47,6 @@ Scoped follow-up on 2026-10-18: Mole CLI (macOS) `8f2671cd` adapts the scan-requ
 | Dry-run operation log rows | Intentional difference | `b4e27dae` records macOS dry runs as `<command>-dry-run` sessions; Mole CLI (Windows) writes nothing in dry runs (CLI-SYNC-12 on `windows`). |
 | GUI-only capabilities | Not applicable | Menu/tray, app bulk updates and private leftover catalogs are not CLI parity requirements. |
 
-Delivery: GitHub's latest macOS stable checked on 2026-10-16 is `V1.61.0` (tag source `122bf83c`), with its seven assets, attestations and a script-channel update from `V1.60.0` verified; source after that tag must not be called released. Consult the live release and exact commit ancestry before replying to users.
+Delivery: GitHub's latest macOS stable checked on 2026-10-21 is `V1.62.0` (tag source `91a7bf44`), with its seven assets, attestations, archive members, minimum macOS 12.0 and a script-channel update from `V1.61.0` verified; Homebrew core PR #319945 was open at that check. The previous stable was `V1.61.0` (tag source `122bf83c`, 2026-10-16). Source after `V1.62.0` must not be called released. Consult the live release and exact commit ancestry before replying to users.
 
 Verification for the 2026-10-15 review fixes: `make build`, `go test ./...`, `./scripts/check.sh --no-format` and the full `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 ./scripts/test.sh` passed. The full suite was repeated in an isolated checkout based on `81c12fd3` with the exact owned patch. These source changes shipped in V1.60.0.
