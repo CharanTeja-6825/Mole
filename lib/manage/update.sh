@@ -560,8 +560,22 @@ get_latest_version_from_github() {
     return 0
 }
 
+# /usr/bin/git is a stub until the Command Line Tools are installed, and
+# running it opens their installer. Plain assignments so a test can point both
+# at fixtures after sourcing.
+MOLE_SYSTEM_GIT_STUB="/usr/bin/git"
+MOLE_XCODE_SELECT_BIN="/usr/bin/xcode-select"
+
+# Succeeds when a git lookup cannot pop up the Command Line Tools installer.
+mole_git_runs_quietly() {
+    local git_bin
+    git_bin=$(command -v git 2> /dev/null) || return 1
+    [[ "$git_bin" == "$MOLE_SYSTEM_GIT_STUB" ]] || return 0
+    "$MOLE_XCODE_SELECT_BIN" -p > /dev/null 2>&1
+}
+
 get_latest_version_from_git() {
-    if ! command -v git > /dev/null 2>&1; then
+    if ! mole_git_runs_quietly; then
         return 0
     fi
     local response tag version=""
@@ -813,7 +827,7 @@ get_latest_commit_from_github() {
 
     # The unauthenticated API can be rate-limited even while ordinary GitHub
     # access works. Keep the fallback bounded and accept only main's exact SHA.
-    if command -v git > /dev/null 2>&1; then
+    if mole_git_runs_quietly; then
         # Ignore ambient credential helpers and URL rewrites: this public,
         # read-only probe must resolve the literal GitHub remote or fail.
         if response=$(run_with_timeout "$MOLE_TIMEOUT_MEDIUM_PROBE_SEC" \
