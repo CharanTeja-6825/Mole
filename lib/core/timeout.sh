@@ -198,13 +198,17 @@ run_with_timeout() {
         if [[ "${MO_DEBUG:-0}" == "1" ]]; then
             echo "[TIMEOUT] Running with ${duration}s timeout: $*" >&2
         fi
-        local timeout_rc=0
+        local timeout_rc=0 timeout_started=$SECONDS
         # The -k escalation kills gtimeout's own process group, so bash would
         # print "Killed: 9"; the command keeps its stderr on fd 3 while that
         # shell notice goes to /dev/null.
         { "$timeout_bin" -k 2 "$duration" "$@" 2>&3 3>&-; } 3>&2 2> /dev/null || timeout_rc=$?
-        # The -k escalation exits 137; report it as the timeout it is.
-        [[ $timeout_rc -eq 137 ]] && return 124
+        # The -k escalation exits 137 only after the deadline; report it as the
+        # timeout it is. An earlier SIGKILL (memory pressure, kill -9) is not a
+        # timeout and keeps 137, so callers still cancel instead of moving on.
+        if [[ $timeout_rc -eq 137 && $((SECONDS - timeout_started)) -ge ${duration%.*} ]]; then
+            return 124
+        fi
         return "$timeout_rc"
     fi
 

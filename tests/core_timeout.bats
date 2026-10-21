@@ -104,6 +104,23 @@ setup() {
     [[ $duration -lt 7 ]]
 }
 
+@test "run_with_timeout: an early SIGKILL is not reported as a timeout" {
+    if ! command -v gtimeout >/dev/null 2>&1 && ! command -v timeout >/dev/null 2>&1; then
+        skip "gtimeout/timeout not available"
+    fi
+
+    set +e
+    /bin/bash -c "
+        set +e
+        source '$PROJECT_ROOT/lib/core/timeout.sh'
+        run_with_timeout 5 perl -e 'kill 9, \$\$'
+        exit \$?
+    "
+    exit_code=$?
+    set -e
+    [[ $exit_code -eq 137 ]]
+}
+
 @test "run_with_timeout: kills long-running command" {
     start_time=$(date +%s)
     set +e
