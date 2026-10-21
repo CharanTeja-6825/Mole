@@ -496,3 +496,42 @@ SCRIPT
         fi
     done
 }
+
+@test "skill command audit rejects commands and flags the CLI does not have" {
+    local audit="$PROJECT_ROOT/scripts/audit_skill_commands.py"
+    local skill="$BATS_TEST_TMPDIR/skill"
+    mkdir -p "$skill/references"
+    cat > "$skill/SKILL.md" <<'EOF'
+Run `mo clean --dry-run`, then `mo status --json`.
+EOF
+    cat > "$skill/references/macos.md" <<'EOF'
+```bash
+mo history --json --limit 5   # recent runs
+mo analyze --json ~/Library
+```
+EOF
+    printf 'Windows notes without commands.\n' > "$skill/references/windows.md"
+
+    run python3 "$audit" --skill-dir "$skill" --windows-ref refs/heads/mole-audit-missing-ref
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"Windows side skipped"* ]] || return 1
+    [[ "$output" == *"skill-commands-audit-ok (4 command checks)"* ]] || { echo "$output"; return 1; }
+
+    run python3 "$audit" --skill-dir "$skill" --windows-ref refs/heads/mole-audit-missing-ref --require-windows
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+
+    cat >> "$skill/references/macos.md" <<'EOF'
+Then `mo clean --yes` or `mo frobnicate`.
+EOF
+    run python3 "$audit" --skill-dir "$skill" --windows-ref refs/heads/mole-audit-missing-ref
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"macos.md:5: \`mo clean --yes\` is not in the macOS source"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"macos.md:5: \`mo frobnicate\` is not a macOS command"* ]] || { echo "$output"; return 1; }
+}
+
+@test "CI checks the published skill against both CLIs" {
+    run grep -F 'audit_skill_commands.py' "$PROJECT_ROOT/scripts/check.sh"
+    [ "$status" -eq 0 ]
+    run grep -F 'git fetch --no-tags --depth=1 origin windows' "$PROJECT_ROOT/.github/workflows/check.yml"
+    [ "$status" -eq 0 ]
+}

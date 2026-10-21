@@ -10,6 +10,7 @@ description: >-
   review (/check).
 metadata:
   version: "1.2.0"
+  internal: true
 ---
 
 # Weekly Audit (CLI)

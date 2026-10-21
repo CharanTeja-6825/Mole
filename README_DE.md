@@ -447,6 +447,16 @@ Die Starter erkennen gängige Terminals automatisch (Terminal, iTerm2, Alacritty
 
 </details>
 
+## Agent-Skill
+
+Mole bringt einen Skill für Claude Code, Codex, Cursor und andere Coding-Agents mit, für die macOS- und die Windows-CLI. Damit liest ein Agent die JSON-Ausgabe von Mole, zeigt dir jede Bereinigung zuerst mit `--dry-run`, bevor etwas entfernt wird, und überlässt App-Deinstallationen und Schritte mit Administratorrechten dir in deinem eigenen Terminal.
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+Danach fragst du einfach in eigenen Worten, etwa "Was belegt meinen Speicher?". Aktualisieren mit `npx skills update -g -y`.
+
 ## Community
 
 Vielen Dank an alle Mitwirkenden, die Mole voranbringen. Folge ihnen gern ❤️

@@ -447,6 +447,16 @@ Raycast 설정 방법:
 
 </details>
 
+## 에이전트 스킬
+
+Mole은 Claude Code, Codex, Cursor 등 코딩 에이전트용 스킬을 제공하며 macOS와 Windows CLI를 모두 지원합니다. 에이전트는 Mole의 JSON 출력을 읽고, 무엇이든 삭제하기 전에 `--dry-run`으로 목록을 먼저 보여 주며, 앱 제거와 관리자 권한이 필요한 단계는 직접 터미널에서 실행하도록 남겨 둡니다.
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+설치 후에는 "디스크를 뭐가 차지하고 있어?"처럼 평소 말투로 물어보면 됩니다. 업데이트는 `npx skills update -g -y`로 합니다.
+
 ## 커뮤니티
 
 Mole 제작에 힘을 보태주신 모든 기여자분들께 감사드립니다. 이분들을 팔로우해 보세요 ❤️

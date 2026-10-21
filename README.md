@@ -455,6 +455,16 @@ The launchers auto-detect Terminal, iTerm2, Alacritty, kitty, WezTerm, Ghostty, 
 
 </details>
 
+## Agent Skill
+
+Mole ships a skill for Claude Code, Codex, Cursor and other coding agents, covering both the macOS and the Windows CLI. With it, an agent reads Mole's JSON output, shows you every cleanup with `--dry-run` before anything is removed, and leaves app uninstalls and administrator steps for you to run in your own terminal.
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+Then ask in plain words, such as "what is using my disk?". Update with `npx skills update -g -y`.
+
 ## Community
 
 Thanks to everyone who helped build Mole. Go follow them. ❤️

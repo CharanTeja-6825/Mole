@@ -78,14 +78,14 @@ A magnitude answer needs a sample from real users, not the maintainer's disk. Wh
 
 ## Repository Map
 
-- `.claude/skills/` is the canonical home for project skills. `.agents/skills/` contains relative symlinks for Codex discovery; do not maintain copied skill bodies. `.claude/rules/` holds the path-scoped area rules listed above.
+- `.claude/skills/` is the canonical home for project skills, which carry `metadata.internal: true` so `npx skills add tw93/Mole` never installs them. The one published skill, `mole`, lives in `skills/mole/` for both CLIs, and `.claude/skills/mole` links to it. `.agents/skills/` contains relative symlinks for Codex discovery; do not maintain copied skill bodies. `.claude/rules/` holds the path-scoped area rules listed above.
 - `.claude/agents/` contains focused Claude review profiles. They must read the current contract from this file and the rule files instead of copying a frozen version of the safety or portability rules.
 - `mole` - the CLI entrypoint. It is a **router only**: it parses args, renders the menu, and dispatches. Business logic does not belong here. Self-update lives in `lib/manage/update.sh` and self-removal in `lib/manage/remove.sh`. Its `VERSION=` line is read by `install.sh` with `sed` and its `SCRIPT_DIR=` line is rewritten by it; read `.claude/rules/install-update.md` before touching either.
 - `lib/core/` - shared shell safety, UI, file operations, operation logs, app protection logic, and centralized timeout constants (`timeouts.sh`).
 - `lib/core/app_protection_data.sh` - readonly bundle ID and pattern arrays consumed by `app_protection.sh`. Data only, no logic.
 - `cmd/analyze/` and `cmd/status/` - Go TUIs (see `.claude/rules/go-tuis.md`).
 - `tests/` - Bats suites, PTY drivers and fixtures (see `.claude/rules/tests.md`).
-- `scripts/` - check, test, build, and release helpers. `audit_bundle_drift.sh` backs the monthly bundle audit; `audit_function_duplication.py` gates same-body-different-name shell functions and runs inside `check.sh` (`--list` shows every group); `audit_destructive_sinks.py` enforces explicit safety annotations on raw recursive deletion commands; `audit_bats_assertions.py` rejects Bats assertions that cannot fail; `audit_timeout_status.py` keeps every comparison against the timeout status 124 inside `lib/core/timeout.sh`; per-PR perf is covered by `tests/core_performance.bats`.
+- `scripts/` - check, test, build, and release helpers. `audit_bundle_drift.sh` backs the monthly bundle audit; `audit_function_duplication.py` gates same-body-different-name shell functions and runs inside `check.sh` (`--list` shows every group); `audit_destructive_sinks.py` enforces explicit safety annotations on raw recursive deletion commands; `audit_bats_assertions.py` rejects Bats assertions that cannot fail; `audit_timeout_status.py` keeps every comparison against the timeout status 124 inside `lib/core/timeout.sh`; `audit_skill_commands.py` checks every `mo` command and flag in `skills/mole` against this branch and the `windows` branch; per-PR perf is covered by `tests/core_performance.bats`.
 - `docs/SECURITY_DESIGN.md` - design doc for the path validation / app protection / # SAFE annotation contract.
 - `SECURITY_AUDIT.md` - security review notes.
 

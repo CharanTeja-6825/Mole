@@ -447,6 +447,16 @@ Les lanceurs reconnaissent automatiquement les principaux terminaux (Terminal, i
 
 </details>
 
+## Skill pour agents
+
+Mole fournit un skill pour Claude Code, Codex, Cursor et les autres agents de code, valable pour la CLI macOS comme pour la CLI Windows. Avec lui, un agent lit la sortie JSON de Mole, vous montre chaque nettoyage avec `--dry-run` avant de supprimer quoi que ce soit, et vous laisse lancer vous-même les désinstallations d'apps et les étapes administrateur dans votre terminal.
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+Ensuite, posez simplement la question, par exemple « qu'est-ce qui occupe mon disque ? ». Mise à jour avec `npx skills update -g -y`.
+
 ## Communauté
 
 Merci à tous ceux qui contribuent au développement de Mole. Allez les suivre ❤️

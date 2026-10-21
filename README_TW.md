@@ -447,6 +447,16 @@ Raycast 裝好後要手動設定一次：
 
 </details>
 
+## Agent Skill
+
+Mole 附帶一個給 Claude Code、Codex、Cursor 等程式設計 Agent 使用的 skill，macOS 與 Windows 兩個 CLI 都能用。裝上後 Agent 會讀取 Mole 的 JSON 輸出，刪除前先用 `--dry-run` 把清單給你看，解除安裝 App 與需要管理員權限的步驟留給你在自己的終端機裡執行。
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+裝好後直接問「什麼佔了我的磁碟」就行，更新用 `npx skills update -g -y`。
+
 ## 社群回饋
 
 感謝所有參與 Mole 開發與維護的貢獻者，去追蹤一下他們吧 ❤️

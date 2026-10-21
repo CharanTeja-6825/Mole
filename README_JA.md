@@ -447,6 +447,16 @@ Raycastは一度だけ手動設定が必要です：
 
 </details>
 
+## エージェントスキル
+
+Mole には Claude Code、Codex、Cursor などのコーディングエージェント向けのスキルがあり、macOS 版と Windows 版の両方の CLI に対応しています。エージェントは Mole の JSON 出力を読み、削除の前に必ず `--dry-run` で一覧を見せます。アプリのアンインストールと管理者権限が必要な手順は、あなた自身のターミナルで実行するよう案内します。
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+あとは「ディスクを何が使っている？」のように普通に聞くだけです。更新は `npx skills update -g -y` です。
+
 ## コミュニティ
 
 Moleの開発に貢献いただいたすべての方に感謝申し上げます。ぜひフォローしてみてください ❤️
