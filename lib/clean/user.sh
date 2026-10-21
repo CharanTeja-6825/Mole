@@ -1860,10 +1860,11 @@ clean_external_volume_target() {
 
         local size_kb=""
         local size_rc=0
-        size_kb=$(get_path_size_kb "$target_path" 2> /dev/null) || size_rc=$?
-        [[ $size_rc -eq 0 ]] || _mole_record_clean_cancellation "$size_rc"
-        [[ $size_rc -eq 0 ]] || return "$size_rc"
-        [[ "$size_kb" =~ ^[0-9]+$ ]] || size_kb=0
+        # Readable bytes, like every other cleanup total: one unlistable
+        # subfolder must not cancel the rest of the volume's cleanup.
+        size_kb=$(get_path_size_kb "$target_path" "" readable 2> /dev/null) || size_rc=$?
+        mole_item_size_continues "$size_rc" || return $?
+        [[ $size_rc -eq 0 && "$size_kb" =~ ^[0-9]+$ ]] || size_kb=0
 
         if [[ "$DRY_RUN" == "true" ]]; then
             if ! _mole_path_matches_identity \
