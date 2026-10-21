@@ -24,7 +24,7 @@ is updated and removed through that package manager; `mo update` and
 | Command | Without a console (how an agent runs it) | Who runs the real thing |
 |---|---|---|
 | `mo analyze --json [path]` | Read-only JSON | Agent |
-| `mo status --json` / `mo status --watch --interval=1s` | Read-only JSON / NDJSON; write the interval with `=`, since `--interval 1s` is not parsed | Agent |
+| `mo status --json` / `mo status --watch --interval=1s` | Read-only JSON / NDJSON; write the interval with `=`, which 1.36.0 and older also parse | Agent |
 | `mo history --json --limit N` | Read-only JSON, N is 1-200 | Agent |
 | `mo uninstall --list` | Read-only JSON app inventory | Agent |
 | `mo clean --dry-run` | Preview, writes the path list | Agent |
