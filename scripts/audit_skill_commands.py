@@ -9,6 +9,10 @@ SKILL.md against both CLIs, references/macos.md against this branch, and
 references/windows.md against the Windows CLI read from a Git ref (default
 origin/windows). Missing that ref skips the Windows side with a notice unless
 --require-windows is passed, which CI does after fetching the branch.
+
+Codex installs plugins by copying files and drops symbolic links, so
+plugins/mole/skills/mole is a real copy of skills/mole; it must match byte for
+byte.
 """
 
 from __future__ import annotations
@@ -129,12 +133,33 @@ def windows_platform(ref: str) -> Platform | None:
     )
 
 
+def copy_problems(source: Path, copy: Path) -> list[str]:
+    def files(root: Path) -> dict[str, bytes]:
+        return {
+            str(path.relative_to(root)): path.read_bytes()
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+        }
+
+    if not copy.is_dir():
+        return [f"{copy}: missing"]
+    expected, actual = files(source), files(copy)
+    stale = sorted(name for name in expected.keys() | actual.keys() if expected.get(name) != actual.get(name))
+    if not stale:
+        return []
+    fix = f"rm -rf {copy} && cp -R {source} {copy}"
+    return [f"{copy}/{name}: differs from {source}" for name in stale] + [f"fix with: {fix}"]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--skill-dir", type=Path, default=PROJECT_ROOT / "skills" / "mole")
     parser.add_argument("--windows-ref", default="origin/windows")
     parser.add_argument("--require-windows", action="store_true")
+    parser.add_argument("--plugin-copy", type=Path)
     args = parser.parse_args()
+    if args.plugin_copy is None and args.skill_dir == PROJECT_ROOT / "skills" / "mole":
+        args.plugin_copy = PROJECT_ROOT / "plugins" / "mole" / "skills" / "mole"
 
     macos = macos_platform()
     windows = windows_platform(args.windows_ref)
@@ -163,6 +188,9 @@ def main() -> int:
                 checked += 1
                 for problem in platform.problems(command, flags):
                     failures.append(f"{path}:{line}: {problem}")
+
+    if args.plugin_copy is not None:
+        failures += copy_problems(args.skill_dir, args.plugin_copy)
 
     if failures:
         print("\n".join(failures))

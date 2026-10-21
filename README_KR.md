@@ -51,6 +51,20 @@ iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 
 
 Mole은 Homebrew, 이 GitHub 저장소, Mac 앱과 Windows 앱용 [mole.fit](https://mole.fit/)에서만 배포됩니다. "Mole 기반"이라고 소개하는 다른 앱이나 인코딩된 명령을 터미널에 붙여 넣으라고 하는 사이트는 Mole과 관련이 없습니다.
 
+**AI 에이전트로 설치**
+
+에이전트에게 이렇게 말하면 됩니다:
+
+> Install Mole for me by reading https://raw.githubusercontent.com/tw93/Mole/main/llms.txt
+
+스킬을 직접 설치할 수도 있습니다. 설치하면 Claude Code, Codex, Cursor 등 에이전트가 무엇이든 삭제하기 전에 `--dry-run`으로 목록을 먼저 보여 주고, 앱 제거와 관리자 권한이 필요한 단계는 직접 실행하도록 남겨 둡니다. 업데이트는 `npx skills update -g -y`로 합니다.
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+호스트 플러그인으로 설치하려면 Claude Code에서 `/plugin marketplace add tw93/Mole` 다음 `/plugin install mole@mole`, Codex에서 `codex plugin marketplace add tw93/Mole` 다음 `codex plugin add mole@mole`을 실행합니다.
+
 **주요 명령어**
 
 ```bash
@@ -446,16 +460,6 @@ Raycast 설정 방법:
 런처는 터미널(Terminal, iTerm2, Alacritty, kitty, WezTerm, Ghostty, Hyper, WindTerm, Warp)을 자동 감지합니다. `MO_LAUNCHER_APP=<이름>`으로 터미널을 지정하거나 [Kaku](https://github.com/tw93/Kaku)에서 직접 실행할 수도 있습니다.
 
 </details>
-
-## 에이전트 스킬
-
-Mole은 Claude Code, Codex, Cursor 등 코딩 에이전트용 스킬을 제공하며 macOS와 Windows CLI를 모두 지원합니다. 에이전트는 Mole의 JSON 출력을 읽고, 무엇이든 삭제하기 전에 `--dry-run`으로 목록을 먼저 보여 주며, 앱 제거와 관리자 권한이 필요한 단계는 직접 터미널에서 실행하도록 남겨 둡니다.
-
-```bash
-npx skills add tw93/Mole -a claude-code codex cursor -g -y
-```
-
-설치 후에는 "디스크를 뭐가 차지하고 있어?"처럼 평소 말투로 물어보면 됩니다. 업데이트는 `npx skills update -g -y`로 합니다.
 
 ## 커뮤니티
 

@@ -51,6 +51,20 @@ iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 
 
 Mole wird nur über Homebrew, dieses GitHub-Repository und [mole.fit](https://mole.fit/) für die Mac- und Windows-App verteilt. Websites, die eine „auf Mole basierende“ App anbieten oder dich auffordern, einen kodierten Befehl ins Terminal einzufügen, haben nichts mit Mole zu tun.
 
+**Mit einem KI-Agenten**
+
+Sag deinem Agenten:
+
+> Install Mole for me by reading https://raw.githubusercontent.com/tw93/Mole/main/llms.txt
+
+Oder installiere den Skill selbst. Damit zeigen dir Claude Code, Codex, Cursor und andere Agents jede Bereinigung zuerst mit `--dry-run`, bevor etwas entfernt wird, und überlassen App-Deinstallationen und Schritte mit Administratorrechten dir. Aktualisieren mit `npx skills update -g -y`.
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+Als Host-Plugin: in Claude Code `/plugin marketplace add tw93/Mole`, dann `/plugin install mole@mole`, in Codex `codex plugin marketplace add tw93/Mole`, dann `codex plugin add mole@mole`.
+
 **Befehle**
 
 ```bash
@@ -446,16 +460,6 @@ Raycast-Einrichtung:
 Die Starter erkennen gängige Terminals automatisch (Terminal, iTerm2, Alacritty, kitty, WezTerm, Ghostty, Hyper, WindTerm, Warp). Nutze `MO_LAUNCHER_APP=<name>` zur Festlegung oder starte Mole direkt in [Kaku](https://github.com/tw93/Kaku).
 
 </details>
-
-## Agent-Skill
-
-Mole bringt einen Skill für Claude Code, Codex, Cursor und andere Coding-Agents mit, für die macOS- und die Windows-CLI. Damit liest ein Agent die JSON-Ausgabe von Mole, zeigt dir jede Bereinigung zuerst mit `--dry-run`, bevor etwas entfernt wird, und überlässt App-Deinstallationen und Schritte mit Administratorrechten dir in deinem eigenen Terminal.
-
-```bash
-npx skills add tw93/Mole -a claude-code codex cursor -g -y
-```
-
-Danach fragst du einfach in eigenen Worten, etwa "Was belegt meinen Speicher?". Aktualisieren mit `npx skills update -g -y`.
 
 ## Community
 

@@ -51,6 +51,20 @@ iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 
 
 Mole 只通过 Homebrew、这个 GitHub 仓库和 Mac 版、Windows 版官网 [mole.fit](https://mole.fit/) 发布，自称基于 Mole 的其他 App，或者让你往终端里粘贴一段编码命令的网站，都和 Mole 无关。
 
+**用 AI Agent 安装**
+
+直接告诉你的 Agent：
+
+> Install Mole for me by reading https://raw.githubusercontent.com/tw93/Mole/main/llms.txt
+
+也可以自己装 skill，装上后 Claude Code、Codex、Cursor 等 Agent 删东西前会先用 `--dry-run` 把清单给你看，卸载 App 和要管理员权限的步骤留给你自己跑，更新用 `npx skills update -g -y`。
+
+```bash
+npx skills add tw93/Mole -a claude-code codex cursor -g -y
+```
+
+喜欢用宿主自带的插件管理，Claude Code 里先 `/plugin marketplace add tw93/Mole` 再 `/plugin install mole@mole`，Codex 里先 `codex plugin marketplace add tw93/Mole` 再 `codex plugin add mole@mole`。
+
 **常用命令**
 
 ```bash
@@ -446,16 +460,6 @@ Raycast 装好后要手动设置一次：
 启动器会自动适配常见终端（Terminal、iTerm2、Alacritty、kitty、WezTerm、Ghostty、Hyper、WindTerm、Warp）。可通过 `MO_LAUNCHER_APP=<名称>` 指定终端，也可以直接在 [Kaku](https://github.com/tw93/Kaku) 中运行。
 
 </details>
-
-## Agent Skill
-
-Mole 带了一个给 Claude Code、Codex、Cursor 等编程 Agent 用的 skill，macOS 和 Windows 两个 CLI 都能用。装上后 Agent 会读 Mole 的 JSON 输出，删东西前先用 `--dry-run` 把清单给你看，卸载 App 和要管理员权限的步骤留给你在自己的终端里跑。
-
-```bash
-npx skills add tw93/Mole -a claude-code codex cursor -g -y
-```
-
-装好后直接问「什么占了我的磁盘」就行，更新用 `npx skills update -g -y`。
 
 ## 社区反馈
 

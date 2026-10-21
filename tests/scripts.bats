@@ -529,6 +529,28 @@ EOF
     [[ "$output" == *"macos.md:5: \`mo frobnicate\` is not a macOS command"* ]] || { echo "$output"; return 1; }
 }
 
+@test "skill command audit rejects a Codex plugin copy that drifted from the skill" {
+    local audit="$PROJECT_ROOT/scripts/audit_skill_commands.py"
+    local skill="$BATS_TEST_TMPDIR/skill"
+    local copy="$BATS_TEST_TMPDIR/copy"
+    mkdir -p "$skill/references"
+    cat > "$skill/SKILL.md" <<'EOF'
+Run `mo clean --dry-run`.
+EOF
+    : > "$skill/references/macos.md"
+    : > "$skill/references/windows.md"
+    cp -R "$skill" "$copy"
+
+    run python3 "$audit" --skill-dir "$skill" --plugin-copy "$copy" --windows-ref refs/heads/mole-audit-missing-ref
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+
+    printf 'stale\n' > "$copy/references/macos.md"
+    run python3 "$audit" --skill-dir "$skill" --plugin-copy "$copy" --windows-ref refs/heads/mole-audit-missing-ref
+    [ "$status" -eq 1 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"$copy/references/macos.md: differs from $skill"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"fix with: rm -rf $copy && cp -R $skill $copy"* ]] || { echo "$output"; return 1; }
+}
+
 @test "CI checks the published skill against both CLIs" {
     run grep -F 'audit_skill_commands.py' "$PROJECT_ROOT/scripts/check.sh"
     [ "$status" -eq 0 ]
