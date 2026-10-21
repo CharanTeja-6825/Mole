@@ -368,10 +368,16 @@ SH
 }
 
 run_non_tty_confirmation() {
-    local input_mode="$1"
-    local out="$HOME/no-tty-$input_mode.out"
-    if ! env -u MOLE_TEST_NO_AUTH -u MOLE_TEST_MODE HOME="$HOME/no-tty-$input_mode" \
-        PROJECT_ROOT="$PROJECT_ROOT" INPUT_MODE="$input_mode" MOLE_DRY_RUN=1 \
+    local input_mode="$1" dry_run="${2:-0}" expected_rc=3 expected_text='interactive terminal'
+    if [[ "$dry_run" == 1 ]]; then
+        expected_rc=4
+        expected_text='Dry run complete'
+    fi
+    local out="$HOME/no-tty-$input_mode-$dry_run.out"
+    # No sudo or Homebrew apps are selected, so the real-mode confirmation
+    # path cannot reach a password prompt even when the gate is broken.
+    if ! env -u MOLE_TEST_NO_AUTH -u MOLE_TEST_MODE HOME="$HOME/no-tty-$input_mode-$dry_run" \
+        PROJECT_ROOT="$PROJECT_ROOT" INPUT_MODE="$input_mode" MOLE_DRY_RUN="$dry_run" EXPECTED_RC="$expected_rc" \
         /bin/bash --noprofile --norc > "$out" 2>&1 <<'SH'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -392,14 +398,14 @@ else
     printf 'n\n' | _batch_preview_and_confirm || rc=$?
 fi
 printf 'RC=%s\n' "$rc"
-[[ $rc -eq 3 ]] || exit 1
+[[ $rc -eq $EXPECTED_RC ]] || exit 1
 [[ -d "$app" ]] || exit 1
 SH
     then
         cat "$out"
         return 1
     fi
-    grep -Fq 'interactive terminal' "$out" || { cat "$out"; return 1; }
+    grep -Fq "$expected_text" "$out" || { cat "$out"; return 1; }
 }
 
 @test "real uninstall preview refuses /dev/null without a terminal" {
@@ -408,4 +414,9 @@ SH
 
 @test "real uninstall preview refuses a piped n without a terminal" {
     run_non_tty_confirmation piped
+}
+
+@test "dry-run uninstall preview without a terminal ends cleanly after the plan" {
+    run_non_tty_confirmation null 1
+    run_non_tty_confirmation piped 1
 }

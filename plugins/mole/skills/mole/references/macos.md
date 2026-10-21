@@ -30,7 +30,7 @@ invocation and asks for administrator access itself when a step needs it.
 | `mo optimize` | **Starts immediately, no confirmation.** Tasks that need admin access are skipped without a cached sudo session | Agent after consent, or the user |
 | `mo purge --dry-run` | Preview of project artifacts | Agent |
 | `mo purge --yes` | Removes every eligible candidate unattended; without `--yes` a non-terminal run refuses | Agent only after consent to that exact candidate list |
-| `mo uninstall --dry-run <name>` | Prints the removal plan, then ends with "Uninstall confirmation needs an interactive terminal; no apps were removed" and exit 1. That last line is expected; nothing was removed | Agent |
+| `mo uninstall --dry-run <name>` | Prints the removal plan and ends with "Dry run complete" and exit 0. Mole 1.61.0 and older end with "Uninstall confirmation needs an interactive terminal" and exit 1 instead; either way nothing was removed | Agent |
 | `mo uninstall <name>` | Refuses without a terminal | User |
 | `mo installer --dry-run` | Preview of `.dmg`, `.pkg`, `.iso`, `.xip`, `.zip` installers | Agent |
 | `mo installer` | Selection list, needs a terminal | User |

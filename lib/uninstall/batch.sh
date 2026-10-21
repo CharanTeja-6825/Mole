@@ -2349,6 +2349,12 @@ _batch_preview_and_confirm() {
         # opt in through the test flags and drive the prompt explicitly.
         if [[ ! -t 0 && "${MOLE_TEST_MODE:-0}" != "1" ]]; then
             echo ""
+            # A dry run has nothing to confirm: the list above is the whole
+            # answer, so a script or agent reading it gets a clean exit.
+            if is_uninstall_dry_run; then
+                log_info "Dry run complete; the list above is the plan and no apps were removed."
+                return 4
+            fi
             log_error "Uninstall confirmation needs an interactive terminal; no apps were removed."
             log_info "Run mo uninstall from an interactive terminal, or use mo uninstall --list to inspect apps"
             return 3
@@ -3315,6 +3321,10 @@ batch_uninstall_applications() {
         3)
             _abort_uninstall_batch
             return 1
+            ;;
+        4)
+            _abort_uninstall_batch
+            return 0
             ;;
         *)
             _abort_uninstall_batch
