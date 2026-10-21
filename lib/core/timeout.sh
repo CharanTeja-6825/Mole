@@ -177,8 +177,10 @@ run_with_timeout() {
     # gtimeout: SIGKILLing the calling worker leaves gtimeout and its child
     # alive, but both still die when gtimeout's own deadline fires, so the orphan
     # window is capped by the caller's timeout budget (2-30s here) rather than
-    # unbounded. Ctrl-C already reaches them, since the signal goes to the whole
-    # foreground process group. Closing the remaining SIGKILL gap would mean
+    # unbounded. gtimeout runs in its own process group, so Ctrl-C does not
+    # reach it and the shell defers its INT trap until gtimeout returns; `-k 2`
+    # keeps that return bounded when the command ignores TERM, matching the
+    # perl backend's grace period (#1787). Closing the remaining SIGKILL gap would mean
     # either routing every non-TTY run through perl, which is every CI run and
     # every piped run, or backgrounding the backend and polling it, which
     # reopens the terminal-handoff class behind #1222/#1218. Neither is worth a
@@ -196,8 +198,14 @@ run_with_timeout() {
         if [[ "${MO_DEBUG:-0}" == "1" ]]; then
             echo "[TIMEOUT] Running with ${duration}s timeout: $*" >&2
         fi
-        "$timeout_bin" "$duration" "$@"
-        return $?
+        local timeout_rc=0
+        # The -k escalation kills gtimeout's own process group, so bash would
+        # print "Killed: 9"; the command keeps its stderr on fd 3 while that
+        # shell notice goes to /dev/null.
+        { "$timeout_bin" -k 2 "$duration" "$@" 2>&3 3>&-; } 3>&2 2> /dev/null || timeout_rc=$?
+        # The -k escalation exits 137; report it as the timeout it is.
+        [[ $timeout_rc -eq 137 ]] && return 124
+        return "$timeout_rc"
     fi
 
     # Use perl helper when timeout command is unavailable.
