@@ -43,14 +43,6 @@ brew install mole
 curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 ```
 
-**Windowsでインストール**（[Windows版CLI](https://github.com/tw93/Mole/tree/windows)）
-
-```powershell
-iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
-```
-
-Moleの配布元はHomebrew、このGitHubリポジトリ、Mac版とWindows版の[mole.fit](https://mole.fit/)だけです。「Moleベース」をうたう別のアプリや、エンコードされたコマンドをターミナルに貼り付けるよう求めるサイトはMoleとは無関係です。`molemac.com`、`moleapp.net`、`molefit.com` はMoleの公式サイトではなく、`mole.bluecatbot.com` のWindowsアプリは同じ名前の独立したコミュニティプロジェクトです。
-
 **AI エージェントでインストール**
 
 エージェントにこう伝えるだけです：
@@ -142,6 +134,14 @@ nix profile remove mole
 宣言的に構成する場合は、`github:tw93/mole/main` をflake inputとして追加し、`packages.${system}.mole` パッケージを使用してください。更新と削除はNixで行います。`mo update` と `mo remove` はNixで管理されたインストールを変更しません。
 
 </details>
+
+**Windowsでインストール**（[Windows版CLI](https://github.com/tw93/Mole/tree/windows)）
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
+```
+
+Moleの配布元はHomebrew、このリポジトリ、[mole.fit](https://mole.fit/)だけです。`molemac.com`、`moleapp.net`、`molefit.com` はMoleではなく、`mole.bluecatbot.com` のWindowsアプリは同じ名前の別のコミュニティプロジェクトです。
 
 ## 安全性
 

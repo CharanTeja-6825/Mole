@@ -43,14 +43,6 @@ brew install mole
 curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 ```
 
-**Windows에서 설치** ([Windows CLI](https://github.com/tw93/Mole/tree/windows))
-
-```powershell
-iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
-```
-
-Mole은 Homebrew, 이 GitHub 저장소, Mac 앱과 Windows 앱용 [mole.fit](https://mole.fit/)에서만 배포됩니다. "Mole 기반"이라고 소개하는 다른 앱이나 인코딩된 명령을 터미널에 붙여 넣으라고 하는 사이트는 Mole과 관련이 없습니다. `molemac.com`, `moleapp.net`, `molefit.com`은 Mole 공식 사이트가 아니며, `mole.bluecatbot.com`의 Windows 앱은 이름이 같은 독립 커뮤니티 프로젝트입니다.
-
 **AI 에이전트로 설치**
 
 에이전트에게 이렇게 말하면 됩니다:
@@ -142,6 +134,14 @@ nix profile remove mole
 선언적 구성의 경우 `github:tw93/mole/main`을 flake 입력으로 추가하고 `packages.${system}.mole` 패키지를 사용하세요. 업데이트와 제거는 Nix로 진행하며, `mo update`와 `mo remove`는 Nix가 관리하는 설치를 변경하지 않습니다.
 
 </details>
+
+**Windows에서 설치** ([Windows CLI](https://github.com/tw93/Mole/tree/windows))
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
+```
+
+Mole은 Homebrew, 이 저장소, [mole.fit](https://mole.fit/)에서만 배포됩니다. `molemac.com`, `moleapp.net`, `molefit.com`은 Mole이 아니며, `mole.bluecatbot.com`의 Windows 앱은 이름이 같은 별도의 커뮤니티 프로젝트입니다.
 
 ## 안전성 및 신뢰성
 

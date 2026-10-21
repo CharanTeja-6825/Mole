@@ -43,14 +43,6 @@ brew install mole
 curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 ```
 
-**В Windows** ([Windows CLI](https://github.com/tw93/Mole/tree/windows))
-
-```powershell
-iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
-```
-
-Mole распространяется только через Homebrew, этот репозиторий на GitHub и [mole.fit](https://mole.fit/) (приложения под Mac и Windows). Сайты, которые предлагают приложение «на основе Mole» или просят вставить в Терминал закодированную команду, не имеют к Mole никакого отношения. Это касается `molemac.com`, `moleapp.net` и `molefit.com`, а приложение для Windows на `mole.bluecatbot.com` является независимым проектом сообщества с тем же названием.
-
 **Через ИИ-агента**
 
 Скажите своему агенту:
@@ -142,6 +134,14 @@ nix profile remove mole
 Для декларативной установки добавьте `github:tw93/mole/main` как flake input и используйте пакет `packages.${system}.mole`. Обновляйте и удаляйте Mole через Nix: `mo update` и `mo remove` не меняют установки, которыми управляет Nix.
 
 </details>
+
+**В Windows** ([Windows CLI](https://github.com/tw93/Mole/tree/windows))
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
+```
+
+Mole распространяется только через Homebrew, этот репозиторий и [mole.fit](https://mole.fit/). `molemac.com`, `moleapp.net` и `molefit.com` не относятся к Mole, а приложение для Windows на `mole.bluecatbot.com` является отдельным проектом сообщества.
 
 ## Безопасность
 

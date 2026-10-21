@@ -43,14 +43,6 @@ brew install mole
 curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 ```
 
-**Windows 上安裝**（[Windows CLI](https://github.com/tw93/Mole/tree/windows)）
-
-```powershell
-iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
-```
-
-Mole 只透過 Homebrew、這個 GitHub 倉庫和 Mac 版、Windows 版官網 [mole.fit](https://mole.fit/) 發布，自稱基於 Mole 的其他 App，或要你往終端機貼上一段編碼指令的網站，都和 Mole 無關。`molemac.com`、`moleapp.net`、`molefit.com` 都不是 Mole 的官網，`mole.bluecatbot.com` 上的 Windows App 是同名的獨立社群專案。
-
 **用 AI Agent 安裝**
 
 直接告訴你的 Agent：
@@ -142,6 +134,14 @@ nix profile remove mole
 宣告式配置可以把 `github:tw93/mole/main` 加為 flake input，用它的 `packages.${system}.mole` 套件。Nix 管理的安裝要透過 Nix 升級和移除，`mo update` 和 `mo remove` 不會改動它。
 
 </details>
+
+**Windows 上安裝**（[Windows CLI](https://github.com/tw93/Mole/tree/windows)）
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
+```
+
+Mole 只透過 Homebrew、這個倉庫和 [mole.fit](https://mole.fit/) 發布，`molemac.com`、`moleapp.net`、`molefit.com` 都不是 Mole，`mole.bluecatbot.com` 上的 Windows App 是同名的社群專案。
 
 ## 安全機制
 
