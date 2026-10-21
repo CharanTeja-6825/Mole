@@ -506,6 +506,7 @@ Run `mo clean --dry-run`, then `mo status --json`.
 EOF
     cat > "$skill/references/macos.md" <<'EOF'
 ```bash
+brew install mole
 mo history --json --limit 5   # recent runs
 mo analyze --json ~/Library
 ```
@@ -525,8 +526,8 @@ Then `mo clean --yes` or `mo frobnicate`.
 EOF
     run python3 "$audit" --skill-dir "$skill" --windows-ref refs/heads/mole-audit-missing-ref
     [ "$status" -eq 1 ] || { echo "$output"; return 1; }
-    [[ "$output" == *"macos.md:5: \`mo clean --yes\` is not in the macOS source"* ]] || { echo "$output"; return 1; }
-    [[ "$output" == *"macos.md:5: \`mo frobnicate\` is not a macOS command"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"macos.md:6: \`mo clean --yes\` is not in the macOS source"* ]] || { echo "$output"; return 1; }
+    [[ "$output" == *"macos.md:6: \`mo frobnicate\` is not a macOS command"* ]] || { echo "$output"; return 1; }
 }
 
 @test "skill command audit rejects a Codex plugin copy that drifted from the skill" {

@@ -50,7 +50,8 @@ def mo_commands(text: str) -> list[tuple[int, str, list[str]]]:
             continue
         snippets = [line.strip()] if in_block else INLINE_CODE.findall(line)
         for snippet in snippets:
-            for match in re.finditer(r"(?:^|[\s(|])mo((?:\s+\S+)*)", snippet):
+            # mo(?![\w-]) keeps "mole" and "mo-foo" from counting as commands.
+            for match in re.finditer(r"(?:^|[\s(|])mo(?![\w-])((?:\s+\S+)*)", snippet):
                 command = ""
                 flags: list[str] = []
                 for token in match.group(1).split():
@@ -91,7 +92,11 @@ class Platform:
         if not command:
             return self.router_text
         paths = [self.script.format(command)] + self.extra.get(command, [])
-        return "\n".join(self.reader(path) or "" for path in paths)
+        text = "\n".join(self.reader(path) or "" for path in paths)
+        # A flag named only in a comment is not a flag the command accepts.
+        return "\n".join(
+            line for line in text.splitlines() if not line.lstrip().startswith(("#", "//"))
+        )
 
     def problems(self, command: str, flags: list[str]) -> list[str]:
         if command and command not in self.commands:
