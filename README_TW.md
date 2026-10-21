@@ -49,7 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
-Mole 只透過 Homebrew、這個 GitHub 倉庫和 Mac 版、Windows 版官網 [mole.fit](https://mole.fit/) 發布，自稱基於 Mole 的其他 App，或要你往終端機貼上一段編碼指令的網站，都和 Mole 無關。`molemac.com`、`moleapp.net`、`molefit.com` 都不是 Mole 的官網，`mole.bluecatbot.com` 上的 Windows App 也是借用 Mole 名字的另一個專案。
+Mole 只透過 Homebrew、這個 GitHub 倉庫和 Mac 版、Windows 版官網 [mole.fit](https://mole.fit/) 發布，自稱基於 Mole 的其他 App，或要你往終端機貼上一段編碼指令的網站，都和 Mole 無關。`molemac.com`、`moleapp.net`、`molefit.com` 都不是 Mole 的官網，`mole.bluecatbot.com` 上的 Windows App 是同名的獨立社群專案。
 
 **用 AI Agent 安裝**
 

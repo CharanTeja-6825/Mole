@@ -49,7 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/tw93/mole/main/install.sh | bash
 iwr -useb https://raw.githubusercontent.com/tw93/Mole/windows/quick-install.ps1 | iex
 ```
 
-Moleの配布元はHomebrew、このGitHubリポジトリ、Mac版とWindows版の[mole.fit](https://mole.fit/)だけです。「Moleベース」をうたう別のアプリや、エンコードされたコマンドをターミナルに貼り付けるよう求めるサイトはMoleとは無関係です。`molemac.com`、`moleapp.net`、`molefit.com` はMoleの公式サイトではなく、`mole.bluecatbot.com` のWindowsアプリもMoleの名前を使った別プロジェクトです。
+Moleの配布元はHomebrew、このGitHubリポジトリ、Mac版とWindows版の[mole.fit](https://mole.fit/)だけです。「Moleベース」をうたう別のアプリや、エンコードされたコマンドをターミナルに貼り付けるよう求めるサイトはMoleとは無関係です。`molemac.com`、`moleapp.net`、`molefit.com` はMoleの公式サイトではなく、`mole.bluecatbot.com` のWindowsアプリは同じ名前の独立したコミュニティプロジェクトです。
 
 **AI エージェントでインストール**
 
