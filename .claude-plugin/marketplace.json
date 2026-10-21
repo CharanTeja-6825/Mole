@@ -11,9 +11,7 @@
       "name": "mole",
       "description": "Drive the Mole CLI (mo) safely: find what uses disk space, preview cleanup with --dry-run, uninstall apps, and read system health and cleanup history.",
       "category": "productivity",
-      "source": "./skills/mole",
-      "skills": ["./"],
-      "strict": false,
+      "source": "./plugins/mole",
       "homepage": "https://github.com/tw93/Mole"
     }
   ]
