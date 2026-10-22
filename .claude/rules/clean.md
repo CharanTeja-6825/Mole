@@ -66,6 +66,7 @@ Developer and toolchain caches in `lib/clean/dev.sh` also follow `.claude/rules/
 - Orphan leftover `mdfind` / size timeouts fail closed for that item and must not cancel later `mo clean` sections. A leftover sink timeout stays sticky. Locked by the `#1584` cases in `tests/clean_apps.bats`.
 - System-service orphan scans must parse plist `Program` / `ProgramArguments` values as absolute paths only. Use non-interactive sudo for unreadable root-owned plists when needed, reject PlistBuddy error text as data, and keep CI tests on `/Library/LaunchDaemons` rather than relying on `/Library/PrivilegedHelperTools`.
 - Treat a launchd plist and its `Program` helper as one cleanup family. A standalone helper-app path under `/Library/PrivilegedHelperTools/*.app/Contents/MacOS/*` stays protected even when an updater temporarily removes the executable leaf; before deleting any direct helper file, re-scan LaunchDaemons and LaunchAgents completely and keep it when a surviving plist still references it or the reference scan is inconclusive.
+- A plist whose `Program` helper still exists under `/Library/PrivilegedHelperTools` is asked about its parent app only when the helper id is reverse-DNS (`com|org|net|io`, as the bare-helper pass): a plain file name is no bundle id, so a live KeepAlive cloud-print updater read as orphaned and was offered for removal (Mole Mac field report 2026-10-20). Locked by `clean_orphaned_system_services keeps a live helper whose name is no bundle id` in `tests/clean_apps.bats`.
 
 ## Project caches (`lib/clean/caches.sh`)
 
