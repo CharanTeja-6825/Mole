@@ -3289,7 +3289,11 @@ batch_uninstall_applications() {
     elif [[ $_scan_rc -ne 0 ]]; then
         _abort_uninstall_batch
         log_error "Could not finish the uninstall scan ($_batch_scan_stage, exit $_scan_rc); nothing was removed"
-        if [[ "$_batch_scan_stage" == "Homebrew ownership check" ]]; then
+        local brew_failure=""
+        if [[ "$_batch_scan_stage" == "Homebrew ownership check" ]] &&
+            brew_failure=$(_mole_brew_failure_line 2> /dev/null); then
+            log_info "Homebrew itself failed: $brew_failure; fix Homebrew, then retry mo uninstall"
+        elif [[ "$_batch_scan_stage" == "Homebrew ownership check" ]]; then
             log_info "'$_batch_scan_app_name' matches a Homebrew cask brew cannot read; run brew info --cask <cask>, fix or untap it, then retry mo uninstall --debug"
         else
             log_info "Run mo uninstall --debug to see which scan failed"

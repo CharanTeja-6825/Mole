@@ -51,6 +51,20 @@ _mole_brew_probe() {
         /bin/bash --noprofile --norc -c 'brew "$@"' mole-brew-probe "$@"
 }
 
+# First line Homebrew printed when `brew list --cask` itself failed, so an
+# aborted scan names the real cause (an unaccepted Xcode license fails every
+# brew command) instead of blaming one cask. Prints nothing when brew lists
+# cleanly, timed out, or is not installed.
+_mole_brew_failure_line() {
+    is_homebrew_available || return 1
+    local err="" rc=0
+    err=$(_mole_brew_probe "$MOLE_TIMEOUT_PKG_LIST_SEC" list --cask 2>&1 > /dev/null) || rc=$?
+    [[ $rc -ne 0 ]] && ! mole_rc_timeout_or_signal "$rc" || return 1
+    err=$(printf '%s\n' "$err" | sed -e 's/^Error: //' -e '/^[[:space:]]*$/d' | head -n 1)
+    [[ -n "$err" ]] || return 1
+    printf '%s\n' "$err"
+}
+
 _mole_brew_caskroom_roots() {
     local room
     for room in /opt/homebrew/Caskroom /usr/local/Caskroom; do
