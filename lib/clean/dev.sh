@@ -372,8 +372,11 @@ is_safe_pnpm_store_path() {
 }
 
 # Emit candidate pnpm binaries already installed locally. Never downloads.
-# Order: PATH pnpm first, then mise versioned installs. Callers dedupe by
-# resolved store path (issue #1370).
+# Order: PATH pnpm first, then the standalone install's PNPM_HOME (default
+# ~/Library/pnpm, put on PATH only by the user's shell profile, so a cron,
+# launchd or agent run of `mo clean` never saw it and left its store
+# unmentioned), then mise versioned installs. Callers dedupe by resolved
+# store path (issue #1370).
 # shellcheck disable=SC2329
 list_installed_pnpm_binaries() {
     local bin=""
@@ -387,6 +390,21 @@ list_installed_pnpm_binaries() {
             printf '%s\n' "pnpm"
         fi
     fi
+
+    local home_dir home_bin
+    local -a seen_bins=("$bin")
+    for home_dir in "${PNPM_HOME:-}" "$HOME/Library/pnpm"; do
+        [[ -n "$home_dir" ]] || continue
+        home_bin="${home_dir%/}/pnpm"
+        [[ -f "$home_bin" && -x "$home_bin" ]] || continue
+        local seen_bin already=false
+        for seen_bin in "${seen_bins[@]}"; do
+            [[ "$seen_bin" != "$home_bin" ]] || already=true
+        done
+        [[ "$already" == false ]] || continue
+        seen_bins+=("$home_bin")
+        printf '%s\n' "$home_bin"
+    done
 
     local mise_root="$HOME/.local/share/mise/installs/pnpm"
     if [[ -d "$mise_root" ]]; then

@@ -545,6 +545,54 @@ EOF
     [[ "$output" == *"PRUNE_V10"* ]] || return 1
 }
 
+@test "clean_pnpm_stores finds a standalone pnpm that PATH does not carry" {
+    # The standalone installer puts pnpm in ~/Library/pnpm and only the
+    # user's shell profile adds it to PATH, so a scheduled or agent run of
+    # mo clean saw no pnpm and left a 650 MB store unmentioned.
+    mkdir -p "$HOME/Library/pnpm"
+    cat > "$HOME/Library/pnpm/pnpm" <<'SCRIPT'
+#!/bin/bash
+case "${1:-}" in
+    --version) echo "10.20.0"; exit 0 ;;
+    store)
+        [[ "${2:-}" == "path" ]] && { echo "$HOME/Library/pnpm/store/v10"; exit 0; }
+        [[ "${2:-}" == "prune" ]] && { echo "PRUNE_STANDALONE"; exit 0; }
+        ;;
+esac
+exit 2
+SCRIPT
+    chmod +x "$HOME/Library/pnpm/pnpm"
+
+    run env -u PNPM_HOME HOME="$HOME" PATH="/usr/bin:/bin" PROJECT_ROOT="$PROJECT_ROOT" \
+        /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+start_section_spinner() { :; }
+stop_section_spinner() { :; }
+note_activity() { :; }
+run_with_timeout() { shift; "$@"; }
+pgrep() { return 1; }
+is_path_whitelisted() { return 1; }
+export -f pgrep
+clean_tool_cache() {
+    echo "CACHE:$1|$2"
+    shift 2
+    "$@"
+}
+clean_pnpm_stores
+list_installed_pnpm_binaries | sed 's/^/BIN:/'
+EOF
+
+    [ "$status" -eq 0 ] || {
+        echo "$output"
+        return 1
+    }
+    [[ "$output" == *"CACHE:pnpm cache|$HOME/Library/pnpm/store/v10"* ]] || return 1
+    [[ "$output" == *"PRUNE_STANDALONE"* ]] || return 1
+    [[ $(grep -cxF "BIN:$HOME/Library/pnpm/pnpm" <<< "$output") -eq 1 ]]
+}
+
 @test "clean_pnpm_stores skips when pnpm is running" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
