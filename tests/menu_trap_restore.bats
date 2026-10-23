@@ -168,3 +168,51 @@ EOF
     run python3 "$PROJECT_ROOT/tests/menu_search_pty.py"
     [ "$status" -eq 0 ]
 }
+
+@test "menu controls fill the available width before wrapping and reserve their actual rows" {
+    run env PROJECT_ROOT="$PROJECT_ROOT" python3 <<'PY'
+import os
+import re
+import subprocess
+
+script = r'''
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/ui/menu_paginated.sh"
+enter_alt_screen() { :; }
+leave_alt_screen() { :; }
+stty() { :; }
+tput() { if [[ "$1" == cols ]]; then echo "$COLUMNS"; else echo "$LINES"; fi; }
+read_key() { echo QUIT; }
+items=()
+for ((i=0; i<40; i++)); do items+=("App $i"); done
+MOLE_MENU_META_SIZEKB=1
+paginated_multi_select Pick "${items[@]}" || true
+'''
+ansi = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
+cases = 0
+for columns in (39, 40, 59, 60, 67, 68, 69, 79, 80, 81, 82, 83, 84, 120):
+    for mode, select_all in (('size', 'false'), ('name', 'false'), ('size', 'true')):
+        env = dict(os.environ, COLUMNS=str(columns), LINES='12', LC_ALL='C',
+                   MOLE_MENU_SORT_MODE=mode, _MOLE_MENU_SELECT_ALL=select_all)
+        result = subprocess.run(['/bin/bash', '--noprofile', '--norc', '-c', script],
+                                env=env, capture_output=True, text=True, check=True)
+        lines = ansi.sub('', result.stderr).splitlines()
+        controls = [line for line in lines if re.match(
+            r'(?:↑↓|Space Select|A All|Enter Save|Q Cancel|S |O |/ Search|h/l Page)', line)]
+        footer = ' | '.join(controls)
+        for key in ('Space Select', 'Enter Save', 'Q Cancel', 'S ', 'O ', '/ Search'):
+            assert key in footer, (columns, mode, key, controls)
+        for index, line in enumerate(controls):
+            assert len(line) <= columns, (columns, line)
+            if index + 1 < len(controls):
+                next_segment = controls[index + 1].split(' | ')[0]
+                assert len(line) + 3 + len(next_segment) > columns, (columns, controls)
+        if (columns, mode, select_all) in ((80, 'size', 'false'), (82, 'name', 'false')):
+            assert len(controls) == 1, (columns, mode, controls)
+        item_rows = [line for line in lines if 'App ' in line]
+        assert len(item_rows) == 12 - 4 - len(controls), (columns, mode, len(item_rows), controls)
+        cases += 1
+print(f'PASS: {cases} footer layouts under LC_ALL=C')
+PY
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
