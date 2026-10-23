@@ -260,7 +260,7 @@ Mole exposes multiple safety controls before and during destructive actions:
 - `mole_delete` Trash and permanent deletion attempts are also recorded by the file-operation layer with result status, target path, and error context where available
 - `mo history` (`lib/core/history.sh`) is read-only: it reads `operations.log` and `deletions.log` to surface recent cleanup activity and performs no deletion or out-of-bounds writes
 - operation-log records and deletion-log fields escape control bytes as `\n`, `\r`, `\t` or `\xHH` before append, including batched records, so filenames cannot forge history entries; backslashes stay literal so `mo history` shows names as they are on disk, and its text output escapes the raw control bytes that older logs may still hold
-- timeouts bound external commands so stalled discovery or uninstall operations do not silently hang the entire flow
+- timeouts bound external commands so stalled discovery or uninstall operations do not silently hang the entire flow. Direct Trash moves, privileged staging moves, permission/ownership handoff and final user moves each use the disk-operation deadline; a timed-out stage retains its payload, stops later candidates and preserves completed-path accounting. This is a per-command bound, not a whole-uninstall deadline or real-machine acceptance claim
 - Purge preserves interruption statuses through content probes, parallel discovery, review, and deletion; a read timeout remains unknown and keeps the target
 - project-cache cleanup rechecks tracked files and nested repositories after sizing and at the final deletion boundary; the discovery Git index alone never authorizes deletion
 
