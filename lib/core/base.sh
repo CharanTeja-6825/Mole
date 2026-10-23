@@ -557,6 +557,13 @@ FIND_BSD="/usr/bin/find"
 # sysctl lives in /usr/sbin, which a shell PATH may leave out; the PATH lookup
 # then fails and callers silently use their fallback values (#1804).
 SYSCTL_CMD="/usr/sbin/sysctl"
+# diskutil, lsof, pkgutil, ioreg and the other system tools Mole runs by name
+# live there too. Without them a probe reads as "nothing found": diskutil's
+# empty answer skipped the internal-volume refusal of --external. Appending
+# keeps the user's own order ahead of them.
+case ":${PATH:-}:" in *:/usr/sbin:*) ;; *) PATH="${PATH:+$PATH:}/usr/sbin" ;; esac
+case ":$PATH:" in *:/sbin:*) ;; *) PATH="$PATH:/sbin" ;; esac
+export PATH
 
 # Only complete generated completion lines are owned by Mole. A quoted mention
 # or a mixed command may carry unrelated user settings and must remain intact.

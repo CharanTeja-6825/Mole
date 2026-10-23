@@ -1375,6 +1375,28 @@ assert b'Cleaning fixture...' not in raw.split(b'Error:', 1)[1], raw
 PY
 }
 
+@test "loading Mole appends /usr/sbin and /sbin to a PATH without them" {
+    run env -i HOME="$HOME" PATH="/usr/bin:/bin" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/base.sh"
+echo "PATH=$PATH"
+command -v diskutil
+bash -c 'command -v lsof'
+EOF
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PATH=/usr/bin:/bin:/usr/sbin:/sbin"* ]] || return 1
+    [[ "$output" == *"/usr/sbin/diskutil"* ]] || return 1
+    [[ "$output" == *"/usr/sbin/lsof"* ]] || return 1
+
+    run env -i HOME="$HOME" PATH="/sbin:/usr/bin:/usr/sbin:/bin" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/base.sh"
+echo "PATH=$PATH"
+EOF
+    [ "$status" -eq 0 ]
+    [[ "$output" == "PATH=/sbin:/usr/bin:/usr/sbin:/bin" ]]
+}
+
 @test "sysctl never resolves through PATH (#1804)" {
     # sysctl lives in /usr/sbin, which a shell PATH may leave out; the lookup
     # then fails and every caller falls back silently. Shell calls go through

@@ -2869,7 +2869,7 @@ mock_bin="$HOME/bin"
 mkdir -p "$mock_bin"
 cat > "$mock_bin/diskutil" <<'MOCK'
 #!/bin/bash
-exit 0
+printf '%s\n' '   Protocol:                  USB' '   Device Location:           External'
 MOCK
 chmod +x "$mock_bin/diskutil"
 export PATH="$mock_bin:$PATH"
@@ -2889,7 +2889,7 @@ EOF
     [[ "$output" != *"must be under"* ]]
 }
 
-@test "validate_external_volume_target refuses internal volumes in both diskutil forms (#1818)" {
+@test "validate_external_volume_target refuses internal volumes in both diskutil forms and an empty answer (#1818)" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
@@ -2923,12 +2923,18 @@ export MOCK_DISK_INFO='   Protocol:                  USB
    Device Location:           External
    Removable Media:           Removable'
 validate_external_volume_target "$volumes/Data" > /dev/null && echo "ACCEPTED_EXTERNAL"
+
+# No answer (diskutil missing, failed or timed out) cannot prove external.
+export MOCK_DISK_INFO=''
+validate_external_volume_target "$volumes/Data" > /dev/null && echo "ACCEPTED_EMPTY" || true
 EOF
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"Refusing to clean an internal volume"* ]] || return 1
     [[ "$output" != *"ACCEPTED_DEVICE_LOCATION"* ]] || return 1
     [[ "$output" != *"ACCEPTED_INTERNAL_YES"* ]] || return 1
+    [[ "$output" != *"ACCEPTED_EMPTY"* ]] || return 1
+    [[ "$output" == *"diskutil could not describe"* ]] || return 1
     [[ "$output" == *"ACCEPTED_EXTERNAL"* ]]
 }
 

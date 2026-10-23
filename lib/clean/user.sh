@@ -1685,24 +1685,29 @@ validate_external_volume_target() {
 
     local disk_info=""
     disk_info=$(run_with_timeout "$MOLE_TIMEOUT_QUICK_DETECT_SEC" command diskutil info "$resolved" 2> /dev/null || echo "")
-    if [[ -n "$disk_info" ]]; then
-        # macOS 26 reports "Device Location: Internal" and no "Internal:"
-        # line. Refuse on either form; parseDiskMetadata in cmd/status reads
-        # both too.
-        if echo "$disk_info" | grep -Eq 'Internal:[[:space:]]+Yes|Device Location:[[:space:]]+Internal'; then
-            echo "Refusing to clean an internal volume: $resolved" >&2
-            return 1
-        fi
-
-        local protocol=""
-        protocol=$(echo "$disk_info" | awk -F: '/Protocol:/ {gsub(/^[[:space:]]+/, "", $2); print $2; exit}')
-        case "$protocol" in
-            SMB | NFS | AFP | CIFS | WebDAV)
-                echo "Refusing to clean network volume protocol $protocol: $resolved" >&2
-                return 1
-                ;;
-        esac
+    # No answer cannot prove the volume is external, so it is refused like an
+    # internal one rather than cleaned on the strength of its mount path.
+    if [[ -z "$disk_info" ]]; then
+        echo "Refusing to clean a volume diskutil could not describe: $resolved" >&2
+        echo "Check that it is still mounted with diskutil info \"$resolved\", then retry" >&2
+        return 1
     fi
+    # macOS 26 reports "Device Location: Internal" and no "Internal:"
+    # line. Refuse on either form; parseDiskMetadata in cmd/status reads
+    # both too.
+    if echo "$disk_info" | grep -Eq 'Internal:[[:space:]]+Yes|Device Location:[[:space:]]+Internal'; then
+        echo "Refusing to clean an internal volume: $resolved" >&2
+        return 1
+    fi
+
+    local protocol=""
+    protocol=$(echo "$disk_info" | awk -F: '/Protocol:/ {gsub(/^[[:space:]]+/, "", $2); print $2; exit}')
+    case "$protocol" in
+        SMB | NFS | AFP | CIFS | WebDAV)
+            echo "Refusing to clean network volume protocol $protocol: $resolved" >&2
+            return 1
+            ;;
+    esac
 
     printf '%s\n' "$resolved"
 }

@@ -636,7 +636,7 @@ EOF
 	mkdir -p "$mock_bin"
 	cat > "$mock_bin/diskutil" <<'EOF'
 #!/usr/bin/env bash
-exit 0
+printf '%s\n' '   Protocol:                  USB' '   Device Location:           External'
 EOF
 	chmod +x "$mock_bin/diskutil"
 
