@@ -1683,25 +1683,24 @@ validate_external_volume_target() {
         return 1
     fi
 
-    local disk_info=""
-    disk_info=$(run_with_timeout "$MOLE_TIMEOUT_QUICK_DETECT_SEC" command diskutil info "$resolved" 2> /dev/null || echo "")
-    # No answer cannot prove the volume is external, so it is refused like an
-    # internal one rather than cleaned on the strength of its mount path.
-    if [[ -z "$disk_info" ]]; then
+    local disk_info="" disk_info_rc=0 internal="" protocol=""
+    disk_info=$(run_with_timeout "$MOLE_TIMEOUT_QUICK_DETECT_SEC" command diskutil info -plist "$resolved" 2> /dev/null) || disk_info_rc=$?
+    mole_rc_signal "$disk_info_rc" && return "$disk_info_rc"
+    # Partial output, missing fields and string values are not external-disk
+    # evidence. Require the successful typed plist rather than localized text.
+    if [[ $disk_info_rc -ne 0 ]] ||
+        ! internal=$(printf '%s' "$disk_info" | /usr/bin/plutil -extract Internal raw -expect bool -o - - 2> /dev/null) ||
+        ! protocol=$(printf '%s' "$disk_info" | /usr/bin/plutil -extract BusProtocol raw -expect string -o - - 2> /dev/null) ||
+        [[ -z "$protocol" ]]; then
         echo "Refusing to clean a volume diskutil could not describe: $resolved" >&2
-        echo "Check that it is still mounted with diskutil info \"$resolved\", then retry" >&2
+        echo "Check that it is still mounted with diskutil info -plist \"$resolved\", then retry" >&2
         return 1
     fi
-    # macOS 26 reports "Device Location: Internal" and no "Internal:"
-    # line. Refuse on either form; parseDiskMetadata in cmd/status reads
-    # both too.
-    if echo "$disk_info" | grep -Eq 'Internal:[[:space:]]+Yes|Device Location:[[:space:]]+Internal'; then
+    if [[ "$internal" != "false" ]]; then
         echo "Refusing to clean an internal volume: $resolved" >&2
         return 1
     fi
 
-    local protocol=""
-    protocol=$(echo "$disk_info" | awk -F: '/Protocol:/ {gsub(/^[[:space:]]+/, "", $2); print $2; exit}')
     case "$protocol" in
         SMB | NFS | AFP | CIFS | WebDAV)
             echo "Refusing to clean network volume protocol $protocol: $resolved" >&2
