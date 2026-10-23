@@ -169,7 +169,7 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-@test "menu controls fill the available width before wrapping and reserve their actual rows" {
+@test "menu controls hide secondary hints before wrapping and reserve their actual rows" {
     run env PROJECT_ROOT="$PROJECT_ROOT" python3 <<'PY'
 import os
 import re
@@ -190,7 +190,7 @@ paginated_multi_select Pick "${items[@]}" || true
 '''
 ansi = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 cases = 0
-for columns in (39, 40, 59, 60, 67, 68, 69, 79, 80, 81, 82, 83, 84, 120):
+for columns in (35, 36, 37, 39, 40, 46, 47, 48, 53, 54, 55, 56, 57, 59, 60, 67, 68, 69, 79, 80, 81, 82, 83, 84, 120):
     for mode, select_all in (('size', 'false'), ('name', 'false'), ('size', 'true')):
         env = dict(os.environ, COLUMNS=str(columns), LINES='12', LC_ALL='C',
                    MOLE_MENU_SORT_MODE=mode, _MOLE_MENU_SELECT_ALL=select_all)
@@ -200,19 +200,40 @@ for columns in (39, 40, 59, 60, 67, 68, 69, 79, 80, 81, 82, 83, 84, 120):
         controls = [line for line in lines if re.match(
             r'(?:↑↓|Space Select|A All|Enter Save|Q Cancel|S |O |/ Search|h/l Page)', line)]
         footer = ' | '.join(controls)
-        for key in ('Space Select', 'Enter Save', 'Q Cancel', 'S ', 'O ', '/ Search'):
+        for key in ('Space Select', 'Enter Save', 'Q Cancel'):
             assert key in footer, (columns, mode, key, controls)
         for index, line in enumerate(controls):
             assert len(line) <= columns, (columns, line)
             if index + 1 < len(controls):
                 next_segment = controls[index + 1].split(' | ')[0]
                 assert len(line) + 3 + len(next_segment) > columns, (columns, controls)
-        if (columns, mode, select_all) in ((80, 'size', 'false'), (82, 'name', 'false')):
+        if columns >= 36:
             assert len(controls) == 1, (columns, mode, controls)
+        if columns >= 47:
+            assert '/ Search' in footer, (columns, controls)
+        if columns == 54:
+            assert 'S ' not in footer and 'O ' not in footer and 'h/l Page' not in footer, controls
+        if columns == 120:
+            for key in ('↑↓', 'S ', 'O ', '/ Search', 'h/l Page'):
+                assert key in footer, (key, controls)
+            assert ('A All' in footer) == (select_all == 'true'), controls
         item_rows = [line for line in lines if 'App ' in line]
         assert len(item_rows) == 12 - 4 - len(controls), (columns, mode, len(item_rows), controls)
         cases += 1
-print(f'PASS: {cases} footer layouts under LC_ALL=C')
+for columns in (23, 24, 34, 35, 36, 39, 40, 49, 50, 51, 54, 80):
+    env = dict(os.environ, COLUMNS=str(columns), LINES='12', LC_ALL='C',
+               MOLE_READ_KEY_FORCE_CHAR='1')
+    result = subprocess.run(['/bin/bash', '--noprofile', '--norc', '-c', script],
+                            env=env, capture_output=True, text=True, check=True)
+    frame = next(frame for frame in result.stderr.split('\x1b[H') if 'Enter Apply' in frame)
+    lines = ansi.sub('', frame).splitlines()
+    controls = [line for line in lines if line.startswith('Enter Apply')]
+    assert len(controls) == 1 and len(controls[0]) <= columns, (columns, controls)
+    assert 'Esc Clear' in controls[0], (columns, controls)
+    if columns >= 50:
+        assert 'Backspace' in controls[0] and 'Ctrl+U Clear' in controls[0], controls
+    cases += 1
+print(f'PASS: {cases} browse/search footer layouts under LC_ALL=C')
 PY
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }

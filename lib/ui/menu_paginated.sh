@@ -299,6 +299,17 @@ paginated_multi_select() {
     hide_cursor
 
     # Helper functions
+    _strip_ansi_len() {
+        local text="$1"
+        local stripped
+        stripped=$(printf "%s" "$text" | LC_ALL=C awk '{gsub(/\033\[[0-9;]*[A-Za-z]/,""); print}' || true)
+        [[ -z "$stripped" ]] && stripped="$text"
+        # These controls use ASCII and single-cell arrows. Count UTF-8
+        # characters even when the caller (including slim) uses LC_ALL=C.
+        local LC_ALL=en_US.UTF-8
+        printf "%d" "${#stripped}"
+    }
+
     # Print footer lines wrapping only at separators
     _print_wrapped_controls() {
         local sep="$1"
@@ -308,17 +319,6 @@ paginated_multi_select() {
         local cols="${COLUMNS:-}"
         [[ -z "$cols" ]] && cols=$(tput cols 2> /dev/null || echo 80)
         [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
-
-        _strip_ansi_len() {
-            local text="$1"
-            local stripped
-            stripped=$(printf "%s" "$text" | LC_ALL=C awk '{gsub(/\033\[[0-9;]*[A-Za-z]/,""); print}' || true)
-            [[ -z "$stripped" ]] && stripped="$text"
-            # These controls use ASCII and single-cell arrows. Count UTF-8
-            # characters even when the caller (including slim) uses LC_ALL=C.
-            local LC_ALL=en_US.UTF-8
-            printf "%d" "${#stripped}"
-        }
 
         local line="" s candidate
         local clear_line=$'\r\033[2K'
@@ -548,7 +548,7 @@ paginated_multi_select() {
         esac
         local sort_status="${sort_label}"
 
-        # Keep search and ordering visible alongside selection controls.
+        # Keep core actions visible; secondary hints yield when space is tight.
         local sep=" ${GRAY}|${NC} "
 
         # Common menu items
@@ -570,17 +570,16 @@ paginated_multi_select() {
         local order_ctrl="${GRAY}O ${reverse_arrow}${NC}"
         local filter_ctrl="${GRAY}/ Search${NC}"
 
+        local term_width="${COLUMNS:-}"
+        [[ -z "$term_width" ]] && term_width=$(tput cols 2> /dev/null || echo 80)
+        [[ "$term_width" =~ ^[0-9]+$ ]] || term_width=80
+        local -a controls=() optional_controls=()
         if [[ -n "${MOLE_READ_KEY_FORCE_CHAR:-}" ]]; then
             local -a _segs_filter=("${GRAY}Enter Apply${NC}" "${GRAY}Backspace${NC}" "${GRAY}Ctrl+U Clear${NC}" "${GRAY}Esc Clear${NC}")
-            _print_wrapped_controls "$sep" "${_segs_filter[@]}"
+            controls=("${_segs_filter[@]}")
+            optional_controls=("${GRAY}Ctrl+U Clear${NC}" "${GRAY}Backspace${NC}")
         else
-            local term_width="${COLUMNS:-}"
-            [[ -z "$term_width" ]] && term_width=$(tput cols 2> /dev/null || echo 80)
-            [[ "$term_width" =~ ^[0-9]+$ ]] || term_width=80
-            local -a _segs=("$space_select")
-            if [[ $term_width -ge 60 ]]; then
-                _segs=("$nav" "$space_select")
-            fi
+            local -a _segs=("$nav" "$space_select")
             [[ "$select_all_enabled" == true ]] && _segs+=("$select_all")
             _segs+=("$enter")
             # Q clears an applied search like Esc, so it only cancels without one.
@@ -590,9 +589,27 @@ paginated_multi_select() {
                 _segs_browse=("$sort_ctrl" "$order_ctrl" "$filter_ctrl")
             fi
             [[ -n "$filter_text" ]] && _segs_browse+=("${GRAY}Esc Clear${NC}")
-            [[ $term_width -ge 80 ]] && _segs_browse+=("$page_ctrl")
-            _print_wrapped_controls "$sep" "${_segs[@]}" "${_segs_browse[@]}"
+            _segs_browse+=("$page_ctrl")
+            controls=("${_segs[@]}" "${_segs_browse[@]}")
+            optional_controls=("$page_ctrl" "$nav" "$order_ctrl" "$select_all" "$sort_ctrl" "$filter_ctrl")
         fi
+
+        # Drop only hint text, in priority order. The key handlers stay active.
+        local optional joined control
+        local -a kept=()
+        for optional in "${optional_controls[@]}"; do
+            joined=""
+            for control in "${controls[@]}"; do
+                joined+="${joined:+$sep}$control"
+            done
+            [[ $(_strip_ansi_len "$joined") -gt $term_width ]] || break
+            kept=()
+            for control in "${controls[@]}"; do
+                [[ "$control" == "$optional" ]] || kept+=("$control")
+            done
+            controls=("${kept[@]}")
+        done
+        _print_wrapped_controls "$sep" "${controls[@]}"
     }
 
     # Draw the complete menu
