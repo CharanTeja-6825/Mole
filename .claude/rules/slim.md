@@ -14,6 +14,7 @@ paths:
 - No sudo, no helper, no new privilege. Root-owned apps stay out rather than prompting.
 - Running apps are listed (Stash and other menu bar apps are always running and would otherwise vanish without a reason) and refused when slimming starts and again right before the swap.
 - Without a terminal, or with `--dry-run`, it only lists. Nothing is preselected; no `--yes`, no flags beyond `--dry-run` and `--debug`. A failed confirmation read cancels rather than becoming Enter, locked by `slim confirmation requires a successful Enter read` in `tests/slim.bats`.
+- Interactive and read-only lists share a compact name column bounded by terminal width, reserving space for the selection marker and reclaimable size. Pass full, terminal-safe names separately to the shared selector so truncation never changes search or name order. Locked by the `slim rows fit`, `slim searches the full name` and `slim name sorting` cases in `tests/slim.bats`.
 
 ## What may be thinned
 

@@ -437,17 +437,35 @@ collect_slim_candidates() {
     return 0
 }
 
+slim_name_column_width() {
+    local columns="${COLUMNS:-$(tput cols 2> /dev/null || echo 80)}"
+    [[ "$columns" =~ ^[0-9]+$ && "$columns" -gt 0 ]] || columns=80
+    local name width max_width=18 available=$((columns - 14))
+    for name in "${SLIM_APP_NAMES[@]}"; do
+        width=$(get_display_width "$(mole_terminal_safe_text "$name")")
+        [[ $width -le $max_width ]] || max_width=$width
+    done
+    # Match the app selector's bounded name column, with no date column.
+    # Reserve four cells for the menu prefix, one gap and nine for size.
+    [[ $max_width -le 60 ]] || max_width=60
+    [[ $max_width -le $available ]] || max_width=$available
+    [[ $max_width -ge 1 ]] || max_width=1
+    printf '%s\n' "$max_width"
+}
+
 slim_display_row() {
     local name width
-    name=$(truncate_by_display_width "$(mole_terminal_safe_text "$1")" 36)
+    local name_width="$3"
+    name=$(truncate_by_display_width "$(mole_terminal_safe_text "$1")" "$name_width")
     width=$(get_display_width "$name")
-    printf '%s%*s %10s' "$name" "$((36 - width))" "" "$(bytes_to_human "$2")"
+    printf '%s%*s %9s' "$name" "$((name_width - width))" "" "$(bytes_to_human "$2")"
 }
 
 print_slim_list() {
-    local i total=0
+    local i total=0 name_width
+    name_width=$(slim_name_column_width)
     for ((i = 0; i < ${#SLIM_APP_PATHS[@]}; i++)); do
-        printf '  %s\n' "$(slim_display_row "${SLIM_APP_NAMES[i]}" "${SLIM_APP_BYTES[i]}")"
+        printf '  %s\n' "$(slim_display_row "${SLIM_APP_NAMES[i]}" "${SLIM_APP_BYTES[i]}" "$name_width")"
         total=$((total + SLIM_APP_BYTES[i]))
     done
     printf '\n%s apps, %s of Intel code\n' "${#SLIM_APP_PATHS[@]}" "$(bytes_to_human "$total")"
@@ -630,24 +648,28 @@ slim_one_app() {
 }
 
 select_slim_apps() {
-    local -a rows=() sizes_kb=()
-    local i
+    local -a rows=() sizes_kb=() names=()
+    local i name_width
+    name_width=$(slim_name_column_width)
     for ((i = 0; i < ${#SLIM_APP_PATHS[@]}; i++)); do
-        rows+=("$(slim_display_row "${SLIM_APP_NAMES[i]}" "${SLIM_APP_BYTES[i]}")")
+        rows+=("$(slim_display_row "${SLIM_APP_NAMES[i]}" "${SLIM_APP_BYTES[i]}" "$name_width")")
         sizes_kb+=("$((SLIM_APP_BYTES[i] / 1024))")
+        names+=("$(mole_terminal_safe_text "${SLIM_APP_NAMES[i]}")")
     done
     MOLE_MENU_META_SIZEKB=$(
         IFS=','
         printf '%s' "${sizes_kb[*]}"
     )
     export MOLE_MENU_META_SIZEKB
+    MOLE_MENU_FILTER_NAMES=$(printf '%s\n' "${names[@]}")
+    export MOLE_MENU_FILTER_NAMES
     export MOLE_MENU_SORT_MODE=size
     export MOLE_MENU_SORT_REVERSE=false
 
     MOLE_SELECTION_RESULT=""
     local rc=0
     paginated_multi_select "Select apps to slim" "${rows[@]}" || rc=$?
-    unset MOLE_MENU_META_SIZEKB
+    unset MOLE_MENU_META_SIZEKB MOLE_MENU_FILTER_NAMES
     [[ $rc -eq 0 && -n "$MOLE_SELECTION_RESULT" ]]
 }
 
