@@ -72,6 +72,26 @@ slim_env() {
 		MOLE_DELETE_LOG="$BATS_TEST_TMPDIR/deletions.log" "$@"
 }
 
+@test "slim scans one level of plain folders but not bundles, links or deeper folders (#1811)" {
+	mkdir -p "$APPS_ROOT/Top.app" "$APPS_ROOT/Utilities/Util.app" \
+		"$APPS_ROOT/Utilities/Deep/Deeper.app" "$APPS_ROOT/Outer.app/Inner.app" \
+		"$BATS_TEST_TMPDIR/elsewhere/Linked.app"
+	ln -s "$BATS_TEST_TMPDIR/elsewhere" "$APPS_ROOT/LinkedFolder"
+
+	run slim_env /bin/bash -c '
+		source "$1"
+		slim_skip_reason() { :; }
+		slim_signing_team() { echo ABCDE12345; }
+		slim_plan_app() { echo 1; }
+		mole_deletion_identity() { echo id; }
+		collect_slim_candidates || exit 8
+		printf "%s\n" "${SLIM_APP_PATHS[@]}" | sort
+	' bash "$PROJECT_ROOT/bin/slim.sh"
+
+	[ "$status" -eq 0 ]
+	[ "$output" = "$APPS_ROOT/Outer.app"$'\n'"$APPS_ROOT/Top.app"$'\n'"$APPS_ROOT/Utilities/Util.app" ]
+}
+
 @test "slim.sh rejects unknown options" {
 	run "$PROJECT_ROOT/bin/slim.sh" --unknown-option
 

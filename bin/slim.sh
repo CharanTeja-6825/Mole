@@ -382,12 +382,19 @@ collect_slim_candidates() {
     SLIM_APP_PLANS=()
 
     local -a apps=()
-    local root app
+    local root dir app
     while IFS= read -r root; do
         [[ -d "$root" ]] || continue
-        for app in "$root"/*.app; do
-            [[ -e "$app" || -L "$app" ]] || continue
-            apps+=("$app")
+        # One level of plain folders such as Utilities (#1811); never a bundle
+        # or a symlinked folder, and every app still passes the same checks.
+        for dir in "$root" "$root"/*; do
+            if [[ "$dir" != "$root" ]]; then
+                [[ "$dir" != *.app && -d "$dir" && ! -L "$dir" ]] || continue
+            fi
+            for app in "$dir"/*.app; do
+                [[ -e "$app" || -L "$app" ]] || continue
+                apps+=("$app")
+            done
         done
     done < <(slim_app_roots)
 
