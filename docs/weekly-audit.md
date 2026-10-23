@@ -2,6 +2,10 @@
 
 One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole CLI (macOS) on `main` and Mole CLI (Windows) on `windows`. The next run reads the newest entry for its commit window (`Next window from`), for the items it must not report again (`Decided, do not re-report`), and rechecks `Open` first. Facts here are a run record; lasting invariants live in `AGENTS.md` on each branch.
 
+## 2026-10-23 System-service identity follow-up
+
+The two same-shape Optimize signal sites now address launchd services instead of process names. NotificationCenter uses the current GUI domain; DNS reads the fixed system plist and permits only the original or `.reloaded` label. Existing SQL, VPN, dry-run and privilege behavior remains. Two NotificationCenter regressions and three DNS regressions failed against the old implementations, the four Optimize suites passed all 141 tests, and the full check and test workflows exited 0. No live system-service signal was sent. Source is ready for delivery; no version or release changed. The app-owned record carries the cross-product comparison, without copying private source here.
+
 ## 2026-10-23 (whole dual CLI review and skill update)
 
 - Frozen review window: main `8b49a13a..176df15b` (68 commits), windows `9b010223..b3c3a622` (27 commits). Both repair checkouts were fast-forwarded to these reviewed remote heads before editing, with no unrelated worktree changes. The concurrent Windows contributors-only commit `6a7d2c3c` was inspected and retained.

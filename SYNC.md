@@ -11,6 +11,10 @@ This is the synchronization entry point for **Mole CLI (macOS)**, branch `main` 
 
 Scoped follow-up on 2026-10-18: Mole CLI (macOS) `8f2671cd` adapts the scan-request lifecycle from Mole CLI (Windows) `b8b27771`, including macOS cache-return paths. The existing CLI-SYNC-04 entry in the Windows record owns this comparison. Local tests passed and source is pushed; [the audit record](docs/weekly-audit.md#2026-10-18-dual-cli-post-release-audit) separates source delivery from exact-head CI. This is not a new release or a review of the desktop apps.
 
+## 2026-10-23 System-service signal identity
+
+Implemented (source, unreleased): `lib/optimize/tasks.sh` refreshes NotificationCenter through its current-user launchd service and mDNSResponder through the allowlisted label in its fixed system plist. Neither operation falls back to matching a process name. The two-CLI queue remains owned by the Windows branch record; its Optimize has no corresponding host restart. The private app-owned record tracks the app comparison separately. Old-source refusal/target tests fail as expected, all 141 targeted Optimize tests and the complete local check/test workflows pass. These are source and test results, not a new package or a live system-service restart.
+
 ## Current disposition
 
 | Topic | Status | Source and next check |
