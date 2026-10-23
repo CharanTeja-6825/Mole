@@ -465,17 +465,26 @@ slim_thin_file() {
     info=$(slim_arm_slice "$file") || return 1
     read -r off size _intel <<< "$info"
 
-    local out="$file.mole-slim" mode
+    local out mode
     mode=$("$STAT_BSD" -f %Lp "$file") || return 1
+    # Bundle contents can already include any fixed suffix, including a link.
+    # Create the output exclusively rather than opening a bundle-owned path.
+    out=$(mktemp "$file.mole-slim.XXXXXX") || return 1
     # head stops reading once it has the slice, so when the slice is not the
     # last one tail dies of SIGPIPE; the size and Mach-O checks below are what
     # decide whether the copy is whole.
-    { tail -c +"$((off + 1))" "$file" 2> /dev/null || true; } | head -c "$size" > "$out" 2> /dev/null || return 1
+    if ! { tail -c +"$((off + 1))" "$file" 2> /dev/null || true; } | head -c "$size" > "$out" 2> /dev/null; then
+        rm -f "$out" # SAFE: exclusively created slice output inside the staging copy
+        return 1
+    fi
     if [[ "$("$STAT_BSD" -f %z "$out" 2> /dev/null)" != "$size" ]] || ! slim_is_thin_arm "$out"; then
         rm -f "$out" # SAFE: partial slice written by this function inside the staging copy
         return 1
     fi
-    chmod "$mode" "$out" && mv -f "$out" "$file"
+    if ! chmod "$mode" "$out" || ! mv -f "$out" "$file"; then
+        rm -f "$out" # SAFE: exclusively created slice output that was not installed
+        return 1
+    fi
 }
 
 # Every check runs on the slimmed copy; any failure keeps the original.
@@ -656,7 +665,10 @@ confirm_slim_selection() {
     echo -ne "${PURPLE}${ICON_ARROW}${NC} Slim ${#indices[@]} apps, $(bytes_to_human "$total")  ${GREEN}Enter${NC} confirm, ${GRAY}ESC${NC} cancel: "
 
     local confirm
-    IFS= read -r -s -n1 confirm || confirm=""
+    if ! IFS= read -r -s -n1 confirm; then
+        printf '\n'
+        return 1
+    fi
     case "$confirm" in
         "" | $'\n' | $'\r')
             printf '\r\033[K\n'

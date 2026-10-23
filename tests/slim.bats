@@ -541,3 +541,32 @@ exec /usr/bin/codesign \"\$@\""
 	[[ "$(lipo -archs "$app/Contents/MacOS/Fixture")" == *x86_64* ]] || return 1
 	[ -z "$(ls -A "$TRASH_DIR")" ]
 }
+
+@test "slim confirmation requires a successful Enter read" {
+	run slim_env /bin/bash -c '
+		source "$1"
+		SLIM_APP_NAMES=(Fixture)
+		SLIM_APP_BYTES=(1024)
+		if confirm_slim_selection 0 </dev/null; then echo EOF_CONFIRMED; fi
+		if confirm_slim_selection 0 < <(printf "\n"); then echo ENTER_CONFIRMED; fi
+	' bash "$PROJECT_ROOT/bin/slim.sh"
+	[ "$status" -eq 0 ]
+	[[ "$output" != *EOF_CONFIRMED* ]] || return 1
+	[[ "$output" == *ENTER_CONFIRMED* ]]
+}
+
+@test "slim slice output never follows a pre-existing suffix symlink" {
+	[[ "$SLIM_HAVE_FAT_TOOLCHAIN" == "1" ]] || skip "needs clang and a developer directory"
+	local file="$BATS_TEST_TMPDIR/thin-me" outside="$BATS_TEST_TMPDIR/outside"
+	cp "$FIXTURE_BIN_DIR/fat-exe" "$file"
+	printf 'keep outside' > "$outside"
+	ln -s "$outside" "$file.mole-slim"
+	run slim_env /bin/bash -c '
+		source "$1"
+		slim_thin_file "$2"
+	' bash "$PROJECT_ROOT/bin/slim.sh" "$file"
+	[[ "$(cat "$outside")" == "keep outside" ]] || return 1
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[ -L "$file.mole-slim" ]
+	[[ "$(lipo -archs "$file")" == arm64 ]]
+}
