@@ -48,7 +48,9 @@ SLIM_APP_PLANS=()
 total_slimmed=0
 total_freed_bytes=0
 total_failed=0
-SLIM_FAILURES=()
+SLIM_DONE_NAMES=()
+SLIM_FAILED_NAMES=()
+SLIM_FAILED_REASONS=()
 
 show_slim_help() {
     echo "Usage: mo slim [OPTIONS]"
@@ -177,7 +179,7 @@ slim_skip_reason() {
         return
     }
     if [[ "$check_running" == true ]] && slim_app_is_running "$app"; then
-        echo "running, quit it and retry"
+        echo "still running"
         return
     fi
     return 0
@@ -473,7 +475,9 @@ print_slim_list() {
 
 record_slim_failure() {
     local app="$1" reason="$2"
-    SLIM_FAILURES+=("${app##*/} ($reason)")
+    local name="${app##*/}"
+    SLIM_FAILED_NAMES+=("${name%.app}")
+    SLIM_FAILED_REASONS+=("$reason")
     total_failed=$((total_failed + 1))
     log_operation "$MOLE_CURRENT_COMMAND" "SKIPPED" "$app" "$reason"
 }
@@ -612,7 +616,7 @@ slim_one_app() {
     # The app may have started while the copy was checked.
     if slim_app_is_running "$app"; then
         slim_discard_stage "$stage"
-        record_slim_failure "$app" "running, quit it and retry"
+        record_slim_failure "$app" "still running"
         return 0
     fi
 
@@ -642,6 +646,7 @@ slim_one_app() {
 
     slim_discard_stage "$stage"
     total_slimmed=$((total_slimmed + 1))
+    SLIM_DONE_NAMES+=("${SLIM_APP_NAMES[index]}")
     total_freed_bytes=$((total_freed_bytes + bytes))
     log_operation "$MOLE_CURRENT_COMMAND" "REBUILT" "$app" "removed Intel code, $(bytes_to_human "$bytes")"
     return 0
@@ -675,58 +680,92 @@ select_slim_apps() {
 
 confirm_slim_selection() {
     local -a indices=("$@")
-    local idx total=0
-    echo -e "${PURPLE_BOLD}Apps to slim:${NC}"
+    local idx total=0 running=false tag
+    echo -e "\n${PURPLE_BOLD}Apps to slim:${NC}"
     for idx in "${indices[@]}"; do
-        printf '  %s%s%s %s %s, %s%s\n' "$GREEN" "$ICON_SUCCESS" "$NC" \
-            "$(mole_terminal_safe_text "${SLIM_APP_NAMES[idx]}")" "$GRAY" "$(bytes_to_human "${SLIM_APP_BYTES[idx]}")" "$NC"
+        tag=""
+        if slim_app_is_running "${SLIM_APP_PATHS[idx]}"; then
+            tag=" ${YELLOW}[Running]${NC}"
+            running=true
+        fi
+        printf '%b%s%b\n' "${BLUE}${ICON_CONFIRM}${NC} " "$(mole_terminal_safe_text "${SLIM_APP_NAMES[idx]}")" \
+            " ${GRAY}, $(bytes_to_human "${SLIM_APP_BYTES[idx]}")${NC}${tag}"
         total=$((total + SLIM_APP_BYTES[idx]))
     done
     echo ""
     echo -e "${GRAY}Originals move to the Trash. App updates bring the Intel code back.${NC}"
-    echo -ne "${PURPLE}${ICON_ARROW}${NC} Slim ${#indices[@]} apps, $(bytes_to_human "$total")  ${GREEN}Enter${NC} confirm, ${GRAY}ESC${NC} cancel: "
+    [[ "$running" == false ]] || echo -e "${GRAY}Running apps are skipped, quit them before you confirm.${NC}"
+    local app_text="apps"
+    [[ ${#indices[@]} -gt 1 ]] || app_text="app"
+    echo -ne "${PURPLE}${ICON_ARROW}${NC} Slim ${#indices[@]} ${app_text}, $(bytes_to_human "$total")  ${GREEN}Enter${NC} confirm, ${GRAY}ESC${NC} cancel: "
 
     local confirm
     if ! IFS= read -r -s -n1 confirm; then
         printf '\n'
         return 1
     fi
+    printf '\n'
     case "$confirm" in
-        "" | $'\n' | $'\r')
-            printf '\r\033[K\n'
-            return 0
-            ;;
+        "" | $'\n' | $'\r') return 0 ;;
     esac
     printf '\n'
     return 1
 }
 
+# Mirrors the uninstall summary: slimmed apps three per line, then the apps
+# left unchanged grouped by reason so six running apps read as one line.
 show_slim_summary() {
-    local heading="Apps slimmed"
     local -a details=()
-    if [[ "${MOLE_DRY_RUN:-0}" == "1" ]]; then
-        heading="Dry run complete - no changes made"
-    elif [[ $total_failed -gt 0 ]]; then
-        heading="Slimming incomplete"
-    fi
+    local i name
 
     if [[ $total_slimmed -gt 0 ]]; then
-        if [[ "${MOLE_DRY_RUN:-0}" == "1" ]]; then
-            details+=("Would slim ${GREEN}$total_slimmed${NC} apps, free ${GREEN}$(bytes_to_human "$total_freed_bytes")${NC}")
-        else
-            details+=("Slimmed ${GREEN}$total_slimmed${NC} apps, freed ${GREEN}$(bytes_to_human "$total_freed_bytes")${NC} once the Trash is emptied")
-        fi
-    else
-        details+=("No apps were slimmed")
+        local app_text="apps"
+        [[ $total_slimmed -gt 1 ]] || app_text="app"
+        local line="Slimmed ${total_slimmed} ${app_text}, freed ${GREEN}$(bytes_to_human "$total_freed_bytes")${NC}: "
+        for ((i = 0; i < ${#SLIM_DONE_NAMES[@]}; i++)); do
+            if ((i > 0 && i % 3 == 0)); then
+                details+=("$line")
+                line=""
+            elif ((i > 0)); then
+                line+=", "
+            fi
+            name=$(mole_terminal_safe_text "${SLIM_DONE_NAMES[i]}")
+            line+="${GREEN}${name//\\/\\\\}${NC}"
+        done
+        details+=("$line")
     fi
 
-    local failure
-    for failure in "${SLIM_FAILURES[@]+"${SLIM_FAILURES[@]}"}"; do
-        failure=$(mole_terminal_safe_text "$failure")
-        details+=("${ICON_WARNING} Kept ${failure//\\/\\\\}")
+    local -a reasons=()
+    local reason seen names label
+    for reason in "${SLIM_FAILED_REASONS[@]+"${SLIM_FAILED_REASONS[@]}"}"; do
+        for seen in "${reasons[@]+"${reasons[@]}"}"; do
+            [[ "$seen" != "$reason" ]] || continue 2
+        done
+        reasons+=("$reason")
+    done
+    for reason in "${reasons[@]+"${reasons[@]}"}"; do
+        names=""
+        for ((i = 0; i < ${#SLIM_FAILED_NAMES[@]}; i++)); do
+            [[ "${SLIM_FAILED_REASONS[i]}" == "$reason" ]] || continue
+            [[ -z "$names" ]] || names+=", "
+            names+="${SLIM_FAILED_NAMES[i]}"
+        done
+        names=$(mole_terminal_safe_text "$names")
+        label=$(mole_terminal_safe_text "$reason")
+        label="$(printf '%s' "${label:0:1}" | /usr/bin/tr '[:lower:]' '[:upper:]')${label:1}"
+        details+=("${ICON_LIST} ${label//\\/\\\\}: ${YELLOW}${names//\\/\\\\}${NC}")
+        if [[ "$reason" == "still running" ]]; then
+            local them="them"
+            [[ "$names" == *", "* ]] || them="it"
+            details+=("${GRAY}${ICON_SUBLIST} Quit ${them}, then run mo slim again${NC}")
+        fi
     done
 
-    print_summary_block "$heading" "${details[@]}"
+    [[ ${#details[@]} -gt 0 ]] || details+=("No apps were slimmed")
+
+    local title="Slim complete"
+    [[ $total_failed -eq 0 ]] || title="Slim incomplete"
+    print_summary_block "$title" "${details[@]}"
     printf '\n'
 }
 
@@ -798,12 +837,26 @@ main() {
     confirm_slim_selection "${indices[@]}" || return 0
 
     log_operation_session_start "$MOLE_CURRENT_COMMAND"
-    local idx slim_rc=0
+    local idx slim_rc=0 current=0 before failed_before name prefix=""
     for idx in "${indices[@]}"; do
         [[ "$idx" =~ ^[0-9]+$ && $idx -lt ${#SLIM_APP_PATHS[@]} ]] || continue
-        [[ -t 1 ]] && start_inline_spinner "Slimming ${SLIM_APP_NAMES[idx]}..."
+        current=$((current + 1))
+        name=$(mole_terminal_safe_text "${SLIM_APP_NAMES[idx]}")
+        # Like uninstall, number each app only when several are selected.
+        [[ ${#indices[@]} -le 1 ]] || prefix="[$current/${#indices[@]}] "
+        before=$total_slimmed
+        failed_before=${#SLIM_FAILED_REASONS[@]}
+        [[ -t 1 ]] && start_inline_spinner "${prefix}Slimming ${name}..."
         slim_one_app "$idx" || slim_rc=$?
         [[ -t 1 ]] && stop_inline_spinner
+        if [[ -t 1 && -n "$prefix" ]]; then
+            if [[ $total_slimmed -gt $before ]]; then
+                printf '%b%s%b\n' "${GREEN}${ICON_SUCCESS}${NC} ${prefix}" "$name" " ${GRAY}, $(bytes_to_human "${SLIM_APP_BYTES[idx]}")${NC}"
+            elif [[ ${#SLIM_FAILED_REASONS[@]} -gt $failed_before ]]; then
+                printf '%b%s%b%s%b\n' "${YELLOW}${ICON_WARNING}${NC} ${prefix}" "$name" " ${GRAY}, " \
+                    "$(mole_terminal_safe_text "${SLIM_FAILED_REASONS[failed_before]}")" "$NC"
+            fi
+        fi
         [[ $slim_rc -eq 0 ]] || break
     done
     log_operation_session_end "$MOLE_CURRENT_COMMAND" "$total_slimmed" "$((total_freed_bytes / 1024))"

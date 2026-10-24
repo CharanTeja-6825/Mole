@@ -409,12 +409,12 @@ PLIST
 		slim_preflight || exit 9
 		collect_slim_candidates || exit 8
 		slim_one_app 0 || exit 7
-		echo "slimmed=$total_slimmed failed=${SLIM_FAILURES[*]}"
+		echo "slimmed=$total_slimmed failed=${SLIM_FAILED_NAMES[*]} (${SLIM_FAILED_REASONS[*]})"
 		ls "$SLIM_WORK_DIR"
 	' bash "$PROJECT_ROOT/bin/slim.sh"
 
 	[ "$status" -eq 0 ]
-	[[ "$output" == *"slimmed=0 failed=Fixture.app (Gatekeeper check failed)"* ]] || return 1
+	[[ "$output" == *"slimmed=0 failed=Fixture (Gatekeeper check failed)"* ]] || return 1
 	[[ "$output" != *"app."* ]] || return 1
 	[[ "$(stat -f '%i' "$app/Contents/MacOS/Fixture")" == "$before" ]] || return 1
 	[[ "$(lipo -archs "$app/Contents/MacOS/Fixture")" == *x86_64* ]] || return 1
@@ -472,12 +472,12 @@ exec /usr/bin/codesign \"\$@\""
 		slim_preflight || exit 9
 		collect_slim_candidates || exit 8
 		slim_one_app 0 || exit 7
-		echo "slimmed=$total_slimmed failed=${SLIM_FAILURES[*]}"
+		echo "slimmed=$total_slimmed failed=${SLIM_FAILED_NAMES[*]} (${SLIM_FAILED_REASONS[*]})"
 		ls "$SLIM_WORK_DIR"
 	' bash "$PROJECT_ROOT/bin/slim.sh"
 
 	[ "$status" -eq 0 ]
-	[[ "$output" == *"slimmed=0 failed=Fixture.app (code signature already invalid)"* ]] || return 1
+	[[ "$output" == *"slimmed=0 failed=Fixture (code signature already invalid)"* ]] || return 1
 	[[ "$output" != *"app."* ]] || return 1
 	[[ "$(lipo -archs "$app/Contents/MacOS/Fixture")" == *x86_64* ]] || return 1
 	[ -z "$(ls -A "$TRASH_DIR")" ]
@@ -573,12 +573,12 @@ exec /usr/bin/codesign \"\$@\""
 		collect_slim_candidates || exit 8
 		echo "listed=${#SLIM_APP_PATHS[@]}"
 		slim_one_app 0 || exit 7
-		echo "failed=${SLIM_FAILURES[*]}"
+		echo "failed=${SLIM_FAILED_NAMES[*]} (${SLIM_FAILED_REASONS[*]})"
 	' bash "$PROJECT_ROOT/bin/slim.sh"
 
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"listed=1"* ]] || return 1
-	[[ "$output" == *"failed=Fixture.app (running, quit it and retry)"* ]] || return 1
+	[[ "$output" == *"failed=Fixture (still running)"* ]] || return 1
 	[[ "$(lipo -archs "$app/Contents/MacOS/Fixture")" == *x86_64* ]] || return 1
 	[ -z "$(ls -A "$TRASH_DIR")" ]
 }
@@ -599,11 +599,11 @@ exec /usr/bin/codesign \"\$@\""
 		slim_app_is_running() { [[ -e "$started_marker" ]]; }
 		slim_verify_copy() { touch "$started_marker"; }
 		slim_one_app 0 || exit 7
-		echo "failed=${SLIM_FAILURES[*]}"
+		echo "failed=${SLIM_FAILED_NAMES[*]} (${SLIM_FAILED_REASONS[*]})"
 	' bash "$PROJECT_ROOT/bin/slim.sh" "$BATS_TEST_TMPDIR/started"
 
 	[ "$status" -eq 0 ]
-	[[ "$output" == *"failed=Fixture.app (running, quit it and retry)"* ]] || return 1
+	[[ "$output" == *"failed=Fixture (still running)"* ]] || return 1
 	[[ "$(lipo -archs "$app/Contents/MacOS/Fixture")" == *x86_64* ]] || return 1
 	[ -z "$(ls -A "$TRASH_DIR")" ]
 }
@@ -611,14 +611,36 @@ exec /usr/bin/codesign \"\$@\""
 @test "slim confirmation requires a successful Enter read" {
 	run slim_env /bin/bash -c '
 		source "$1"
+		SLIM_APP_PATHS=("$2/Fixture.app")
 		SLIM_APP_NAMES=(Fixture)
 		SLIM_APP_BYTES=(1024)
 		if confirm_slim_selection 0 </dev/null; then echo EOF_CONFIRMED; fi
 		if confirm_slim_selection 0 < <(printf "\n"); then echo ENTER_CONFIRMED; fi
-	' bash "$PROJECT_ROOT/bin/slim.sh"
+	' bash "$PROJECT_ROOT/bin/slim.sh" "$BATS_TEST_TMPDIR"
 	[ "$status" -eq 0 ]
 	[[ "$output" != *EOF_CONFIRMED* ]] || return 1
 	[[ "$output" == *ENTER_CONFIRMED* ]]
+}
+
+@test "slim summary lists slimmed apps and groups kept apps by reason" {
+	run slim_env /bin/bash -c '
+		source "$1"
+		SLIM_DONE_NAMES=(Claude Sketch NetNewsWire MiaoYan)
+		total_slimmed=4
+		total_freed_bytes=1048576
+		SLIM_FAILED_NAMES=(Stash ScreenFlow Kaku)
+		SLIM_FAILED_REASONS=("still running" "code signature check failed" "still running")
+		total_failed=3
+		show_slim_summary | sed $'"'"'s/\033\\[[0-9;]*m//g'"'"'
+	' bash "$PROJECT_ROOT/bin/slim.sh"
+	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
+	[[ "$output" == *"Slim incomplete"* ]] || return 1
+	[[ "$output" == *"Slimmed 4 apps, freed 1.0MB: Claude, Sketch, NetNewsWire"* ]] || return 1
+	[[ "$output" == *$'\nMiaoYan\n'* ]] || return 1
+	[[ "$output" == *"Still running: Stash, Kaku"* ]] || return 1
+	[[ "$output" == *"Code signature check failed: ScreenFlow"* ]] || return 1
+	[[ "$output" != *".app"* ]] || return 1
+	[ "$(grep -c "Still running" <<< "$output")" -eq 1 ]
 }
 
 @test "slim slice output never follows a pre-existing suffix symlink" {
