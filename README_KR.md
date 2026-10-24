@@ -485,7 +485,7 @@ X (Twitter)에 공유해 주신 사용자들의 생생한 후기:
 
 이미 고양이들에게 간식을 선물해 주신 분들 🐱
 
-<a href="https://cats.tw93.fun?name=Mole"><img src="https://cdn.jsdelivr.net/gh/tw93/sponsors@main/assets/sponsors.svg" alt="Mole 후원자" width="1000" loading="lazy" /></a>
+<a href="https://cats.tw93.fun?name=Mole"><img src="https://raw.githubusercontent.com/tw93/sponsors/main/assets/sponsors.svg" alt="Mole 후원자" width="1000" loading="lazy" /></a>
 
 ## 라이선스
 

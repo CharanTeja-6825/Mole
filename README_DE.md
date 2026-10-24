@@ -485,7 +485,7 @@ Video-Anleitung bevorzugt? Sieh dir das [Mole-Tutorial](https://www.youtube.com/
 
 Diese wunderbaren Unterstützer haben das bereits getan 🐱
 
-<a href="https://cats.tw93.fun?name=Mole"><img src="https://cdn.jsdelivr.net/gh/tw93/sponsors@main/assets/sponsors.svg" alt="Mole Unterstützer" width="1000" loading="lazy" /></a>
+<a href="https://cats.tw93.fun?name=Mole"><img src="https://raw.githubusercontent.com/tw93/sponsors/main/assets/sponsors.svg" alt="Mole Unterstützer" width="1000" loading="lazy" /></a>
 
 ## Lizenz
 

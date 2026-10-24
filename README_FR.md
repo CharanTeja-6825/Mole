@@ -485,7 +485,7 @@ Vous préférez un tutoriel vidéo ? Regardez la [présentation de Mole](https:/
 
 Ceux qui ont déjà régalé les chats 🐱
 
-<a href="https://cats.tw93.fun?name=Mole"><img src="https://cdn.jsdelivr.net/gh/tw93/sponsors@main/assets/sponsors.svg" alt="Donateurs de Mole" width="1000" loading="lazy" /></a>
+<a href="https://cats.tw93.fun?name=Mole"><img src="https://raw.githubusercontent.com/tw93/sponsors/main/assets/sponsors.svg" alt="Donateurs de Mole" width="1000" loading="lazy" /></a>
 
 ## Licence
 

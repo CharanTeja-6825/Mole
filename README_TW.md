@@ -485,7 +485,7 @@ Raycast 裝好後要手動設定一次：
 
 已經請客的好心人 🐱
 
-<a href="https://cats.tw93.fun?name=Mole"><img src="https://cdn.jsdelivr.net/gh/tw93/sponsors@main/assets/sponsors.svg" alt="贊助者" width="1000" loading="lazy" /></a>
+<a href="https://cats.tw93.fun?name=Mole"><img src="https://raw.githubusercontent.com/tw93/sponsors/main/assets/sponsors.svg" alt="贊助者" width="1000" loading="lazy" /></a>
 
 ## 開源授權條款
 

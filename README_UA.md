@@ -485,7 +485,7 @@ Raycast потребує одного ручного налаштування:
 
 Ці чудові люди вже пригостили 🐱
 
-<a href="https://cats.tw93.fun?name=Mole"><img src="https://cdn.jsdelivr.net/gh/tw93/sponsors@main/assets/sponsors.svg" alt="Прихильники Mole" width="1000" loading="lazy" /></a>
+<a href="https://cats.tw93.fun?name=Mole"><img src="https://raw.githubusercontent.com/tw93/sponsors/main/assets/sponsors.svg" alt="Прихильники Mole" width="1000" loading="lazy" /></a>
 
 ## Ліцензія
 

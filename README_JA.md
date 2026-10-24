@@ -485,7 +485,7 @@ PAPAYA 電腦教室 による [Moleチュートリアル動画](https://www.yout
 
 支援してくださった方々 🐱
 
-<a href="https://cats.tw93.fun?name=Mole"><img src="https://cdn.jsdelivr.net/gh/tw93/sponsors@main/assets/sponsors.svg" alt="スポンサー" width="1000" loading="lazy" /></a>
+<a href="https://cats.tw93.fun?name=Mole"><img src="https://raw.githubusercontent.com/tw93/sponsors/main/assets/sponsors.svg" alt="スポンサー" width="1000" loading="lazy" /></a>
 
 ## ライセンス
 

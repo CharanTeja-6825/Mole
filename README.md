@@ -493,7 +493,7 @@ Watch the [Mole tutorial video](https://www.youtube.com/watch?v=UEe9-w4CcQ0) by 
 
 These lovely people already did 🐱
 
-<a href="https://cats.tw93.fun?name=Mole"><img src="https://cdn.jsdelivr.net/gh/tw93/sponsors@main/assets/sponsors.svg" alt="Mole supporters" width="1000" loading="lazy" /></a>
+<a href="https://cats.tw93.fun?name=Mole"><img src="https://raw.githubusercontent.com/tw93/sponsors/main/assets/sponsors.svg" alt="Mole supporters" width="1000" loading="lazy" /></a>
 
 ## License
 
