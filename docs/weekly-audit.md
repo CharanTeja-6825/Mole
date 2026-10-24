@@ -5,7 +5,7 @@ One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole 
 ## 2026-10-24 Dual CLI release review and cancellation repairs
 
 - Release baselines: `V1.62.0` and `V1.37.0-windows`. Frozen repair source: main `1c244a2a`, windows `e5257672`; the macOS checkout was fast-forwarded over its contributors-only update before editing.
-- Source repair: main `70eed1b0`. Windows source is unchanged.
+- Source repair: main `70eed1b0`. The Windows runtime implementation is unchanged; acceptance-runner repairs and final machine receipts belong to its [development record](https://github.com/tw93/Mole/blob/windows/docs/development-record.md).
 - Next window from: main `70eed1b0`, windows `e5257672`.
 
 ### Fixed and verified
@@ -16,15 +16,17 @@ One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole 
 
 `check.sh --format`, `check.sh --no-format`, `make build` and the complete `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 MOLE_TEST_JOBS=2 ./scripts/test.sh` exited 0 with Go 1.26.10. The full test runner reported `All tests passed!`, including Bats, Go, module loading, integration and isolated installation. Two existing area rules now pin the cancellation and timeout boundary; no effective constraint was removed. The visible change is that interrupted cleanup stops before later work. No flag, configuration key or normal output was added.
 
+Candidate `65ea37cc` passed Check, [Validation](https://github.com/tw93/Mole/actions/runs/40086448438), CodeQL and Nix, including the macOS 15 and 26 compatibility jobs. With the maintainer's explicit authorization, macOS 27.0.1 arm64 acceptance run `20261024-183649` passed all 10 steps and 23 smoke commands. IINA 1.5.0 passed digest, signature and Gatekeeper checks, launched, and was uninstalled through Mole; the app, three fixture leftovers and its DMG reached the Trash, and history matched the actions. The final fixture remainder list was empty. The preflight dirty marker came only from an import-generated, untracked Python bytecode file, which was removed; tracked candidate source remained unchanged. The later contributors-only update changed no tested CLI code.
+
 ### Decided, do not re-report
 
-- The local Windows VM's two failures on each PowerShell host occur while creating symbolic-link fixtures, before the product assertions. Keep the assertions and production behavior: [Validation at the unchanged Windows SHA](https://github.com/tw93/Mole/actions/runs/39923945305) passed all 567 Pester tests on both PowerShell 5.1 and 7, with zero failures or skips. This CI evidence does not turn the local fixture failures into passes.
+- The local Windows VM's initial two failures on each PowerShell host occurred while creating symbolic-link fixtures, before the product assertions. The same two cases then passed natively through the existing authorized SSH session on PowerShell 5.1 and 7.6.8, with zero failures or skips and no system-setting change. Keep the assertions and production behavior. Full [Windows Validation](https://github.com/tw93/Mole/actions/runs/40086930353) independently passed all 567 Pester tests on both PowerShell hosts.
 - Do not attribute #1836 to the repaired cancellation paths. The isolated 129-plist non-terminal fixture completed with both timeout backends; it did not reproduce the reporter's filesystem or full-command hang.
 
 ### Open
 
 - #1836 still needs the relevant, sanitized main-thread stack from the exact hung `clean.sh` process. The thread already requests that evidence; no speculative production change or duplicate reply was made.
-- Final pushed-head CI is a separate delivery gate. Candidate-specific IINA/WinMerge installation and uninstall acceptance, including the physical Windows host, has not run. Those real fixture operations and outbound SSH need the maintainer's explicit authorization. No version, tag, release or installed application was changed.
+- This review does not authorize publication or prove a new release artifact. No Mole installation, version, tag or release was changed. Windows acceptance remains owned by the linked branch record rather than inferred from the macOS run.
 
 ## 2026-10-23 Safety and performance follow-up
 
