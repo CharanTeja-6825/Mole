@@ -18,6 +18,16 @@ One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole 
 
 Candidate `65ea37cc` passed Check, [Validation](https://github.com/tw93/Mole/actions/runs/40086448438), CodeQL and Nix, including the macOS 15 and 26 compatibility jobs. With the maintainer's explicit authorization, macOS 27.0.1 arm64 acceptance run `20261024-183649` passed all 10 steps and 23 smoke commands. IINA 1.5.0 passed digest, signature and Gatekeeper checks, launched, and was uninstalled through Mole; the app, three fixture leftovers and its DMG reached the Trash, and history matched the actions. The final fixture remainder list was empty. The preflight dirty marker came only from an import-generated, untracked Python bytecode file, which was removed; tracked candidate source remained unchanged. The later contributors-only update changed no tested CLI code.
 
+### Authorized publication
+
+The maintainer separately approved GitHub stable releases for both CLIs and the macOS workflow's Homebrew core PR, with no winget or Scoop submission. Release-note item lead-ins are plain text. After the maintainer requested names for both CLIs and unnamed historical releases, all 83 titles were reviewed: the two current titles and nine historical Windows titles received codenames, leaving zero unnamed releases. Existing bodies, assets, tag references and release/prerelease states were preserved.
+
+Mole CLI (macOS) [V1.63.0 Reach](https://github.com/tw93/Mole/releases/tag/V1.63.0), tag source `a7c4c84e265802a8323a887b8e244bf272a3a633`, passed Check, [Validation](https://github.com/tw93/Mole/actions/runs/40094044066), CodeQL and Nix on that exact commit, including both Darwin architectures. The version-only change passed 102 focused CLI/version/checksum cases and the full source checks; the preceding full Bats/Go/integration/installation run remains applicable. Fresh native acceptance at the tag candidate passed all 10 steps and 23 smoke commands: IINA, four fixture leftovers and its DMG reached the Trash, with no fixture remainders.
+
+All seven public assets were downloaded and their attestations tied to this tag, source commit and release workflow. Payload checksums, archive/raw byte equality, both architectures and minimum macOS 12.0 passed, as did native Analyze/Status JSON probes. An isolated script installation updated from 1.62.0 to 1.63.0, retained the stable channel and an unknown canary file, matched the public native binaries and changed tagged shell sources, then reported current on a second update. The existing Mole installation was preserved. Published bilingual notes contain no bold item lead-ins, and all six standard reactions were read back.
+
+[Homebrew core PR #320952](https://github.com/Homebrew/homebrew-core/pull/320952) is open, so Homebrew delivery remains pending. Mole CLI (Windows) package, upgrade and machine receipts belong to its linked development record. The final live queue contains #1836 and #1834, with no open PRs or new items.
+
 ### Decided, do not re-report
 
 - The local Windows VM's initial two failures on each PowerShell host occurred while creating symbolic-link fixtures, before the product assertions. The same two cases then passed natively through the existing authorized SSH session on PowerShell 5.1 and 7.6.8, with zero failures or skips and no system-setting change. Keep the assertions and production behavior. Full [Windows Validation](https://github.com/tw93/Mole/actions/runs/40086930353) independently passed all 567 Pester tests on both PowerShell hosts.
@@ -26,7 +36,7 @@ Candidate `65ea37cc` passed Check, [Validation](https://github.com/tw93/Mole/act
 ### Open
 
 - #1836 still needs the relevant, sanitized main-thread stack from the exact hung `clean.sh` process. The thread already requests that evidence; no speculative production change or duplicate reply was made.
-- This review does not authorize publication or prove a new release artifact. No Mole installation, version, tag or release was changed. Windows acceptance remains owned by the linked branch record rather than inferred from the macOS run.
+- #1834 concerns Mole Mac and remains outside the CLI release. Neither open report is claimed fixed by these releases. Windows acceptance remains owned by the linked branch record rather than inferred from the macOS run.
 
 ## 2026-10-23 Safety and performance follow-up
 
