@@ -26,7 +26,7 @@ Mole CLI (macOS) [V1.63.0 Reach](https://github.com/tw93/Mole/releases/tag/V1.63
 
 All seven public assets were downloaded and their attestations tied to this tag, source commit and release workflow. Payload checksums, archive/raw byte equality, both architectures and minimum macOS 12.0 passed, as did native Analyze/Status JSON probes. An isolated script installation updated from 1.62.0 to 1.63.0, retained the stable channel and an unknown canary file, matched the public native binaries and changed tagged shell sources, then reported current on a second update. The existing Mole installation was preserved. Published bilingual notes contain no bold item lead-ins, and all six standard reactions were read back.
 
-[Homebrew core PR #320952](https://github.com/Homebrew/homebrew-core/pull/320952) is open, so Homebrew delivery remains pending. Mole CLI (Windows) package, upgrade and machine receipts belong to its linked development record. The final live queue contains #1836 and #1834, with no open PRs or new items.
+[Homebrew core PR #320952](https://github.com/Homebrew/homebrew-core/pull/320952) merged on 2026-10-24. The core formula now targets the V1.63.0 archive with the release workflow's verified source checksum; the public formula API still reported 1.62.0 at this check. Index rollout and an installed Homebrew upgrade remain unverified. Mole CLI (Windows) package, upgrade and machine receipts belong to its linked development record. The final live queue contains #1836 and #1834, with no open PRs or new items.
 
 ### Decided, do not re-report
 
