@@ -2,6 +2,30 @@
 
 One entry per run of `.claude/skills/weekly-audit`, newest first, covering Mole CLI (macOS) on `main` and Mole CLI (Windows) on `windows`. The next run reads the newest entry for its commit window (`Next window from`), for the items it must not report again (`Decided, do not re-report`), and rechecks `Open` first. Facts here are a run record; lasting invariants live in `AGENTS.md` on each branch.
 
+## 2026-10-24 Dual CLI release review and cancellation repairs
+
+- Release baselines: `V1.62.0` and `V1.37.0-windows`. Frozen repair source: main `1c244a2a`, windows `e5257672`; the macOS checkout was fast-forwarded over its contributors-only update before editing.
+- Source repair: main `70eed1b0`. Windows source is unchanged.
+- Next window from: main `70eed1b0`, windows `e5257672`.
+
+### Fixed and verified
+
+- CrashReporter and Cursor Agent log-scan signals now stop their callers before later cache groups. The sibling sweep checked 14 caller sites, repaired three, and retained the eleven system-cache callers that already propagate signals.
+- Both find/delete helpers now preserve cancellation from scanning, sizing, previews and privileged preflight. Pending cancellation prevents new work; a privileged validator signal discards the accumulated batch. Ordinary refusals and read-only timeouts retain their per-target behavior. Fifteen helper cases and three caller cases cover signals and their neighboring success, refusal and timeout paths; the signal regressions failed against the previous implementations before passing with the fix.
+- Three stale `SYNC.md` delivery rows now say `Released (V1.62.0)`. The public tag archive's browser-clone and app-cache source files were downloaded and compared byte-for-byte with the tag, in addition to checking the three source commits' ancestry and the stable installer consumer.
+
+`check.sh --format`, `check.sh --no-format`, `make build` and the complete `TERM=xterm-256color MOLE_TEST_NO_AUTH=1 MOLE_TEST_JOBS=2 ./scripts/test.sh` exited 0 with Go 1.26.10. The full test runner reported `All tests passed!`, including Bats, Go, module loading, integration and isolated installation. Two existing area rules now pin the cancellation and timeout boundary; no effective constraint was removed. The visible change is that interrupted cleanup stops before later work. No flag, configuration key or normal output was added.
+
+### Decided, do not re-report
+
+- The local Windows VM's two failures on each PowerShell host occur while creating symbolic-link fixtures, before the product assertions. Keep the assertions and production behavior: [Validation at the unchanged Windows SHA](https://github.com/tw93/Mole/actions/runs/39923945305) passed all 567 Pester tests on both PowerShell 5.1 and 7, with zero failures or skips. This CI evidence does not turn the local fixture failures into passes.
+- Do not attribute #1836 to the repaired cancellation paths. The isolated 129-plist non-terminal fixture completed with both timeout backends; it did not reproduce the reporter's filesystem or full-command hang.
+
+### Open
+
+- #1836 still needs the relevant, sanitized main-thread stack from the exact hung `clean.sh` process. The thread already requests that evidence; no speculative production change or duplicate reply was made.
+- Final pushed-head CI is a separate delivery gate. Candidate-specific IINA/WinMerge installation and uninstall acceptance, including the physical Windows host, has not run. Those real fixture operations and outbound SSH need the maintainer's explicit authorization. No version, tag, release or installed application was changed.
+
 ## 2026-10-23 Safety and performance follow-up
 
 - Next window from: main `44386098`, windows `923e1b2a`, unchanged from the last complete dual CLI review below.
