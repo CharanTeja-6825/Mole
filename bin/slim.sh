@@ -35,6 +35,8 @@ trap 'trap - EXIT; cleanup; exit 130' INT TERM
 readonly SLIM_EXIT_UNSUPPORTED=4
 # Signature and Gatekeeper checks read every file of a large app.
 readonly SLIM_VERIFY_TIMEOUT_SEC=180
+# Assessing an original during the scan; a slower answer counts as unknown.
+readonly SLIM_SCAN_GATEKEEPER_TIMEOUT_SEC=20
 SLIM_WORK_DIR=""
 
 # Scan results, one index per app.
@@ -185,10 +187,11 @@ slim_skip_reason() {
     return 0
 }
 
-# Print the files2 keys that CodeResources seals by cdhash (nested code with
-# its own signature). Keys sealed by hash2 are plain files: thinning one
-# breaks the bundle seal. Parses the XML form; plutil -p is not parseable.
-slim_cdhash_sealed_keys() {
+# Print "<c|h>\t<key>" for every files2 key in CodeResources: c when it is
+# sealed by cdhash (nested code with its own signature), h otherwise. A key
+# sealed by hash2 is a plain file: thinning one breaks the bundle seal.
+# Parses the XML form; plutil -p is not parseable.
+slim_sealed_keys() {
     local code_resources="$1"
     plutil -convert xml1 -o - "$code_resources" 2> /dev/null | awk '
         function decode(s) {
@@ -205,10 +208,10 @@ slim_cdhash_sealed_keys() {
             next
         }
         !in_files2 { next }
-        line == "<dict/>" { next }
+        line == "<dict/>" { if (depth == 1) print "h\t" decode(key); next }
         line == "<dict>" { depth++; if (depth == 2) { sealed = 0 }; next }
         line == "</dict>" {
-            if (depth == 2 && sealed) print decode(key)
+            if (depth == 2) print (sealed ? "c" : "h") "\t" decode(key)
             depth--
             if (depth == 0) exit
             next
@@ -331,6 +334,22 @@ slim_is_thin_arm() {
     [[ "$(od -An -v -tu1 -N 8 "$1" 2> /dev/null | tr -s ' \n' ' ')" == " 207 250 237 254 12 0 0 1 " ]]
 }
 
+# Set keys_file to the cached slim_sealed_keys output for a sealing root;
+# roots and root_keys belong to the calling slim_plan_app.
+slim_seal_keys_file() {
+    local root="$1" i
+    for ((i = 0; i < ${#roots[@]}; i++)); do
+        if [[ "${roots[i]}" == "$root" ]]; then
+            keys_file="${root_keys[i]}"
+            return 0
+        fi
+    done
+    keys_file=$(create_temp_file) || return 1
+    slim_sealed_keys "$root/_CodeSignature/CodeResources" > "$keys_file" || true
+    roots+=("$root")
+    root_keys+=("$keys_file")
+}
+
 # Write "<path relative to the app>\t<intel bytes>" for every file that can
 # be thinned without breaking a seal; print the total.
 slim_plan_app() {
@@ -342,23 +361,21 @@ slim_plan_app() {
     while IFS= read -r file; do
         local root
         root=$(slim_sealing_root "$file" "$app") || continue
-        local allowed=false
+        local allowed=false keys_file
         if slim_is_main_executable "$file" "$root"; then
             allowed=true
         else
-            local keys_file="" i
-            for ((i = 0; i < ${#roots[@]}; i++)); do
-                [[ "${roots[i]}" == "$root" ]] && keys_file="${root_keys[i]}"
-            done
-            if [[ -z "$keys_file" ]]; then
-                keys_file=$(create_temp_file) || return 1
-                slim_cdhash_sealed_keys "$root/_CodeSignature/CodeResources" > "$keys_file" || true
-                roots+=("$root")
-                root_keys+=("$keys_file")
-            fi
-            local rel="${file#"$root"/}"
-            grep -Fxq -- "$rel" "$keys_file" && allowed=true
+            slim_seal_keys_file "$root" || return 1
+            grep -Fxq -- "c"$'\t'"${file#"$root"/}" "$keys_file" && allowed=true
         fi
+        # An enclosing bundle may seal the same file by plain hash: ScreenFlow
+        # signs its QuickLook plugin but its own seal lists the plugin's
+        # executable as a file, so thinning that executable broke the app.
+        local outer="$root"
+        while [[ "$allowed" == true ]] && outer=$(slim_sealing_root "$outer" "$app"); do
+            slim_seal_keys_file "$outer" || return 1
+            grep -Fxq -- "h"$'\t'"${file#"$outer"/}" "$keys_file" && allowed=false
+        done
         [[ "$allowed" == true ]] || {
             debug_log "slim: keeping $file (sealed as a plain file)"
             continue
@@ -427,6 +444,29 @@ collect_slim_candidates() {
 
     [[ ${#unsorted[@]} -gt 0 ]] || return 1
 
+    # An original Gatekeeper already rejects (an unnotarized build) can never
+    # yield a copy that passes, so it is left out rather than offered and
+    # failed after a full copy. All candidates are assessed at once, about a
+    # second in total; only an explicit rejection (3) removes one.
+    local -a pids=() accepted=()
+    local entry i gk
+    for entry in "${unsorted[@]}"; do
+        app="${entry#*$'\t'}"
+        run_with_timeout "$SLIM_SCAN_GATEKEEPER_TIMEOUT_SEC" spctl --assess --type execute "${app%%$'\t'*}" > /dev/null 2>&1 < /dev/null &
+        pids+=("$!")
+    done
+    for ((i = 0; i < ${#unsorted[@]}; i++)); do
+        gk=0
+        wait "${pids[i]}" || gk=$?
+        if [[ $gk -eq 3 ]]; then
+            app="${unsorted[i]#*$'\t'}"
+            debug_log "slim: skipping ${app%%$'\t'*} (Gatekeeper rejects the original)"
+            continue
+        fi
+        accepted+=("${unsorted[i]}")
+    done
+    [[ ${#accepted[@]} -gt 0 ]] || return 1
+
     while IFS=$'\t' read -r bytes app identity team plan_file; do
         SLIM_APP_BYTES+=("$bytes")
         SLIM_APP_PATHS+=("$app")
@@ -435,7 +475,7 @@ collect_slim_candidates() {
         SLIM_APP_PLANS+=("$plan_file")
         local name="${app##*/}"
         SLIM_APP_NAMES+=("${name%.app}")
-    done < <(printf '%s\n' "${unsorted[@]}" | sort -t$'\t' -k1,1nr)
+    done < <(printf '%s\n' "${accepted[@]}" | sort -t$'\t' -k1,1nr)
     return 0
 }
 
