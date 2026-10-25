@@ -344,8 +344,10 @@ SCRIPT
     run /bin/bash -c "source '$PROJECT_ROOT/lib/core/common.sh'; validate_path_for_deletion '$TEST_DIR/valid'"
     [ "$status" -eq 0 ]
 
-    run /bin/bash -c "source '$PROJECT_ROOT/lib/core/common.sh'; validate_path_for_deletion '$HOME/Library/Caches/com.example.app/cache.db'"
-    [ "$status" -eq 0 ]
+    # Sibling test processes can mention this synthetic owner in their argv.
+    # This path-policy case supplies an idle process table instead of using it.
+    run /bin/bash -c "source '$PROJECT_ROOT/lib/core/common.sh'; ps() { printf '%s\n' 'PID PPID COMM ARGS'; }; validate_path_for_deletion '$HOME/Library/Caches/com.example.app/cache.db'"
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "validate_path_for_deletion allows protected input-method names in Trash (#1517)" {
