@@ -471,7 +471,7 @@ load_mole_whitelist() {
     [[ $whitelist_state -ne 2 ]] || return 1
     if [[ $whitelist_state -eq 0 ]]; then
         local line duplicate existing
-        while IFS= read -r line; do
+        while IFS= read -r line || [[ -n "$line" ]]; do
             # shellcheck disable=SC2295
             line="${line#"${line%%[![:space:]]*}"}"
             # shellcheck disable=SC2295
