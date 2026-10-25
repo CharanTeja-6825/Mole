@@ -763,7 +763,9 @@ EOF
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc << 'EOF'
 set -euo pipefail
 mkdir -p ~/Library/Application\ Support/Microsoft/Teams
+source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+pgrep() { return 1; }
 safe_clean() { echo "$2"; }
 clean_communication_apps
 EOF
@@ -771,6 +773,39 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" == *"Microsoft Teams legacy cache"* ]] || return 1
     [[ "$output" == *"Microsoft Teams legacy logs"* ]]
+}
+
+@test "named Application Support caches keep running and unknown owners and recheck after sizing" {
+    for mode in running unknown starts-during-size idle; do
+        run env HOME="$BATS_TEST_TMPDIR/named-$mode" PROJECT_ROOT="$PROJECT_ROOT" MODE="$mode" \
+            MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+mkdir -p "$HOME/Library/Application Support/discord/Cache"
+target="$HOME/Library/Application Support/discord/Cache/entry"
+touch "$target"
+source "$PROJECT_ROOT/bin/clean.sh"
+DRY_RUN=false
+note_activity() { :; }
+pgrep() {
+    case "$MODE" in
+        running) return 0 ;;
+        unknown) return 2 ;;
+        starts-during-size) [[ -e "$HOME/started" ]] ;;
+        idle) return 1 ;;
+    esac
+}
+get_cleanup_path_size_kb() { touch "$HOME/started"; echo 1; }
+safe_remove() { printf 'SINK:%s\n' "$1"; }
+clean_communication_apps || true
+[[ -f "$HOME/Library/Application Support/discord/Cache/entry" ]] || exit 1
+EOF
+        [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+        if [[ "$mode" == idle ]]; then
+            [[ "$output" == *"SINK:"*"discord/Cache/entry"* ]] || { echo "$output"; return 1; }
+        else
+            [[ "$output" != *"SINK:"* ]] || { echo "$mode: $output"; return 1; }
+        fi
+    done
 }
 
 @test "clean_communication_apps cleans Feishu embedded webview Service Worker per profile" {
@@ -1216,6 +1251,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+pgrep() { return 1; }
 safe_clean() { echo "CLEAN:$1|$2"; }
 clean_code_editors
 EOF
@@ -2990,6 +3026,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/app_caches.sh"
+pgrep() { return 1; }
 safe_clean() { printf 'CLEAN:%s\n' "$1"; }
 clean_code_editors
 EOF
@@ -3019,4 +3056,63 @@ grep -qxF "$cache/recognize" "$HOME/candidates" || exit 1
 if grep -E 'High Quality Media|Proxy Media|prerender|RemuxCache|MotionBlurCache|segmentPrerenderCache|Spotify|com.spotify.client' "$HOME/candidates"; then exit 1; fi
 SH
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "named app cache guard escapes literal names and rechecks every removal" {
+    run env HOME="$BATS_TEST_TMPDIR/named-literal" PROJECT_ROOT="$PROJECT_ROOT" \
+        MOLE_TEST_NO_AUTH=1 /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+mkdir -p "$HOME/Library/Application Support/App[1]/Cache"
+touch "$HOME/Library/Application Support/App[1]/Cache/one" "$HOME/Library/Application Support/App[1]/Cache/two"
+source "$PROJECT_ROOT/bin/clean.sh"
+DRY_RUN=false
+note_activity() { :; }
+pgrep() {
+    [[ "$2" == 'App\[1\]' || "$2" == '/App\[1\][.]app/' ]] || { echo BAD_PATTERN >&2; return 2; }
+    [[ -e "$HOME/started" ]]
+}
+get_cleanup_path_size_kb() { echo 1; }
+safe_remove() { echo "SINK:$1"; touch "$HOME/started"; }
+mole_safe_clean_app_cache 'App[1]' "$HOME/Library/Application Support/App[1]/Cache/one" \
+    "$HOME/Library/Application Support/App[1]/Cache/two" 'App cache'
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" == *"SINK:"*"/one"* ]] || return 1
+    [[ "$output" != *"SINK:"*"/two"* ]] || return 1
+    [[ "$output" != *BAD_PATTERN* ]]
+}
+
+@test "CodeBuddy extension caches preserve each shared owner and late starts" {
+    local owner phase
+    for owner in CodeBuddy 'CodeBuddy CN' WorkBuddy Unrelated; do
+        for phase in initial after-size; do
+            run env HOME="$BATS_TEST_TMPDIR/shared-$owner-$phase" PROJECT_ROOT="$PROJECT_ROOT" \
+                OWNER="$owner" PHASE="$phase" MOLE_TEST_NO_AUTH=1 /bin/bash <<'SH'
+set -euo pipefail
+mkdir -p "$HOME/Library/Application Support/CodeBuddyExtension/Cache" "$HOME/Library/Application Support/CodeBuddyExtension/logs"
+touch "$HOME/Library/Application Support/CodeBuddyExtension/Cache/entry" "$HOME/Library/Application Support/CodeBuddyExtension/logs/entry"
+source "$PROJECT_ROOT/bin/clean.sh"
+DRY_RUN=false
+note_activity() { :; }
+pgrep() {
+    [[ "$PHASE" == initial || -e "$HOME/sized" ]] || return 1
+    case "$1" in
+        -x) [[ "$OWNER" =~ ^($2)$ ]] ;;
+        -f) [[ "/Applications/$OWNER.app/Contents/MacOS/Electron" =~ $2 ]] ;;
+        *) return 2 ;;
+    esac
+}
+get_cleanup_path_size_kb() { touch "$HOME/sized"; echo 1; }
+safe_remove() { printf 'SINK:%s\n' "$1"; }
+clean_editor_obsolete_extensions() { :; }
+clean_code_editors
+SH
+            [ "$status" -eq 0 ] || { echo "$owner/$phase: $output"; return 1; }
+            if [[ "$owner" == Unrelated ]]; then
+                [[ "$output" == *SINK:*CodeBuddyExtension/Cache/entry* && "$output" == *SINK:*CodeBuddyExtension/logs/entry* ]] || { echo "$output"; return 1; }
+            else
+                [[ "$output" != *SINK:* ]] || { echo "$owner/$phase: $output"; return 1; }
+            fi
+        done
+    done
 }

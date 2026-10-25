@@ -37,6 +37,7 @@ done
 PURGE_SEARCH_PATHS=("$HOME/www")
 scan_purge_targets() { printf '%s\n' "$HOME/www/"{a-bad,b-control}/node_modules > "$2"; }
 purge_artifact_has_authored_content() { return 1; }
+purge_node_modules_is_protected() { return 1; }
 get_optimal_parallel_jobs() { echo 2; }
 get_dir_size_kb() { echo 1; }
 safe_remove() { printf 'SELECTED:%s\n' "$1"; }
@@ -61,6 +62,58 @@ EOF_RESULT
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     [[ "$output" == *"SELECTED:$HOME/www/b-control/node_modules"* ]] || { echo "$output"; return 1; }
     [[ "$output" != *"SELECTED:$HOME/www/a-bad/node_modules"* ]] || { echo "$output"; return 1; }
+}
+
+@test "purge Git probe never invokes the Apple shim without developer tools" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/clean/project.sh"
+unset DEVELOPER_DIR
+ln -s /usr/bin/git "$HOME/git-shim-alias"
+command() {
+    if [[ "$*" == '-v git' ]]; then echo "$git_command"; else builtin command "$@"; fi
+}
+
+run_with_timeout() {
+    shift
+    case "$1" in
+        /usr/bin/xcode-select) return 1 ;;
+        env) echo UNEXPECTED_GIT_SHIM; return 0 ;;
+        *) "$@" ;;
+    esac
+}
+for git_command in /usr/bin/git "$HOME/git-shim-alias"; do
+    rc=0
+    mole_git_ls_files "$HOME" '' "$HOME" || rc=$?
+    [[ $rc -ne 0 ]] || exit 1
+done
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+    [[ "$output" != *UNEXPECTED_GIT_SHIM* ]]
+}
+
+@test "purge node_modules requires an install record and preserves modified packages" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/clean/project.sh"
+project="$HOME/www/rebuildable"
+mkdir -p "$project/node_modules/example"
+touch "$project/package.json" "$project/package-lock.json"
+touch -t 202001010000 "$project/node_modules/example/index.js"
+is_protected_purge_artifact "$project/node_modules" || exit 1
+touch -t 202001020000 "$project/node_modules/.package-lock.json"
+purge_node_project_running() { return 1; }
+if is_protected_purge_artifact "$project/node_modules"; then exit 1; fi
+touch -t 202001030000 "$project/node_modules/example/index.js"
+is_protected_purge_artifact "$project/node_modules" || exit 1
+touch -t 202001010000 "$project/node_modules/example/index.js"
+purge_node_project_running() { return 0; }
+is_protected_purge_artifact "$project/node_modules" || exit 1
+purge_node_project_running() { return 2; }
+is_protected_purge_artifact "$project/node_modules" || exit 1
+[[ "$PURGE_PROTECTION_UNVERIFIED" == true ]]
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
 
 @test "mole_purge_is_cloud_synced_path matches only exact cloud roots and descendants" {
@@ -374,21 +427,21 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
 fixture="$HOME/deadline-probes"
-mkdir -p "$fixture/project/node_modules"
+mkdir -p "$fixture/project/build"
 touch "$fixture/project/.git"
 run_with_timeout() {
     printf '%s\n' "$1" >> "$fixture/budgets"
     return 0
 }
 SECONDS=0
-printf '%s\n' "$fixture/project/node_modules" | filter_protected_artifacts 4
+printf '%s\n' "$fixture/project/build" | filter_protected_artifacts 4
 [[ $(wc -l < "$fixture/budgets") -eq 2 ]] || exit 1
 while IFS= read -r budget; do
     [[ "$budget" -gt 0 && "$budget" -le 4 ]] || exit 1
 done < "$fixture/budgets"
 EOF
 	[ "$status" -eq 0 ] || { echo "$output"; return 1; }
-	[[ "$output" == *"deadline-probes/project/node_modules"* ]] || return 1
+	[[ "$output" == *"deadline-probes/project/build"* ]] || return 1
 }
 
 @test "purge discards a root when its final content probe exhausts the budget (#1679)" {
@@ -977,7 +1030,7 @@ EOF
 	[[ "$result" == "NOT_PROTECTED" ]]
 }
 
-@test "is_protected_purge_artifact: returns false for non-vendor artifacts" {
+@test "is_protected_purge_artifact: preserves node_modules without reinstall evidence" {
 	mkdir -p "$HOME/www/app/node_modules"
 
 	result=$(/bin/bash -c "
@@ -989,8 +1042,8 @@ EOF
         fi
     ")
 
-	# node_modules is not in the protected list
-	[[ "$result" == "NOT_PROTECTED" ]]
+	# A directory name alone is not reinstall evidence.
+	[[ "$result" == "PROTECTED" ]]
 }
 
 @test "is_protected_purge_artifact avoids basename and dirname subprocesses" {
@@ -1111,6 +1164,7 @@ EOF
 
 	result=$(/bin/bash -c "
         source '$PROJECT_ROOT/lib/clean/project.sh'
+purge_node_modules_is_protected() { return 1; }
         MO_USE_FIND=1 scan_purge_targets '$HOME/single-project' '$scan_output'
         if grep -q '$HOME/single-project/node_modules' '$scan_output'; then
             echo 'FOUND'
@@ -1155,6 +1209,7 @@ EOF
 
 	result=$(/bin/bash -c "
         source '$PROJECT_ROOT/lib/clean/project.sh'
+purge_node_modules_is_protected() { return 1; }
         MO_USE_FIND=1 scan_purge_targets '$HOME/single-project/' '$scan_output'
         if grep -q '$HOME/single-project/node_modules' '$scan_output'; then
             echo 'FOUND'
@@ -1298,6 +1353,7 @@ EOF
 		/bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 scan_purge_targets "$HOME/www" "$SCAN_OUTPUT"
 [[ ! -e "$HOME/find-called" ]] || exit 1
 grep -Fx "$HOME/www/test-project/node_modules" "$SCAN_OUTPUT"
@@ -1332,6 +1388,7 @@ EOF
 		/bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 is_safe_project_artifact() {
     printf '%s\n' "$1" >> "$HOME/safety-calls"
     return 0
@@ -1842,6 +1899,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 artifact="$HOME/www/app/node_modules"
 PURGE_SEARCH_PATHS=("$HOME/www")
 get_optimal_parallel_jobs() { printf '1\n'; }
@@ -1957,6 +2015,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 good_root="$HOME/www"
 failed_root="$HOME/dev"
@@ -2002,6 +2061,7 @@ EOF
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for name in slow failed fast; do
     mkdir -p "$HOME/$name/project/node_modules"
     touch "$HOME/$name/project/package.json"
@@ -2306,6 +2366,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 mkdir -p "$HOME/www/test-project/node_modules"
 touch "$HOME/www/test-project/package.json"
@@ -2325,6 +2386,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 mkdir -p "$HOME/.cache/mole"
 echo "0" > "$HOME/.cache/mole/purge_stats"
@@ -2356,6 +2418,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 mkdir -p "$HOME/www/test-project/node_modules"
 touch "$HOME/www/test-project/package.json"
@@ -2378,6 +2441,7 @@ EOF
 	run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 artifact="$HOME/www/old-project/node_modules"
 mkdir -p "$artifact"
 printf 'payload\n' > "$artifact/file"
@@ -2403,6 +2467,7 @@ EOF
 		run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" CANCELLATION_STATUS="$cancellation_status" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for project in first second; do
     artifact="$HOME/www/$project/node_modules"
     mkdir -p "$artifact"
@@ -2437,6 +2502,7 @@ EOF
 		run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" CANCELLATION_STATUS="$cancellation_status" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for project in first second; do
     artifact="$HOME/www/$project/node_modules"
     mkdir -p "$artifact"
@@ -2474,6 +2540,7 @@ EOF
 	cat > "$script_file" <<'SCRIPT'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 artifact="$HOME/www/uncertain-project/node_modules"
 mkdir -p "$artifact" "$HOME/.cache/mole"
 printf 'payload\n' > "$artifact/file"
@@ -2514,6 +2581,7 @@ SCRIPT
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 mkdir -p "$HOME/.cache/mole"
 echo "0" > "$HOME/.cache/mole/purge_stats"
@@ -2554,6 +2622,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 external_root="$BATS_TEST_TMPDIR/var-www"
 artifact="$external_root/site/node_modules"
@@ -2582,6 +2651,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 configured_root="$HOME/www"
 original_root="$HOME/www-original"
@@ -2667,6 +2737,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 configured_root="$HOME/www"
 artifact="$configured_root/project/node_modules"
@@ -2702,6 +2773,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 configured_root="$HOME/www"
 artifact="$configured_root/project/node_modules"
@@ -2788,6 +2860,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 
 cloud_root="$HOME/Library/CloudStorage"
 cloud_artifact="$cloud_root/TestProvider/CloudProject/target"
@@ -2963,6 +3036,7 @@ printf '%s\n' "$protected" > "$HOME/.config/mole/whitelist"
 export MOLE_SKIP_MAIN=1
 export MOLE_TEST_NO_AUTH=1
 source "$PROJECT_ROOT/bin/purge.sh"
+purge_node_modules_is_protected() { return 1; }
 PURGE_SEARCH_PATHS=("$HOME/www")
 scan_purge_targets() {
     printf '%s\n' "$protected" "$unprotected" > "$2"
@@ -3132,6 +3206,7 @@ _run_in_pty() {
 	cat > "$script_file" << SCRIPT
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 export XDG_CACHE_HOME="$HOME/.cache"
 export TERM="dumb"
@@ -3181,6 +3256,7 @@ SCRIPT
 	cat > "$script_file" << SCRIPT
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 export XDG_CACHE_HOME="$HOME/.cache"
 export TERM="dumb"
@@ -3259,6 +3335,7 @@ SCRIPT
 	cat > "$script_file" << SCRIPT
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 export XDG_CACHE_HOME="$HOME/.cache"
 export TERM="dumb"
@@ -3304,6 +3381,7 @@ SCRIPT
 	cat > "$script_file" << SCRIPT
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 export XDG_CACHE_HOME="$HOME/.cache"
 export TERM="dumb"
@@ -3361,6 +3439,7 @@ SCRIPT
 	cat > "$script_file" << SCRIPT
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 export XDG_CACHE_HOME="$HOME/.cache"
 export TERM="dumb"
@@ -3564,6 +3643,7 @@ EOF_INNER
 set -euo pipefail
 HOME=$(cd "$HOME" && pwd -P)
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/www/test-project/node_modules/pkg"
 printf x > "$HOME/www/test-project/node_modules/pkg/index.js"
 printf '{}' > "$HOME/www/test-project/package.json"
@@ -3630,6 +3710,7 @@ EOF_INNER
 set -euo pipefail
 rm -f "$HOME/fast-probed"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for name in a-slow b-fast c-recent d-error e-later f-later-error; do
     artifact="$HOME/www/$name/node_modules"
     mkdir -p "$artifact"
@@ -3681,6 +3762,7 @@ EOF_ACTIVITY
 set -euo pipefail
 rm -f "$HOME/peer-retired" "$HOME/registered-results"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for name in a-cancel b-peer c-later; do
     artifact="$HOME/www/$name/node_modules"
     mkdir -p "$artifact"
@@ -3721,6 +3803,7 @@ EOF_CANCEL
 set -euo pipefail
 rm -f "$HOME/activity-started" "$HOME/activity-peer-done"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for name in a-first b-peer c-later; do
     mkdir -p "$HOME/www/$name/node_modules"
     touch "$HOME/www/$name/package.json"
@@ -3764,6 +3847,7 @@ EOF_TERM
 set -euo pipefail
 rm -f "$HOME/activity-started" "$HOME/activity-peer-done" "$HOME/activity-first-done"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for name in a-first b-peer c-later; do
     mkdir -p "$HOME/www/$name/node_modules"
     touch "$HOME/www/$name/package.json"
@@ -3836,6 +3920,7 @@ EOF_REPEAT_TERM
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF_PROCESS'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for name in a-first b-peer c-later; do
     mkdir -p "$HOME/www/$name/node_modules"
     touch "$HOME/www/$name/package.json"
@@ -3896,6 +3981,7 @@ EOF_PROCESS
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF_SIGNAL_WRITE'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 for name in a-cancel b-later; do
     mkdir -p "$HOME/www/$name/node_modules"
     touch "$HOME/www/$name/package.json"
@@ -3942,6 +4028,7 @@ scan_purge_targets() {
     printf '%s\n' "$fixture/www/"{a-waits,b-fast,c-recent,d-error,e-later,f-later-error}/node_modules > "$2"
 }
 purge_artifact_has_authored_content() { return 1; }
+purge_node_modules_is_protected() { return 1; }
 get_optimal_parallel_jobs() { echo 4; }
 get_dir_size_kb() { echo 1; }
 safe_remove() { printf 'SELECTED:%s\n' "$1"; }
@@ -3991,6 +4078,7 @@ done
 PURGE_SEARCH_PATHS=("$fixture/www")
 scan_purge_targets() { printf '%s\n' "$fixture/www/"{a-delayed,b-failed,c-control,d-recent,e-error}/node_modules > "$2"; }
 purge_artifact_has_authored_content() { return 1; }
+purge_node_modules_is_protected() { return 1; }
 get_optimal_parallel_jobs() { echo 2; }
 get_dir_size_kb() { echo 1; }
 safe_remove() { printf 'SELECTED:%s\n' "$1"; }
@@ -4037,6 +4125,7 @@ done
 PURGE_SEARCH_PATHS=("$fixture/www")
 scan_purge_targets() { printf '%s\n' "$fixture/www/"{a-one,b-two,c-three,d-four}/node_modules > "$2"; }
 purge_artifact_has_authored_content() { return 1; }
+purge_node_modules_is_protected() { return 1; }
 get_optimal_parallel_jobs() { echo 2; }
 get_dir_size_kb() { echo 1; }
 safe_remove() { printf 'SELECTED:%s\n' "$1"; }
@@ -4092,6 +4181,7 @@ done
 PURGE_SEARCH_PATHS=("$fixture/www")
 scan_purge_targets() { printf '%s\n' "$fixture/www/"{a-one,b-two,c-three,d-four}/node_modules > "$2"; }
 purge_artifact_has_authored_content() { return 1; }
+purge_node_modules_is_protected() { return 1; }
 get_optimal_parallel_jobs() { echo 2; }
 get_dir_size_kb() { echo 1; }
 safe_remove() { printf 'SELECTED:%s\n' "$1"; }
@@ -4131,6 +4221,7 @@ done
 PURGE_SEARCH_PATHS=("$fixture/www")
 scan_purge_targets() { printf '%s\n' "$fixture/www/"{a-one,b-two}/node_modules > "$2"; }
 purge_artifact_has_authored_content() { return 1; }
+purge_node_modules_is_protected() { return 1; }
 get_optimal_parallel_jobs() { echo 2; }
 get_dir_size_kb() { echo 1; }
 safe_remove() { printf 'SELECTED:%s\n' "$1"; }
@@ -4361,6 +4452,7 @@ EOF_LATE
         /bin/bash --noprofile --norc <<'EOF_SIDECAR'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 scan_purge_targets "$HOME/www" "$PLAIN"
 # The filter appends to the sidecar, so a leftover entry would survive a rescan.
 printf '%s\n' "$HOME/stale/node_modules" > "$ASKED.verified"
@@ -4449,6 +4541,7 @@ HOME=$(cd "$HOME" && pwd -P)
 mkdir -p "$HOME/.cache/mole"
 touch "$HOME/www/a/package.json" "$HOME/www/b/package.json"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 PURGE_SEARCH_PATHS=("$HOME/www")
 scan_purge_targets() { printf '%s\n' "$HOME/www/"{a,b}/node_modules > "$2"; }
 get_dir_size_kb() { echo 1; }
@@ -4492,6 +4585,7 @@ EOF
 		/bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 _MOLE_PURGE_FIND=find  # route the purge walk through the stub
 run_with_timeout() { shift; "$@"; }
 fd() { return 1; }
@@ -4531,6 +4625,7 @@ EOF
 		/bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 _MOLE_PURGE_FIND=find  # route the purge walk through the stub
 run_with_timeout() { shift; "$@"; }
 fd() { echo "FD_USED" >> "$HOME/walk.log"; return 1; }
@@ -4591,6 +4686,7 @@ STUB
 		/bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 run_with_timeout() { shift; "$@"; }
 fd() { return 1; }
 rc=0
@@ -4678,6 +4774,7 @@ STUB
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 _MOLE_PURGE_FIND="$STUB"  # route the purge walk through the stub
 PURGE_SEARCH_PATHS=("$ROOT")
@@ -4713,6 +4810,7 @@ STUB
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 _MOLE_PURGE_FIND="$STUB"  # route the purge walk through the stub
 PURGE_SEARCH_PATHS=("$ROOT")
@@ -4771,6 +4869,7 @@ STUB
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 _MOLE_PURGE_FIND="$STUB"  # route the purge walk through the stub
 PURGE_SEARCH_PATHS=("$BOX/container" "$BOX/project")
@@ -4799,6 +4898,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 PURGE_SEARCH_PATHS=("$ROOT")
 eval "$FLOW"
@@ -4845,6 +4945,7 @@ STUB
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 _MOLE_PURGE_FIND="$STUB"  # route the purge walk through the stub
 PURGE_SEARCH_PATHS=("$ROOT")
@@ -4924,6 +5025,7 @@ EOF
 set -euo pipefail
 source "$PROJECT_ROOT/lib/core/common.sh"
 source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_modules_is_protected() { return 1; }
 mkdir -p "$HOME/.cache/mole"
 PURGE_SEARCH_PATHS=("$ROOT")
 get_optimal_parallel_jobs() { echo 1; }
@@ -5022,4 +5124,66 @@ EOF
 	[[ "$output" == *"~/many-skipped-1666/p10"*"(status 124)"* ]] || { echo "$output"; return 1; }
 	[[ "$output" != *"~/many-skipped-1666/p11"* ]] || { echo "$output"; return 1; }
 	[[ "$output" == *"and 3 more"* ]] || { echo "$output"; return 1; }
+}
+
+@test "purge node_modules proves npm pnpm and yarn installs and preserves scan uncertainty" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/clean/project.sh"
+purge_node_project_running() { return 1; }
+for pair in 'package-lock.json:.package-lock.json' 'pnpm-lock.yaml:.modules.yaml' 'yarn.lock:.yarn-integrity' 'yarn.lock:.yarn-state.yml'; do
+    project="$HOME/www/${pair#*:}"
+    mkdir -p "$project/node_modules/example" "$project/node_modules/.cache/tool"
+    touch "$project/package.json" "$project/${pair%%:*}"
+    touch -t 202001010000 "$project/node_modules/example/index.js"
+    touch -t 202001020000 "$project/node_modules/${pair#*:}"
+    touch "$project/node_modules/.cache/tool/rebuildable"
+    rc=0
+    is_protected_purge_artifact "$project/node_modules" || rc=$?
+    [[ $rc -eq 1 ]] || exit 1
+    selected=$(printf '%s\n' "$project/node_modules" | filter_protected_artifacts)
+    [[ "$selected" == "$project/node_modules" ]] || exit 1
+done
+for probe_status in 124 1 143; do
+    run_with_timeout() { return "$probe_status"; }
+    rc=0
+    purge_node_modules_is_protected "$project/node_modules" || rc=$?
+    if [[ $probe_status -eq 143 ]]; then [[ $rc -eq 143 ]]; else [[ $rc -eq 2 ]]; fi
+done
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "purge node project process checks distinguish cwd arguments and incomplete visibility" {
+    run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/clean/project.sh"
+project="$HOME/www/name[1]"
+for mode in cwd args idle error partial signal; do
+    run_with_timeout() {
+        shift
+        if [[ "$1" == /usr/sbin/lsof ]]; then
+            case "$mode" in
+                cwd) printf 'p123\nn%s/src\n' "$project" ;;
+                error) return 1 ;;
+                partial) printf 'p123\nn/unrelated\n'; echo 'lsof: incomplete visibility' >&2 ;;
+                signal) return 143 ;;
+                *) printf 'p123\nn/unrelated\n' ;;
+            esac
+        else
+            [[ "$1" == pgrep && "$3" == *'name\[1\]'* ]] || return 2
+            [[ "$mode" == args ]]
+        fi
+    }
+    rc=0
+    purge_node_project_running "$project" || rc=$?
+    case "$mode" in
+        cwd|args) [[ $rc -eq 0 ]] ;;
+        idle) [[ $rc -eq 1 ]] ;;
+        error|partial) [[ $rc -eq 2 ]] ;;
+        signal) [[ $rc -eq 143 ]] ;;
+    esac
+done
+EOF
+    [ "$status" -eq 0 ] || { echo "$output"; return 1; }
 }
