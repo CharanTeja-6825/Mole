@@ -1320,11 +1320,13 @@ purge_target_activity_still_safe() {
 _mole_purge_final_remove_guard() {
     local path="$1"
     is_safe_configured_purge_artifact "$path" || return 1
+    # Activity scanning can take the full tree-walk budget. Run it before
+    # protection's final project-process probe, then rebind identities below.
+    purge_target_activity_still_safe "$path" "${_MOLE_PURGE_FINAL_ACTIVITY_STATE:-uncertain}" || return $?
     local protection_rc=0
     is_protected_purge_artifact "$path" || protection_rc=$?
     [[ $protection_rc -le 128 ]] || return "$protection_rc"
     [[ $protection_rc -ne 0 ]] || return 1
-    purge_target_activity_still_safe "$path" "${_MOLE_PURGE_FINAL_ACTIVITY_STATE:-uncertain}" || return $?
 
     _mole_path_matches_identity \
         "${_MOLE_PURGE_FINAL_SCAN_ROOT:-}" \

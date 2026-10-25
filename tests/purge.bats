@@ -64,6 +64,79 @@ EOF_RESULT
     [[ "$output" != *"SELECTED:$HOME/www/a-bad/node_modules"* ]] || { echo "$output"; return 1; }
 }
 
+assert_purge_final_owner_guard() {
+    run env HOME="$BATS_TEST_TMPDIR/purge-home" PROJECT_ROOT="$PROJECT_ROOT" \
+        scenario="$1" /bin/bash --noprofile --norc <<'EOF'
+set -euo pipefail
+mkdir -p "$HOME"
+HOME=$(cd "$HOME" && pwd -P)
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/project.sh"
+fixture_project="$HOME/projects/app"
+fixture_entry="$fixture_project/node_modules"
+mkdir -p "$fixture_entry/pkg"
+printf '{}' > "$fixture_project/package.json"
+printf '{}' > "$fixture_project/package-lock.json"
+printf payload > "$fixture_entry/pkg/index.js"
+touch -t 202001010000 "$fixture_entry/pkg/index.js"
+printf '{}' > "$fixture_entry/.package-lock.json"
+touch -t 202001020000 "$fixture_entry/.package-lock.json"
+touch -t 202001020000 "$fixture_entry" "$fixture_entry/pkg"
+PURGE_SEARCH_PATHS=("$HOME/projects")
+purge_node_project_running() {
+    echo PROJECT_PROBE >&2
+    [[ "$scenario" != initial-running ]] || return 0
+    if [[ -f "$HOME/started" ]]; then
+        case "$scenario" in
+            final-running) return 0 ;;
+            final-unknown) return 2 ;;
+            final-signal) return 130 ;;
+        esac
+    fi
+    return 1
+}
+# Keep the real activity classifier and real bounded find. Switch owner state
+# during the real activity walk, which must precede the final owner probe.
+eval "$(declare -f run_with_timeout | sed '1s/run_with_timeout/_original_timeout/')"
+run_with_timeout() {
+    if [[ "${2:-}" == find && "$*" == *' -mtime '* ]]; then
+        echo ACTIVITY_SCAN >&2
+        touch "$HOME/started"
+    fi
+    _original_timeout "$@"
+}
+_MOLE_PURGE_FINAL_ACTIVITY_STATE=old
+_mole_snapshot_path_identity "$HOME/projects"
+_MOLE_PURGE_FINAL_SCAN_ROOT="$HOME/projects"
+_MOLE_PURGE_FINAL_SCAN_ROOT_PARENT="$_MOLE_PATH_SNAPSHOT_PARENT"
+_MOLE_PURGE_FINAL_SCAN_ROOT_PARENT_ID="$_MOLE_PATH_SNAPSHOT_PARENT_ID"
+_MOLE_PURGE_FINAL_SCAN_ROOT_TARGET_ID="$_MOLE_PATH_SNAPSHOT_TARGET_ID"
+_MOLE_PURGE_FINAL_SCAN_ROOT_PHYSICAL="$_MOLE_PURGE_FINAL_SCAN_ROOT"
+_MOLE_PURGE_FINAL_SCAN_ROOT_PHYSICAL_PARENT="$_MOLE_PATH_SNAPSHOT_PARENT"
+_MOLE_PURGE_FINAL_SCAN_ROOT_PHYSICAL_PARENT_ID="$_MOLE_PATH_SNAPSHOT_PARENT_ID"
+_MOLE_PURGE_FINAL_SCAN_ROOT_PHYSICAL_TARGET_ID="$_MOLE_PATH_SNAPSHOT_TARGET_ID"
+_mole_snapshot_path_identity "$fixture_entry"
+_MOLE_PURGE_FINAL_EXPECTED_PARENT="$_MOLE_PATH_SNAPSHOT_PARENT"
+_MOLE_PURGE_FINAL_EXPECTED_PARENT_ID="$_MOLE_PATH_SNAPSHOT_PARENT_ID"
+_MOLE_PURGE_FINAL_EXPECTED_TARGET_ID="$_MOLE_PATH_SNAPSHOT_TARGET_ID"
+_MOLE_SAFE_REMOVE_FINAL_GUARD=_mole_purge_final_remove_guard
+rc=0
+safe_remove "$fixture_entry" true 1 '' "$_MOLE_PURGE_FINAL_EXPECTED_PARENT" "$_MOLE_PURGE_FINAL_EXPECTED_PARENT_ID" "$_MOLE_PURGE_FINAL_EXPECTED_TARGET_ID" || rc=$?
+case "$scenario" in
+    idle) [[ ! -e "$fixture_entry" && "$rc" == 0 ]] || exit 1 ;;
+    *) [[ -d "$fixture_entry" && "$rc" != 0 ]] || exit 1 ;;
+esac
+if [[ "$scenario" == final-signal ]]; then
+    [[ "$rc" == 130 ]] || exit 1
+fi
+[[ "$scenario" == initial-running || -f "$HOME/started" ]] || exit 1
+printf 'PASS\n'
+EOF
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" == *PASS* ]]
+}
+
+
 @test "purge Git probe never invokes the Apple shim without developer tools" {
     run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" /bin/bash --noprofile --norc <<'EOF'
 set -euo pipefail
@@ -4495,6 +4568,8 @@ EOF_SIDECAR
             run env HOME="$BATS_TEST_TMPDIR/$source-$code" PROJECT_ROOT="$PROJECT_ROOT" PROBE_SOURCE="$source" PROBE_CODE="$code" /bin/bash <<'EOF'
 set -euo pipefail
 mkdir -p "$HOME/repo/build"
+# Complete the real activity walk before reaching the injected authored probe.
+touch -t 202001010000 "$HOME/repo/build"
 git init -q "$HOME/repo"
 source "$PROJECT_ROOT/lib/clean/project.sh"
 eval "original_$(declare -f run_with_timeout)"
@@ -5186,4 +5261,24 @@ for mode in cwd args idle error partial signal; do
 done
 EOF
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+}
+
+@test "purge final node owner after activity scan initial-running" {
+    assert_purge_final_owner_guard initial-running
+}
+
+@test "purge final node owner after activity scan final-running" {
+    assert_purge_final_owner_guard final-running
+}
+
+@test "purge final node owner after activity scan final-unknown" {
+    assert_purge_final_owner_guard final-unknown
+}
+
+@test "purge final node owner after activity scan final-signal" {
+    assert_purge_final_owner_guard final-signal
+}
+
+@test "purge final node owner after activity scan idle" {
+    assert_purge_final_owner_guard idle
 }

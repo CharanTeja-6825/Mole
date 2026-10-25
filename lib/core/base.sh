@@ -1746,14 +1746,33 @@ _mole_named_app_cache_running() {
 }
 
 _dev_process_delete_guard_allows() {
-    # safe_clean_guarded passes the leaf currently at its deletion boundary.
-    # Keep it in dynamic scope so compound probes such as the Cargo root guard
-    # can bind that exact object without changing ordinary process probes.
+    # Bind ordinary leaves before probing. Compound probes can supply their
+    # own narrower binding; the final callback never refreshes this evidence.
     local _MOLE_DEV_GUARDED_PATH="${1:-}"
+    local leaf_parent="" leaf_parent_id="" leaf_target_id=""
+    if [[ -n "$_MOLE_DEV_GUARDED_PATH" &&
+        "${_MOLE_SAFE_CLEAN_BOUND_PATH:-}" != "$_MOLE_DEV_GUARDED_PATH" ]]; then
+        if ! _mole_snapshot_path_identity "$_MOLE_DEV_GUARDED_PATH"; then
+            _MOLE_CLEAN_GUARD_REASON="${_MOLE_DEV_PROCESS_GUARD_UNKNOWN_REASON:-process state unknown}"
+            return 1
+        fi
+        leaf_parent="$_MOLE_PATH_SNAPSHOT_PARENT"
+        leaf_parent_id="$_MOLE_PATH_SNAPSHOT_PARENT_ID"
+        leaf_target_id="$_MOLE_PATH_SNAPSHOT_TARGET_ID"
+    fi
     mole_clean_process_guard \
         "$_MOLE_DEV_PROCESS_GUARD_PROBE" \
         "$_MOLE_DEV_PROCESS_GUARD_FAMILY started" \
-        "${_MOLE_DEV_PROCESS_GUARD_UNKNOWN_REASON:-process state unknown}"
+        "${_MOLE_DEV_PROCESS_GUARD_UNKNOWN_REASON:-process state unknown}" || return $?
+
+    if [[ -n "$leaf_parent" &&
+        "${_MOLE_SAFE_CLEAN_BOUND_PATH:-}" != "$_MOLE_DEV_GUARDED_PATH" ]]; then
+        _MOLE_SAFE_CLEAN_BOUND_PATH="$_MOLE_DEV_GUARDED_PATH"
+        _MOLE_SAFE_CLEAN_EXPECTED_PARENT="$leaf_parent"
+        _MOLE_SAFE_CLEAN_EXPECTED_PARENT_ID="$leaf_parent_id"
+        _MOLE_SAFE_CLEAN_EXPECTED_TARGET_ID="$leaf_target_id"
+    fi
+    return 0
 }
 
 _dev_report_process_guard_stop() {
@@ -1769,8 +1788,17 @@ _dev_report_process_guard_stop() {
     fi
 }
 
-# Bind a tri-state process probe to safe_clean's post-size boundary. The local
-# guard state is intentionally dynamic so Bash 3.2 callbacks can read it.
+# Preserve a caller's final exclusion before repeating the owner probe. The
+# outer callback may itself do slow work, so owner evidence must come last.
+_dev_final_process_delete_guard_allows() {
+    if [[ -n "$_MOLE_DEV_OUTER_FINAL_GUARD" ]]; then
+        "$_MOLE_DEV_OUTER_FINAL_GUARD" "$@" || return $?
+    fi
+    _dev_process_delete_guard_allows "$@"
+}
+
+# Bind a tri-state process probe after sizing and at safe_remove's final sink.
+# Guard state is intentionally dynamic so Bash 3.2 callbacks can read it.
 _dev_safe_clean_process_guarded() {
     local probe="$1"
     local family="$2"
@@ -1779,6 +1807,8 @@ _dev_safe_clean_process_guarded() {
     local _MOLE_DEV_PROCESS_GUARD_PROBE="$probe"
     local _MOLE_DEV_PROCESS_GUARD_FAMILY="$family"
     local _MOLE_CLEAN_GUARD_REASON="${family} started"
+    local _MOLE_DEV_OUTER_FINAL_GUARD="${_MOLE_SAFE_REMOVE_FINAL_GUARD:-}"
+    local _MOLE_SAFE_REMOVE_FINAL_GUARD=_dev_final_process_delete_guard_allows
 
     if ! declare -f safe_clean_guarded > /dev/null 2>&1; then
         if ! _dev_process_delete_guard_allows; then
