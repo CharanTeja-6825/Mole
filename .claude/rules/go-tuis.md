@@ -23,6 +23,9 @@ paths:
 - Mounted-volume overview rows come from the cached kernel mount table (`MNT_NOWAIT`), restricted to local writable, browsable disk mounts directly below `/Volumes`. Do not enumerate network mounts to discover these rows. Their sizes use the existing bounded overview workers; read-only installer images are excluded, but writable disk images may qualify. `TestOverviewEntriesForMounts` covers filtering and pending sizes.
 - The loading frames in `cmd/analyze/constants.go` stay in sync with `lib/core/ui.sh` (`.claude/rules/core.md`); `mo analyze` runs `/usr/bin/du` (`.claude/rules/shell.md`); each Trash move logs to operations.log (`cmd/analyze/oplog_test.go`, `AGENTS.md`).
 
+- While Analyze is deleting, the busy view must not accept hidden navigation or confirmation actions; keep only quit and the existing safe refresh path. Locked by `TestDeletingIgnoresHiddenActions` and `TestDeletingCannotDispatchHiddenConfirmation`.
+- Protect both known runtime roots and their containing directories before a recursive Trash move. Docker/OrbStack ancestor checks require an existing or unreadable state root, and Darwin user/cache structural containers stay protected without recursively scanning them. Keep empty-container and ordinary-cache positive controls in `delete_test.go`.
+
 ## Status
 
 - `cmd/status/view.go` owns status rendering only; collection and JSON/NDJSON contracts live elsewhere in `cmd/status/`. Keep narrow-terminal layout and automation output independent. Unknown battery capacity must not render Healthy from cycle count alone; retain independent cycle counts, their known warnings and a known system condition. `TestBatteryHealthLabel` and `TestBatteryCardUnknownCapacityPreservesCycles` pin the label and card. Run `go test ./cmd/status` and `MOLE_TEST_NO_AUTH=1 bats tests/cli.bats` when command routing changes.
