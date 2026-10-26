@@ -1413,12 +1413,51 @@ find_orbstack_data_dir() {
     return 1
 }
 
+# Colima's data disk is a sparse file mounted without discard, so blocks
+# Docker frees stay allocated on the Mac. fstrim only returns unused blocks
+# to the host; it removes no files.
+# ponytail: default profile only; loop `colima list` if other profiles matter.
+clean_dev_colima_trim() {
+    command -v colima > /dev/null 2>&1 || return 0
+    local disk="$HOME/.colima/_lima/_disks/colima/datadisk"
+    [[ -f "$disk" ]] || return 0
+    local status_rc=0
+    run_with_timeout "$MOLE_TIMEOUT_SHORT_QUERY_SEC" colima status > /dev/null 2>&1 || status_rc=$?
+    if mole_rc_signal "$status_rc"; then
+        _mole_record_clean_cancellation "$status_rc" "Colima status probe"
+        return "$status_rc"
+    fi
+    if [[ $status_rc -ne 0 ]]; then
+        debug_log "Colima not running (exit=$status_rc); disk trim skipped"
+        return 0
+    fi
+
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo -e "  ${YELLOW}${ICON_DRY_RUN}${NC} Colima VM disk · would trim free blocks back to macOS"
+        note_activity
+        return 0
+    fi
+
+    local before_kb after_kb trim_rc=0
+    before_kb=$(du -sk "$disk" 2> /dev/null | awk '{print $1}')
+    clean_tool_cache "Colima VM disk trim" "$HOME/.colima" \
+        run_with_timeout "$MOLE_TIMEOUT_PKG_CLEANUP_SEC" \
+        colima ssh -- sudo fstrim -a || trim_rc=$?
+    after_kb=$(du -sk "$disk" 2> /dev/null | awk '{print $1}')
+    if [[ "$before_kb" =~ ^[0-9]+$ && "$after_kb" =~ ^[0-9]+$ ]] && ((before_kb > after_kb)); then
+        echo -e "  ${GRAY}${ICON_SUCCESS}${NC} Colima VM disk · returned $(bytes_to_human $(((before_kb - after_kb) * 1024))) to macOS"
+    fi
+    return "$trim_rc"
+}
+
 clean_dev_docker() {
     if command -v docker > /dev/null 2>&1; then
         note_activity
         echo -e "  ${GRAY}${ICON_REVIEW}${NC} Docker unused data · review with docker system df"
         debug_log "Docker daemon-managed cleanup skipped by default"
     fi
+
+    clean_dev_colima_trim || return $?
 
     local orb_data=""
     orb_data=$(find_orbstack_data_dir 2> /dev/null || true)

@@ -4844,3 +4844,29 @@ EOF
     [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     [[ "$output" == *CONDA_ROOT_GUARD_OK* ]] || return 1
 }
+
+@test "clean_dev_colima_trim trims a running VM and only previews in dry-run" {
+    mkdir -p "$HOME/.colima/_lima/_disks/colima"
+    : > "$HOME/.colima/_lima/_disks/colima/datadisk"
+    mole_test_fake_command colima 'if [[ "$1" == status ]]; then exit 0; elif [[ "$*" == "ssh -- sudo fstrim -a" ]]; then : > "$HOME/trim-called"; else exit 1; fi'
+    local mode
+    for mode in true false; do
+        rm -f "$HOME/trim-called"
+        run env HOME="$HOME" PROJECT_ROOT="$PROJECT_ROOT" DRY_RUN="$mode" /bin/bash --noprofile --norc << 'EOF2'
+set -euo pipefail
+source "$PROJECT_ROOT/lib/core/common.sh"
+source "$PROJECT_ROOT/lib/clean/dev.sh"
+note_activity() { :; }
+debug_log() { :; }
+clean_dev_colima_trim
+EOF2
+        [ "$status" -eq 0 ]
+        if [[ "$mode" == true ]]; then
+            [[ "$output" == *"Colima VM disk · would trim"* ]] || return 1
+            [[ ! -f "$HOME/trim-called" ]] || return 1
+        else
+            [[ -f "$HOME/trim-called" ]] || return 1
+            [[ "$output" == *"Colima VM disk trim"* ]] || return 1
+        fi
+    done
+}
